@@ -1,0 +1,73 @@
+{
+  "home": "Home",
+  "booking": "Booking",
+  "contact": "Contact",
+  "howToGet": "How to get to us",
+  "address": "Address",
+  "phone": "Phone",
+  "email": "Email",
+  "rights": "All rights reserved",
+  "book":"Booking",
+  "official": "on the official website",
+  "check-in": "Check-in",
+  "check-out": "Check-out",
+  "guests": "Guests",
+  "find": "Find",
+  "charvak": "Charvak",
+  "rooms": "Rooms",
+  "price": "Know the price",
+  "roomsData": {
+    "room1": {
+      "title": "Standard Single Room",
+      "description": "Modern design, comfortable furniture, private bathroom, and a beautiful view of the mountains. A convenient room for one person."
+    },
+    "room2": {
+      "title": "Deluxe Double Room",
+      "description": "Spacious room with a balcony for two, modern amenities, and a cozy atmosphere. A great choice for relaxation."
+    },
+    "room3": {
+      "title": "Family Suite",
+      "description": "A room designed for families — a separate area for children and a shared living space for comfortable stay."
+    }
+  },
+  "services": "Our Services",
+  "servicesData": {
+  "restaurants": {
+    "title": "Restaurants",
+    "description": "A diverse menu and dishes for every taste in our restaurants."
+  },
+  "spa": {
+    "title": "Spa & Care",
+    "description": "Relaxing treatments and body care at the spa center."
+  },
+  "conference": {
+    "title": "Conference Hall",
+    "description": "A hall equipped for meetings, trainings, and events."
+  },
+  "pool": {
+    "title": "Swimming Pool",
+    "description": "Indoor and outdoor pools for relaxation and swimming."
+  },
+  "fitness": {
+    "title": "Fitness Center",
+    "description": "Modern equipment and conditions to stay in shape."
+  },
+  "honey": {
+    "title": "Apiary",
+    "description": "Natural honey from our own apiary."
+  },
+  "horses": {
+    "title": "Horse Riding",
+    "description": "Horseback riding in nature for all ages."
+  },
+  "buffet": {
+    "title": "Buffet",
+    "description": "Daily breakfast, lunch, and dinner in buffet format."
+  },
+  "mosque": {
+    "title": "Mosque",
+    "description": "A place for prayer on the hotel premises."
+  }
+}
+
+}

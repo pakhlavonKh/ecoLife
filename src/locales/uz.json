@@ -1,0 +1,72 @@
+{
+  "home": "Bosh sahifa",
+  "booking": "Rezervatsiya",
+  "contact": "Aloqa uchun",
+  "howToGet": "Bizga qanday boriladi",
+  "address": "Manzil",
+  "phone": "Telefon", 
+  "email": "Email",
+  "rights": "Barcha huquqlar himoyalangan",
+  "book":"Xonani band qilish",
+  "official": "rasmiy veb-saytida",
+  "check-in": "Kelish sanasi",
+  "check-out": "Chiqish sanasi",
+  "guests": "Mehmonlar",
+  "find": "Xonani topish",
+  "charvak": "Charvak",
+  "rooms": "Xonalar",
+  "price": "Narxni bilish",
+  "roomsData": {
+    "room1": {
+      "title": "Standart Yagona Xona",
+      "description": "Zamonaviy dizayn, qulay mebel, alohida hammom va tog'lar manzarasiga ega. Bir kishi uchun qulay xona."
+    },  
+    "room2": {
+      "title": "Deluxe Ikki Kishilik Xona",
+      "description": "Ikkilik balkonli keng xona, zamonaviy qulayliklar va qulay muhit. Dam olish uchun ajoyib tanlov."
+    },
+    "room3": {
+      "title": "Oilaviy Suite",
+      "description": "Oilalar uchun mo'ljallangan xona — bolalar uchun alohida hudud va qulay yashash uchun umumiy yashash maydoni."
+    }
+  },
+  "services": "Bizning xizmatlarimiz",
+  "servicesData": {
+    "restaurants": {
+      "title": "Restoranlar",
+      "description": "Restoranlarimizda har xil taomlar va menyular."
+    },
+    "spa": {
+      "title": "Spa va Parvarish",
+      "description": "Spa markazida dam olish va tana parvarishi."
+    },
+    "conference": {
+      "title": "Konferensiya Zali",
+      "description": "Uchrashuvlar, treninglar va tadbirlar uchun jihozlangan zal."
+    },
+    "pool": {
+      "title": "Suv Havzasi",
+      "description": "Dam olish va suzish uchun yopiq va ochiq havzalar."
+    },
+    "fitness": {
+      "title": "Fitness Markazi",
+      "description": "Zamonaviy uskunalar va shaklda qolish uchun sharoitlar."
+    },
+    "honey": {
+      "title": "Asalarichilik",
+      "description": "O'zimizning asalarichiligimizdan tabiiy asal."
+    },
+    "horses": {
+      "title": "Ot Minish",
+      "description": "Tabiatda ot minish, barcha yoshdagilar uchun."
+    },
+    "buffet": {
+      "title": "Shved Stoli",
+      "description": "Har kuni nonushta, tushlik va kechki ovqat shved stoli shaklida."
+    },
+    "mosque": {
+      "title": "Masjid",
+      "description": "Tinchlik va ibodat uchun masjid."
+    }
+  }
+}
