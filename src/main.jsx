@@ -5,7 +5,7 @@ import ScrollToTop from './components/ScrollToTop.jsx';
 
 import './css/style.css';
 import App from './App.jsx';
-import './i18'; // i18n initialization
+import './i18n.js'; // i18n initialization
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
