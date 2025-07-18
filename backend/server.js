@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import searchHandler from './api/search.js';
 import bookHandler from './api/booking.js';
+import confirmHandler from './api/confirm.js';
 
 dotenv.config();
 
@@ -24,7 +25,14 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 
 const RoomSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
-  name: String,
+  name: {
+    ru: String,
+    uz: String,
+  },
+  description: {
+    ru: String,
+    uz: String,
+  },
   capacity: Number,
   bookings: [String],
 });
@@ -37,8 +45,8 @@ const PendingBookingSchema = new mongoose.Schema({
 const AdminSchema = new mongoose.Schema({
   chatId: { type: Number, required: true, unique: true },
   name: String,
-  password: String, // Hashed password
-  language: { type: String, default: 'ru' }, // Default to Russian
+  password: String,
+  language: { type: String, default: 'ru' },
 });
 const Room = mongoose.model('Room', RoomSchema);
 const PendingBooking = mongoose.model('PendingBooking', PendingBookingSchema);
@@ -86,12 +94,12 @@ if (!BOT_TOKEN || !ADMIN_CHAT_ID) {
 }
 
 const bot = new Telegraf(BOT_TOKEN);
-const authenticatedAdmins = new Set(); // Track authenticated admin chat IDs
+const authenticatedAdmins = new Set();
 
 // --- Helper: Get User Language ---
 async function getUserLanguage(chatId) {
   const admin = await Admin.findOne({ chatId });
-  return admin ? admin.language : 'ru'; // Default to Russian
+  return admin ? admin.language : 'ru';
 }
 
 // --- Admin Authentication ---
@@ -114,7 +122,7 @@ bot.command('start', async (ctx) => {
   }
 
   if (admin.chatId !== chatId) {
-    admin.chatId = chatId; // Update chatId if admin uses a new device
+    admin.chatId = chatId;
     await admin.save();
   }
 
@@ -149,58 +157,14 @@ bot.command('getid', async (ctx) => {
   ctx.reply(translations[lang].getId.replace('%s', ctx.chat.id));
 });
 
-bot.command('confirm', async (ctx) => {
-  const chatId = ctx.chat.id;
-  const lang = await getUserLanguage(chatId);
-  if (!authenticatedAdmins.has(chatId)) {
-    return ctx.reply(translations[lang].unauthorized);
-  }
-
-  if (ctx.chat.id !== parseInt(ADMIN_CHAT_ID)) {
-    return ctx.reply(translations[lang].unauthorized);
-  }
-
-  const parts = ctx.message.text.split(' ');
-  if (parts.length !== 3) {
-    return ctx.reply(translations[lang].confirmUsage);
-  }
-
-  const [_, roomId, date] = parts;
-  try {
-    const room = await Room.findOne({ id: roomId });
-    if (!room) return ctx.reply(translations[lang].roomNotFound);
-    if (room.bookings.includes(date)) return ctx.reply(translations[lang].roomBooked);
-    room.bookings.push(date);
-    await room.save();
-    await PendingBooking.deleteOne({ roomId, date });
-    ctx.reply(translations[lang].bookingConfirmed.replace('%s', room.name).replace('%s', date));
-  } catch (err) {
-    console.error('Error in confirm command:', err);
-    ctx.reply(translations[lang].error);
-  }
-});
+bot.command('confirm', confirmHandler(Room, PendingBooking, ADMIN_CHAT_ID));
 
 // --- API Routes ---
 app.post('/api/search', searchHandler(Room));
 app.post('/api/book', bookHandler(Room, PendingBooking, bot, ADMIN_CHAT_ID));
-app.post('/api/confirm', async (req, res) => {
-  try {
-    const { roomId, date } = req.body;
-    const room = await Room.findOne({ id: roomId });
-    if (!room) return res.status(404).json({ error: 'Room not found' });
-    if (room.bookings.includes(date)) return res.status(400).json({ error: 'Room already booked' });
-    room.bookings.push(date);
-    await room.save();
-    await PendingBooking.deleteOne({ roomId, date });
-    res.status(200).json({ success: true, message: `Booking confirmed for Room "${room.name}" on ${date}` });
-  } catch (err) {
-    console.error('Error in /api/confirm:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // --- Error Handling Middleware ---
-app.use((err, req, res) => {
+app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });

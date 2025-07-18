@@ -1,9 +1,9 @@
 import React from 'react';
 import Slider from '../components/Slider';
-import BookingForm from '../components/BookingFind';
-import Contact from '../components/Contact';
+import BookingFind from '../components/BookingFind';
 import Gallery from '../components/Gallery';
 import { useTranslation } from 'react-i18next';
+import { Link, useNavigate  } from 'react-router-dom';
 
 // Dynamically load hero images
 const heroImages = Object.entries(
@@ -73,7 +73,13 @@ const services = [
       description: t('servicesData.mosque.description')
     }
   ]
+ const navigate = useNavigate();
 
+  const handleSearch = ({ checkIn, checkOut, guests }) => {
+    navigate('/booking', {
+      state: { checkIn, checkOut, guests },
+    });
+  };
 
   return (
     <div className="home-page">
@@ -97,7 +103,7 @@ const services = [
 
       {/* Booking */}
       <section className="booking-section">
-        <BookingForm />
+        <BookingFind onResults={handleSearch} />
       </section>
 
       {/* About Section */}
@@ -122,7 +128,9 @@ const services = [
                 <div className="room-slide__content">
                   <h3>{room.title}</h3>
                   <p>{room.description}</p>
-                  <button className="room-slide__btn">{t('price')}</button>
+                  <button className="room-slide__btn">
+                            <Link to="/booking">{t('price')}</Link>
+                  </button>
                 </div>
                 <div className="room-slide__image">
                   <img

@@ -4,38 +4,24 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 function BookingFindForm({ onResults }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
 
-  const [checkIn, setCheckIn] = useState(today);
-  const [checkOut, setCheckOut] = useState(today);
+  // One week later
+  const nextWeek = new Date();
+  nextWeek.setDate(today.getDate() + 7);
+  const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+  const [checkIn, setCheckIn] = useState(todayStr);
+  const [checkOut, setCheckOut] = useState(nextWeekStr);
   const [guests, setGuests] = useState(2);
   const { t } = useTranslation();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
-    try {
-      const res = await fetch('http://localhost:5000/api/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          date: checkIn,
-          guests,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        onResults(data); // Pass found rooms to parent
-      } else {
-        alert(data.error || 'Something went wrong');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Failed to fetch rooms');
-    }
+    // Pass search data to parent (Home or BookingPage)
+    onResults({ checkIn, checkOut, guests });
   };
 
   return (

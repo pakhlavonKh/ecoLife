@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import mongoose from 'mongoose';
 
 export default function (Room, PendingBooking, bot, ADMIN_CHAT_ID) {
   return async (req, res) => {
@@ -27,13 +28,13 @@ export default function (Room, PendingBooking, bot, ADMIN_CHAT_ID) {
         ru: `🛎️ Новый запрос на бронирование:
 👤 Имя: ${name}
 📞 Телефон: ${phone}
-🏨 Комната: ${room.name}
+🏨 Комната: ${room.name.ru}
 📅 Дата: ${date}
 ✅ Для подтверждения введите: /confirm ${roomId} ${date}`,
         uz: `🛎️ Yangi bron qilish so‘rovi:
 👤 Ism: ${name}
 📞 Telefon: ${phone}
-🏨 Xona: ${room.name}
+🏨 Xona: ${room.name.uz}
 📅 Sana: ${date}
 ✅ Tasdiqlash uchun kiriting: /confirm ${roomId} ${date}`,
       };
