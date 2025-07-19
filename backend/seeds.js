@@ -5,9 +5,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/room-reservation';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/room-reservation';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'your_secure_password';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const RoomSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -21,27 +21,61 @@ const RoomSchema = new mongoose.Schema({
   },
   capacity: Number,
   bookings: [String],
-});
+}, { timestamps: true });
+RoomSchema.index({ capacity: 1, bookings: 1 });
+
+const PendingBookingSchema = new mongoose.Schema({
+  name: String,
+  phone: String,
+  roomId: String,
+  date: String,
+}, { timestamps: true });
 
 const AdminSchema = new mongoose.Schema({
   chatId: { type: Number, required: true, unique: true },
   name: String,
   password: String,
   language: { type: String, default: 'ru' },
-});
+}, { timestamps: true });
 
 const Room = mongoose.model('Room', RoomSchema);
+const PendingBooking = mongoose.model('PendingBooking', PendingBookingSchema);
 const Admin = mongoose.model('Admin', AdminSchema);
 
 async function seedDatabase() {
   try {
-    await mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-    console.log('Connected to MongoDB');
-
-    if (!ADMIN_CHAT_ID || isNaN(ADMIN_CHAT_ID)) {
-      throw new Error('ADMIN_CHAT_ID must be set to a valid number in .env');
+    // Validate environment variables
+    const requiredEnvVars = ['MONGO_URI', 'ADMIN_CHAT_ID', 'ADMIN_PASSWORD'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    if (missingEnvVars.length > 0) {
+      throw new Error(`Missing environment variables: ${missingEnvVars.join(', ')}`);
+    }
+    if (isNaN(ADMIN_CHAT_ID)) {
+      throw new Error('ADMIN_CHAT_ID must be a valid number');
+    }
+    if (ADMIN_PASSWORD.length < 8) {
+      throw new Error('ADMIN_PASSWORD must be at least 8 characters long');
     }
 
+    // Connect to MongoDB with retry
+    let retries = 3;
+    let attempt = 1;
+    while (retries > 0) {
+      try {
+        console.log(`Attempting MongoDB connection (attempt ${attempt}/${retries}) with URI: ${MONGO_URI}`);
+        await mongoose.connect(MONGO_URI);
+        console.log('Connected to MongoDB');
+        break;
+      } catch (err) {
+        console.error(`MongoDB connection error (attempt ${attempt}/${retries}):`, err.message, err.stack);
+        retries--;
+        attempt++;
+        if (retries === 0) throw err;
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+
+    // Seed Rooms
     await Room.deleteMany({});
     await Room.insertMany([
       {
@@ -51,7 +85,7 @@ async function seedDatabase() {
           ru: 'Уютный одноместный номер с современными удобствами и красивым видом.',
           uz: 'Zamonaviy qulayliklar va chiroyli manzarali qulay bir kishilik xona.',
         },
-        capacity: 2,
+        capacity: 1,
         bookings: [],
       },
       {
@@ -61,7 +95,7 @@ async function seedDatabase() {
           ru: 'Просторный номер с балконом для двоих, современными удобствами и уютной атмосферой.',
           uz: 'Ikkita kishi uchun balkonli keng xona, zamonaviy qulayliklar va qulay muhit.',
         },
-        capacity: 4,
+        capacity: 2,
         bookings: [],
       },
       {
@@ -71,12 +105,13 @@ async function seedDatabase() {
           ru: 'Идеальный вариант для семьи: две спальни, гостиная и балкон.',
           uz: 'Oila uchun ideal variant: ikkita yotoqxona, mehmonxona va balkon.',
         },
-        capacity: 6,
+        capacity: 4,
         bookings: [],
       },
     ]);
     console.log('Rooms seeded');
 
+    // Seed Admin
     await Admin.deleteMany({});
     const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
     await new Admin({
@@ -87,7 +122,7 @@ async function seedDatabase() {
     }).save();
     console.log('Admin seeded');
   } catch (err) {
-    console.error('Seeding error:', err.message);
+    console.error('Seeding error:', err.message, err.stack);
     process.exit(1);
   } finally {
     await mongoose.connection.close();

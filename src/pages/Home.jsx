@@ -23,7 +23,7 @@ function Home() {
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const response = await axios.post('http://localhost:5000/api/search', {
+        const response = await axios.post('http://localhost:5005/api/search', {
           date: new Date().toISOString().split('T')[0],
           guests: 1,
         });
@@ -75,9 +75,9 @@ function Home() {
     { title: 'servicesData.mosque.title', description: 'servicesData.mosque.description' },
   ];
 
-  const handleSearch = ({ checkIn, checkOut, guests, name, phone }) => {
+  const handleSearch = ({ checkIn, checkOut, guests}) => {
     navigate('/booking', {
-      state: { checkIn, checkOut, guests, name, phone },
+      state: { checkIn, checkOut, guests },
     });
   };
 
@@ -118,7 +118,7 @@ function Home() {
 
       <section className="rooms-section">
         <h2>{t('rooms')}</h2>
-        <Slider autoplay interval={4000}>
+        <Slider autoplay interval={5000}>
           {roomSlides.map((room, idx) => (
             <div className="room-slide" key={idx}>
               <div className="room-slide__content">
@@ -127,7 +127,7 @@ function Home() {
                 <button className="room-slide__btn">
                   <Link
                     to="/booking"
-                    state={{ roomId: room.id, checkIn: new Date().toISOString().split('T')[0] }}
+                    state={{ showAll: true }}
                   >
                     {t('price')}
                   </Link>

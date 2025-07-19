@@ -1,59 +1,65 @@
-import Joi from 'joi';
+// api/confirm.js
+import mongoose from 'mongoose';
+import dayjs from 'dayjs';
 
-export default function (Room, PendingBooking, ADMIN_CHAT_ID) {
+export default function (Room, PendingBooking, adminChatId) {
   return async (ctx) => {
     try {
-      const lang = await getUserLanguage(ctx.chat.id);
-      if (ctx.chat.id !== parseInt(ADMIN_CHAT_ID)) {
-        return ctx.reply(translations[lang].unauthorized);
+      if (mongoose.connection.readyState !== 1) {
+        console.error('MongoDB not connected');
+        return ctx.reply('❌ Database connection error');
       }
+
+      const chatId = ctx.chat.id;
+      if (chatId !== Number(adminChatId)) {
+        console.log(`Unauthorized confirm attempt from chatId: ${chatId}`);
+        return ctx.reply('❌ Unauthorized');
+      }
+
       const parts = ctx.message.text.split(' ');
       if (parts.length !== 3) {
-        return ctx.reply(translations[lang].confirmUsage);
+        console.log('Invalid /confirm command format');
+        return ctx.reply('❌ Usage: /confirm <roomId> <YYYY-MM-DD>');
       }
-      const [_, roomId, date] = parts;
-      const schema = Joi.object({
-        roomId: Joi.string().required(),
-        date: Joi.date().iso().required(),
-      });
-      const { error } = schema.validate({ roomId, date });
-      if (error) return ctx.reply(`❌ ${translations[lang].error}: ${error.details[0].message}`);
+
+      const [, roomId, date] = parts;
+      const dateStr = dayjs(date).format('YYYY-MM-DD');
+      if (!dayjs(date).isValid()) {
+        console.log(`Invalid date format: ${date}`);
+        return ctx.reply('❌ Invalid date format');
+      }
 
       const room = await Room.findOne({ id: roomId });
-      if (!room) return ctx.reply(translations[lang].roomNotFound);
-      if (room.bookings.includes(date)) return ctx.reply(translations[lang].roomBooked);
-      room.bookings.push(date);
-      await room.save();
-      await PendingBooking.deleteOne({ roomId, date });
-      ctx.reply(translations[lang].bookingConfirmed.replace('%s', room.name[lang]).replace('%s', date));
+      if (!room) {
+        console.log(`Room not found: ${roomId}`);
+        return ctx.reply('❌ Room not found');
+      }
+
+      if (room.bookings.includes(dateStr)) {
+        console.log(`Room ${roomId} already booked on ${dateStr}`);
+        return ctx.reply('⚠️ Room already booked on this date');
+      }
+
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const pendingBooking = await PendingBooking.findOne({ roomId, date: dateStr }).session(session);
+          if (!pendingBooking) {
+            console.log(`No pending booking for room ${roomId} on ${dateStr}`);
+            return ctx.reply('❌ No pending booking found');
+          }
+
+          room.bookings.push(dateStr);
+          await room.save({ session });
+          await PendingBooking.deleteOne({ _id: pendingBooking._id }).session(session);
+          ctx.reply(`✅ Booking confirmed for room "${room.name.ru}" on ${dateStr}`);
+        });
+      } finally {
+        session.endSession();
+      }
     } catch (err) {
-      console.error('Error in confirmHandler:', err);
-      ctx.reply(translations[lang].error);
+      console.error('Error in confirmHandler:', err.message, err.stack);
+      ctx.reply('❌ Error processing command');
     }
   };
-}
-
-// Helper function to get user language (duplicated here for completeness, but should be shared)
-const translations = {
-  ru: {
-    unauthorized: '❌ Неавторизован. Пожалуйста, авторизуйтесь с помощью /start.',
-    confirmUsage: '❌ Использование: /confirm <roomId> <ГГГГ-ММ-ДД>',
-    roomNotFound: '❌ Комната не найдена',
-    roomBooked: '⚠️ Комната уже забронирована на эту дату',
-    bookingConfirmed: '✅ Бронирование подтверждено для комнаты "%s" на %s',
-    error: '❌ Произошла ошибка при обработке команды',
-  },
-  uz: {
-    unauthorized: '❌ Avtorizatsiya qilinmagan. Iltimos, /start orqali avtorizatsiya qiling.',
-    confirmUsage: '❌ Foydalanish: /confirm <roomId> <YYYY-MM-DD>',
-    roomNotFound: '❌ Xona topilmadi',
-    roomBooked: '⚠️ Xona ushbu sanada allaqachon band qilingan',
-    bookingConfirmed: '✅ "%s" xonasi uchun %s sanasida bron qilindi',
-    error: '❌ Buyruqni qayta ishlashda xatolik yuz berdi',
-  },
-};
-
-async function getUserLanguage(chatId) {
-  const admin = await mongoose.model('Admin').findOne({ chatId });
-  return admin ? admin.language : 'ru'; // Default to Russian
 }
