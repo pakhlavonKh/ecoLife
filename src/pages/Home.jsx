@@ -24,10 +24,11 @@ function Home() {
     const fetchRooms = async () => {
       try {
         const response = await axios.post('http://localhost:5005/api/search', {
-          date: new Date().toISOString().split('T')[0],
-          guests: 1,
-        });
-        setRooms(response.data);
+        checkIn: new Date().toISOString().split('T')[0],
+        checkOut: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0],
+        guests: 1,
+      });
+      setRooms(response.data);
       } catch (err) {
         console.error('Error fetching rooms:', err);
       }

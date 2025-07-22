@@ -13,6 +13,7 @@ function Header() {
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
   };
+  const handleCloseMenu = () => setIsOpen(false);
 
   return (
     <>
@@ -36,10 +37,11 @@ function Header() {
 
       <div className='header__menu'>
         <nav className="header__nav">
-          <Link to="/">{t('home')}</Link>
-          <Link to="/booking">{t('booking')}</Link>
-          <a href="#contact">{t('contact')}</a>
-          <Link to="/how-to-get">{t('howToGet')}</Link>
+          <Link to="/" onClick={handleCloseMenu}>{t('home')}</Link>
+          <Link to="/booking"
+                    state={{ showAll: true }} onClick={handleCloseMenu}>{t('booking')}</Link>
+          <a href="#contact" onClick={handleCloseMenu}>{t('contact')}</a>
+          <Link to="/how-to-get" onClick={handleCloseMenu}>{t('howToGet')}</Link>
         </nav>
 
         <div className="header__lang">

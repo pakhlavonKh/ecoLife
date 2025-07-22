@@ -191,8 +191,8 @@ app.post('/api/search', (req, res, next) => {
   console.log('Received request to /api/search:', req.body);
   searchHandler(Room)(req, res, next);
 });
-app.post('/api/book', (req, res, next) => {
-  console.log('Received request to /api/book:', req.body);
+app.post('/api/booking', (req, res, next) => {
+  console.log('Received request to /api/booking:', req.body);
   bookHandler(Room, PendingBooking, bot, process.env.ADMIN_CHAT_ID)(req, res, next);
 });
 

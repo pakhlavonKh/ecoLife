@@ -12,10 +12,12 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const RoomSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: {
+    en: String,
     ru: String,
     uz: String,
   },
   description: {
+    en: String,
     ru: String,
     uz: String,
   },
@@ -80,8 +82,13 @@ async function seedDatabase() {
     await Room.insertMany([
       {
         id: '1',
-        name: { ru: 'Стандартный одноместный номер', uz: 'Standart bir kishilik xona' },
+        name: {
+          en: 'Standard Single Room',
+          ru: 'Стандартный одноместный номер',
+          uz: 'Standart bir kishilik xona',
+        },
         description: {
+          en: 'Cozy single room with modern amenities and a beautiful view.',
           ru: 'Уютный одноместный номер с современными удобствами и красивым видом.',
           uz: 'Zamonaviy qulayliklar va chiroyli manzarali qulay bir kishilik xona.',
         },
@@ -90,8 +97,13 @@ async function seedDatabase() {
       },
       {
         id: '2',
-        name: { ru: 'Двухместный номер с балконом', uz: 'Balkonli ikki kishilik xona' },
+        name: {
+          en: 'Double Room with Balcony',
+          ru: 'Двухместный номер с балконом',
+          uz: 'Balkonli ikki kishilik xona',
+        },
         description: {
+          en: 'Spacious room with a balcony for two, modern amenities, and a cozy atmosphere.',
           ru: 'Просторный номер с балконом для двоих, современными удобствами и уютной атмосферой.',
           uz: 'Ikkita kishi uchun balkonli keng xona, zamonaviy qulayliklar va qulay muhit.',
         },
@@ -100,8 +112,13 @@ async function seedDatabase() {
       },
       {
         id: '3',
-        name: { ru: 'Семейный люкс', uz: 'Oila uchun lyuks' },
+        name: {
+          en: 'Family Suite',
+          ru: 'Семейный люкс',
+          uz: 'Oila uchun lyuks',
+        },
         description: {
+          en: 'Ideal for families: two bedrooms, a living room, and a balcony.',
           ru: 'Идеальный вариант для семьи: две спальни, гостиная и балкон.',
           uz: 'Oila uchun ideal variant: ikkita yotoqxona, mehmonxona va balkon.',
         },

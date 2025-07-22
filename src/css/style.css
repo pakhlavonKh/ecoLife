@@ -128,7 +128,7 @@ h1 {
   align-items: center;
 }
 
-@media (max-height: 900px){
+@media (max-height: 1000px){
   .header{
     height: 10vh;
   }
@@ -144,7 +144,7 @@ h1 {
   .header{
     background-color: #074F1C;
     width: 100vw;
-    position: fixed;
+    position: sticky;
     top: 0;
     left: 0;
     right: 0;
@@ -250,14 +250,13 @@ h1 {
   margin: 0 auto;
 }
 
-
 .booking-section {
   background: #f9f9f9;
   padding: 2rem;
   border-radius: 8px;
 }
 
-.booking-form {
+.booking-find {
   display: grid;
   grid-template-columns: 1.5fr 1fr 1fr 0.8fr auto;
   gap: 1rem;
@@ -317,7 +316,29 @@ h1 {
 .booking-button:hover {
   background-color: #074F1C;
 }
+@media (max-width: 768px) {
+  .booking-find {
+    grid-template-columns: 1fr;
+  }
 
+  .booking-button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .booking-field input,
+  .booking-field select {
+    font-size: 1.2rem;
+    padding: 0.5rem;
+  }
+
+  .booking-button {
+    font-size: 1.2rem;
+    padding: 0.6rem 1rem;
+  }
+}
 /* Mobile */
 @media (max-width: 500px) {
   .booking-form {
@@ -780,12 +801,21 @@ position: relative;
 }
 
 .room-list {
-  display: grid;
+  display: flex;
   gap: 2.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  justify-content: space-around;
+}
+
+@media screen and (max-width: 500px) {
+  .room-list {
+    flex-direction: column;
+    align-items: center;
+  }
+  
 }
 
 .room-card {
+  max-width: 35rem;
   background-color: #fff;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.05);
@@ -852,22 +882,49 @@ position: relative;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
 }
 
 .modal {
   background: white;
-  padding: 2rem;
-  border-radius: 12px;
+  padding: 20px;
+  border-radius: 8px;
   max-width: 500px;
   width: 100%;
 }
 
-.booking-popup-form input,
-.booking-popup-form button {
-  display: block;
-  width: 100%;
-  margin-bottom: 1rem;
+.booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.booking-form h2 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.booking-form p {
+  margin: 5px 0;
+}
+
+.booking-form input,
+.booking-form button {
+  padding: 8px;
+  font-size: 1rem;
+}
+
+.booking-form button {
+  cursor: pointer;
+  background: #074F1C;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.booking-form button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
