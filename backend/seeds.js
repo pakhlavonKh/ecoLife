@@ -27,10 +27,13 @@ const RoomSchema = new mongoose.Schema({
 RoomSchema.index({ capacity: 1, bookings: 1 });
 
 const PendingBookingSchema = new mongoose.Schema({
-  name: String,
-  phone: String,
-  roomId: String,
-  date: String,
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  roomId: { type: String, required: true },
+  checkIn: { type: String, required: true }, // Changed from date to checkIn
+  checkOut: { type: String, required: true }, // Added checkOut
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 const AdminSchema = new mongoose.Schema({

@@ -39,30 +39,15 @@ function Slider({ children, autoplay = true, interval = 5000 }) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <button className="slider__arrow left" onClick={prev}>←</button>
 
-      <div className="slider__container-wrapper">
-        <div
-          className="slider__container"
-          style={{ transform: `translateX(-${index * 100}%)` }}
-        >
-          {React.Children.map(children, (child, i) => (
-            <div className="slider__slide" key={i}>
-              {child}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <button className="slider__arrow right" onClick={next}>→</button>
-
-      <div className="slider__dots">
-        {Array.from({ length: total }).map((_, i) => (
-          <button
-            key={i}
-            className={`slider__dot ${i === index ? 'active' : ''}`}
-            onClick={() => goTo(i)}
-          />
+      <div
+        className="slider__container"
+        style={{ transform: `translateX(-${index * 100}%)` }}
+      >
+        {React.Children.map(children, (child, i) => (
+          <div className="slider__slide" key={i}>
+            {child}
+          </div>
         ))}
       </div>
     </div>

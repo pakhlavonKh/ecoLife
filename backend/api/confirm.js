@@ -1,4 +1,4 @@
-// api/confirm.js
+// confirm.js
 import mongoose from 'mongoose';
 import dayjs from 'dayjs';
 
@@ -16,17 +16,23 @@ export default function (Room, PendingBooking, adminChatId) {
         return ctx.reply('❌ Unauthorized');
       }
 
-      const parts = ctx.message.text.split(' ');
-      if (parts.length !== 3) {
+      // Normalize and parse command
+      const commandText = ctx.message.text.replace(/\s+/g, ' ').trim();
+      console.log('Raw command text:', commandText); // Debug log
+      const parts = commandText.split(' ');
+      console.log('Split parts:', parts, 'Length:', parts.length); // Debug log
+      if (parts.length !== 4) {
         console.log('Invalid /confirm command format');
-        return ctx.reply('❌ Usage: /confirm <roomId> <YYYY-MM-DD>');
+        return ctx.reply('❌ Usage: /confirm <roomId> <checkIn> <checkOut>');
       }
 
-      const [, roomId, date] = parts;
-      const dateStr = dayjs(date).format('YYYY-MM-DD');
-      if (!dayjs(date).isValid()) {
-        console.log(`Invalid date format: ${date}`);
-        return ctx.reply('❌ Invalid date format');
+      const [, roomId, checkInStr, checkOutStr] = parts;
+      const checkIn = dayjs(checkInStr);
+      const checkOut = dayjs(checkOutStr);
+
+      if (!checkIn.isValid() || !checkOut.isValid() || !checkIn.isBefore(checkOut)) {
+        console.log(`Invalid date range: ${checkInStr} - ${checkOutStr}`);
+        return ctx.reply('❌ Invalid date range');
       }
 
       const room = await Room.findOne({ id: roomId });
@@ -35,28 +41,43 @@ export default function (Room, PendingBooking, adminChatId) {
         return ctx.reply('❌ Room not found');
       }
 
-      if (room.bookings.includes(dateStr)) {
-        console.log(`Room ${roomId} already booked on ${dateStr}`);
-        return ctx.reply('⚠️ Room already booked on this date');
+      // Check for booking conflicts
+      const datesToBook = [];
+      let current = checkIn.clone();
+      while (current.isBefore(checkOut)) {
+        const dateStr = current.format('YYYY-MM-DD');
+        if (room.bookings.includes(dateStr)) {
+          console.log(`Room ${roomId} already booked on ${dateStr}`);
+          return ctx.reply(`⚠️ Room already booked on ${dateStr}`);
+        }
+        datesToBook.push(dateStr);
+        current = current.add(1, 'day');
       }
 
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          const pendingBooking = await PendingBooking.findOne({ roomId, date: dateStr }).session(session);
-          if (!pendingBooking) {
-            console.log(`No pending booking for room ${roomId} on ${dateStr}`);
-            return ctx.reply('❌ No pending booking found');
-          }
+      // Find pending booking
+      console.log('Querying PendingBooking with:', {
+        roomId,
+        checkIn: checkIn.format('YYYY-MM-DD'),
+        checkOut: checkOut.format('YYYY-MM-DD'),
+      }); // Debug log
+      const pendingBooking = await PendingBooking.findOne({
+        roomId,
+        checkIn: checkIn.format('YYYY-MM-DD'),
+        checkOut: checkOut.format('YYYY-MM-DD'),
+      });
+      console.log('Found pendingBooking:', pendingBooking); // Debug log
 
-          room.bookings.push(dateStr);
-          await room.save({ session });
-          await PendingBooking.deleteOne({ _id: pendingBooking._id }).session(session);
-          ctx.reply(`✅ Booking confirmed for room "${room.name.ru}" on ${dateStr}`);
-        });
-      } finally {
-        session.endSession();
+      if (!pendingBooking) {
+        console.log(`No pending booking for ${roomId} from ${checkInStr} to ${checkOutStr}`);
+        return ctx.reply('❌ No matching pending booking found');
       }
+
+      // Confirm booking
+      room.bookings.push(...datesToBook);
+      await room.save();
+      await PendingBooking.deleteOne({ _id: pendingBooking._id });
+
+      ctx.reply(`✅ Booking confirmed for room "${room.name.ru}" from ${checkInStr} to ${checkOutStr}`);
     } catch (err) {
       console.error('Error in confirmHandler:', err.message, err.stack);
       ctx.reply('❌ Error processing command');

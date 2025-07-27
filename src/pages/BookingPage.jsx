@@ -118,12 +118,12 @@ const BookingPage = () => {
 
   return (
     <>
-      <section className="booking-section">
-        <BookingFind onResults={handleSearch} initialParams={searchParams} />
-      </section>
 
       <div className="booking-page">
-        <h1 className="booking-page__title">{t('roomsTitle', 'Available Rooms')}</h1>
+      <section className="booking-section">
+        {/* <BookingFind onResults={handleSearch} initialParams={searchParams} /> */}
+      </section>
+        <h1 className="booking-page__title">{t('roomsTitle')}</h1>
 
         {error && (
           <p className="error-message">
@@ -208,7 +208,7 @@ const BookingForm = ({ room, checkIn, checkOut, onClose }) => {
         phone,
         roomId: room.id,
         checkIn,
-        checkOut
+        checkOut  
       };
       console.log('Sending booking request:', payload);
       await axios.post('http://localhost:5005/api/booking', payload, { timeout: 5000 });

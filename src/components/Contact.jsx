@@ -9,16 +9,20 @@ function ContactSection() {
       <h2>{t('contact')}</h2>
       <div className="contact-content">
         <div className="contact-info">
-          <div>
+          <div className="contact-details">
             <strong>{t('address')}:</strong>
             <p>123 Eco Street, Tashkent, Uzbekistan</p>
           </div>
-          <div>
+          <div className="contact-details">
             <strong>{t('phone')}:</strong>
             <p>+998 90 123 45 67</p>
           </div>
-          <div>
+          <div className="contact-details">
             <strong>{t('email')}:</strong>
+            <p>info@eco-life.uz</p>
+          </div>
+          <div className="contact-details">
+            <strong>{t('contact')}:</strong>
             <p>info@eco-life.uz</p>
           </div>
         </div>

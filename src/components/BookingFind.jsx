@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import { useLocation } from 'react-router-dom';
 
 // Extend dayjs with isSameOrBefore plugin
 dayjs.extend(isSameOrBefore);
@@ -19,6 +20,9 @@ function BookingFind({ onResults, initialParams = {} }) {
   const [guests, setGuests] = useState(initialParams.guests || 2);
   const [error, setError] = useState('');
   const { t } = useTranslation();
+  const location = useLocation();
+  const isHomePage = location.pathname === '/';
+  const isBookingPage = location.pathname === '/booking'
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,7 +71,7 @@ function BookingFind({ onResults, initialParams = {} }) {
   };
 
   return (
-    <form className="booking-find" onSubmit={handleSubmit}>
+    <form className={`booking-find ${isHomePage ? 'offset-home' : 'offset-booking'} ${isBookingPage ? 'no-transform' : ''}`} onSubmit={handleSubmit}>
       <div className="booking-title">
         <strong>{t('book', 'Book')}</strong>
         <span>{t('official', 'Official Site')}</span>

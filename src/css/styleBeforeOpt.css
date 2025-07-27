@@ -95,7 +95,6 @@ h1 {
   padding: 0 5rem;
   background-color: #F7F7F7;
   position: fixed;
-  height: 8rem;
   top: 0;
   z-index: 1000;
   width: 100%;
@@ -119,6 +118,7 @@ h1 {
   transform: none;
   top: auto;
   width: auto;
+  margin: 0;
 }
 
 .header__menu a {
@@ -129,16 +129,8 @@ h1 {
   line-height: 1;
 }
 
-.header__menu > *:not(.header__logo) {
-  margin-top: 2rem;
-}
-
 .header__nav a:hover {
   color: #A32028;
-}
-
-.header__lang {
-  grid-column: 4/5;
 }
 
 .header__lang select {
@@ -159,15 +151,11 @@ h1 {
 }
 
 .header__logo {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%);
   display: flex;
-  margin: 0 auto;
+  margin: 1rem auto;
   padding: 2rem 0;
   align-items: center;
-  height: 8rem;
+  height: 6rem;
 }
 
 .logo--mobile {
@@ -211,6 +199,13 @@ h1 {
 
 .navigation__checkbox {
   display: none;
+}
+
+.navigation__checkbox:checked ~ .header {
+  height: 100vh;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
 }
 
 .navigation__icon {
@@ -347,7 +342,6 @@ select option {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   width: 80%;
   overflow-x: auto;
-  z-index: 100000;
 }
 
 .booking-title {
@@ -427,56 +421,43 @@ select option {
   margin-top: 4rem;
 }
 
-.how-to-get {
-  padding: 3rem;
-  margin-top: 8rem;
+.contact-section {
+  padding: 4rem 0 0 0;
+}
+
+.contact-section h2 {
+  font-size: 2.4rem;
+  margin-bottom: 2rem;
   text-align: center;
 }
 
-.steps-container {
-  display: flex;
-  align-items: center;
-  overflow-x: auto;
-  gap: 2rem;
-  padding: 2rem 1rem;
+.contact-content {
+  display: grid;
+  background-color: #f0f0f0;
+  grid-template-columns: 1fr 1fr;
+  align-items: flex-start;
 }
 
-.step {
-  flex: 0 0 300px;
-  background: white;
-  border-radius: 1rem;
-  padding: 1rem;
-  box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  text-align: center;
+.contact-info {
+  font-size: 1.6rem;
+  color: #333;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
 }
 
-.step img {
+.contact-info strong {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.contact-map iframe {
   width: 100%;
-  height: 150px;
-  object-fit: cover;
-  border-radius: 0.5rem;
+  height: 100%;
+  min-height: 250px;
+  border: none;
+  border-radius: 8px;
 }
-
-.arrow {
-  font-size: 2rem;
-  flex: 0 0 auto;
-}
-
-/* Optional: Responsive fallback */
-@media (max-width: 768px) {
-  .steps-container {
-    flex-direction: column;
-    overflow: visible;
-  }
-
-  .arrow {
-    transform: rotate(90deg);
-  }
-}
-
 
 .footer {
   background-color: #1a1a1a;
@@ -651,7 +632,7 @@ select option {
 .about {
   margin: 0;
   padding: 4rem 5rem;
-  margin-bottom: 8rem;
+  margin-bottom: 4rem;
   text-align: center;
 }
 
@@ -697,7 +678,6 @@ select option {
   z-index: 10;
   transition: all .2s;
   outline-offset: 2rem;
-  /* z-index: 100; */
 }
 
 .composition__photo--p1 {
@@ -797,33 +777,21 @@ select option {
     animation-name: moveInLeft;
     animation-duration: 1s;
     animation-timing-function: ease-out;
-    animation-delay: 1.5s;
-    opacity: 0;
-    transform: translateX(-10rem);
-    animation-fill-mode: both;
     margin-bottom: 3rem;
-        
-      }
+    /*
+        animation-delay: 3s;
+        animation-iteration-count: 3;
+        */ }
     @media only screen and (max-width: 37.5em) {
       .heading-primary--main {
         letter-spacing: 1rem;
         font-family: 5rem; } }
-        .heading-primary--sub {
-  display: block;
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: 1.75rem;
-
-  opacity: 0;
-  transform: translateX(10rem);
-
-  animation-name: moveInRight;
-  animation-delay: 1.5s;
-  animation-duration: 1s;
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-}
-
+  .heading-primary--sub {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 1.75rem;
+    animation: moveInRight 1s ease-out; }
     @media only screen and (max-width: 37.5em) {
       .heading-primary--sub {
         letter-spacing: .5rem; } }
@@ -861,14 +829,6 @@ select option {
 .btn--animated {
   animation: moveInBottom .5s ease-out .75s;
   animation-fill-mode: backwards; }
-
-.hero__text .btn--animated {
-  animation-delay: 1.5s;
-  opacity: 0;
-  transform: translateY(3rem);
-  animation-fill-mode: both;
-}
-
 .btn::after {
   content: "";
   display: inline-block;
@@ -900,7 +860,7 @@ select option {
 }
 
 .rooms-section {
-  padding: 0 0 4rem 0;
+  padding: 4rem 0;
   text-align: center;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -921,7 +881,6 @@ select option {
 .rooms-section h2 {
   font-size: 2.4rem;
   margin-bottom: 2rem;
-  margin: 0;
   grid-column: -1/1;
 }
 
@@ -941,21 +900,19 @@ select option {
   height: 27rem;
   object-fit: cover;
 }
+
 .room-card__content {
-  padding: 2rem;
+  padding: 1.5rem;
   display: flex;
+  background-color: #074F1C;
   flex-direction: column;
   justify-content: space-between;
-  background-color: #fff;
-  border-radius: 1rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
   height: 100%;
-  color: #333;
-  gap: 1rem;
 }
+
 .room-card__content h2 {
   font-size: 2rem;
-  color: #074F1C;
+  color: #fff;
   font-weight: 450;
   margin-bottom: 1rem;
 }
@@ -963,7 +920,7 @@ select option {
 .room-card__content p {
   font-size: 1.4rem;
   margin-bottom: 2rem;
-  color: #074F1C;
+  color: #fff;
 }
 
 .room-card__button {
@@ -1001,102 +958,47 @@ select option {
   max-width: 500px;
   width: 100%;
 }
+
 .booking-form {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 3rem 2rem;
-  background-color: #fff;
-  border-radius: 1rem;
-  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.1);
-  font-family: 'Poppins', sans-serif;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 15px;
 }
 
 .booking-form h2 {
-  font-size: 2.4rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
 }
 
 .booking-form p {
-  font-size: 1.4rem;
-  color: #333;
-  margin: 0;
-  text-align: center;
+  margin: 5px 0;
 }
 
-.booking-form label {
-  font-size: 1.3rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  display: block;
-  color: #074F1C;
-}
-
-.booking-form input {
-  width: 100%;
-  padding: 1.2rem 1.6rem;
-  font-size: 1.4rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ccc;
-  background-color: #f8f8f8;
-  transition: all 0.3s;
-}
-
-.booking-form input:focus {
-  outline: none;
-  border-color: #074F1C;
-  box-shadow: 0 0 0 3px rgba(7, 79, 28, 0.2);
-  background-color: #fff;
-}
-
-.booking-form .error-message {
-  color: #c0392b;
-  font-size: 1.3rem;
-  text-align: center;
+.booking-form input,
+.booking-form button {
+  padding: 8px;
+  font-size: 1rem;
 }
 
 .booking-form button {
-  font-size: 1.4rem;
-  padding: 1.2rem 2rem;
-  border: none;
-  border-radius: 0.7rem;
-  background-color: #074F1C;
-  color: white;
   cursor: pointer;
-  transition: background-color 0.3s;
-  width: 100%;
-}
-
-.booking-form button:hover:not(:disabled) {
-  background-color: #056c29;
+  background: #074F1C;
+  color: white;
+  border: none;
+  border-radius: 4px;
 }
 
 .booking-form button:disabled {
-  background-color: #999;
+  background: #ccc;
   cursor: not-allowed;
 }
-
-.booking-form button + button {
-  margin-top: 1rem;
-  background-color: #eee;
-  color: #333;
-}
-
-.booking-form button + button:hover {
-  background-color: #ddd;
-}
-
 
 .gallery {
   width: 100%;
   height: 100%;
 }
 
-.gallery__list {
+.results {
   display: flex;
   width: 100%;
   height: 100%;
@@ -1119,7 +1021,7 @@ select option {
   height: 500px;
 }
 
-.gallery__list:is(:hover, :focus-within) img {
+.results:is(:hover, :focus-within) img {
   opacity: calc(0.1 + (var(--active-lerp, 0) * 0.9));
   filter: grayscale(calc(1 - var(--active-lerp, 0)));
 }
@@ -1170,8 +1072,16 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
   z-index: 1;
 }
 
-@media (max-width: 565px) {
+/* Mobile Responsive */
+@media (max-width: 500px) {
   .header {
+    /* background-color: #074F1C;
+    width: 100vw;
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 0; */
     display: none;
   }
 
@@ -1194,6 +1104,12 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
     flex-direction: column;
     align-items: center;
     color: #fff;
+  }
+
+  .header__logo {
+    position: fixed;
+    top: 1.5rem;
+    left: 1.5rem;
   }
 
   .navigation__button {
@@ -1220,13 +1136,6 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
 
   .main-content {
     width: 100%;
-  }
-
-  .offset-home {
-    transform: translate(-50%, -110%);
-    overflow: hidden;
-    position: absolute;
-    left: 50%;
   }
 
   .slider {
@@ -1318,7 +1227,7 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
     padding: 1rem;
   }
  
-  .gallery__list {
+  .results {
     column-count: 6;
     gap: 1rem;
     display: grid;
@@ -1345,6 +1254,18 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
    .gallery__item--10, .gallery__item--11, .gallery__item--12 {
     display: none;
    }
+}
+
+@media (max-height: 1000px) and (max-width: 500px) {
+  .header {
+    height: 10vh;
+  }
+}
+
+@media (max-height: 750px) and (max-width: 500px) {
+  .header {
+    height: 15vh;
+  }
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -1376,52 +1297,4 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
     transform: none !important;
     filter: none !important;
   }
-}
-.curtain-reveal {
-  position: relative;
-  overflow: hidden;
-}
-
-.curtain-content {
-  position: relative;
-  z-index: 1;
-}
-
-/* Curtain covers content initially */
-.curtain {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  z-index: 2;
-  background: #f7f7f7;
-  transition: transform 1.5s ease-in-out;
-}
-
-/* 1. Top to Bottom (vertical) */
-.curtain-reveal.vertical .curtain {
-  transform: translateY(0%); /* Covering initially */
-}
-.curtain-reveal.vertical.revealed .curtain {
-  transform: translateY(100%); /* Slide down to reveal */
-}
-
-/* 2. Left to Right (horizontal) */
-.curtain-reveal.horizontal .curtain {
-  transform: translateX(0%);
-}
-.curtain-reveal.horizontal.revealed .curtain {
-  transform: translateX(100%);
-}
-
-/* 3. Diagonal (top-left to bottom-right) */
-.curtain-reveal.diagonal .curtain {
-  transform: scale(1) rotate(45deg);
-  transform-origin: top left;
-  width: 200%;
-  height: 200%;
-}
-.curtain-reveal.diagonal.revealed .curtain {
-  transform: scale(0) rotate(45deg);
 }

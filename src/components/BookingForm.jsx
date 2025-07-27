@@ -20,8 +20,9 @@ const BookingForm = ({ room, checkIn, checkOut, onClose }) => {
       setIsLoading(false);
       return;
     }
-    if (!phone || !/^\+?[1-9]\d{1,14}$/.test(phone)) {
-      setError(t('invalidPhone', 'Invalid phone number'));
+
+    if (!/^\d{9,}$/.test(phone)) {
+      setError(t('invalidPhone', 'Phone number must contain only digits and be at least 9 digits long'));
       setIsLoading(false);
       return;
     }
@@ -52,11 +53,12 @@ const BookingForm = ({ room, checkIn, checkOut, onClose }) => {
     <form onSubmit={handleSubmit} className="booking-form">
       <h2>{t('bookRoom', 'Book Room')}</h2>
       <p>{room.name}</p>
-      <p>{t('checkIn', 'Check-in')}: {checkIn}</p>
-      <p>{t('checkOut', 'Check-out')}: {checkOut}</p>
+      <p>{t('check-in')}: {checkIn}</p>
+      <p>{t('check-out')}: {checkOut}</p>
       <div>
-        <label>{t('name', 'Name')}:</label>
+        <label htmlFor="name">{t('name', 'Name')}:</label>
         <input
+          id="name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -64,8 +66,9 @@ const BookingForm = ({ room, checkIn, checkOut, onClose }) => {
         />
       </div>
       <div>
-        <label>{t('phone', 'Phone')}:</label>
+        <label htmlFor="phone">{t('phone', 'Phone')}:</label>
         <input
+          id="phone"
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -74,7 +77,7 @@ const BookingForm = ({ room, checkIn, checkOut, onClose }) => {
       </div>
       {error && <p className="error-message">{error}</p>}
       <button type="submit" disabled={isLoading}>
-        {isLoading ? t('loading') : t('submit', 'Submit')}
+        {isLoading ? t('loading', 'Loading...') : t('submit', 'Submit')}
       </button>
       <button type="button" onClick={onClose}>
         {t('cancel', 'Cancel')}

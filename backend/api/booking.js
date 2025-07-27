@@ -1,3 +1,4 @@
+// booking.js
 import Joi from 'joi';
 import dayjs from 'dayjs';
 import mongoose from 'mongoose';
@@ -12,7 +13,7 @@ export default function (Room, PendingBooking, bot, adminChatId) {
 
       const schema = Joi.object({
         name: Joi.string().min(2).required(),
-        phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).required(),
+        phone: Joi.string().pattern(/^\+?[1-9]\d{7,14}$/).required(),
         roomId: Joi.string().required(),
         checkIn: Joi.date().iso().required(),
         checkOut: Joi.date().iso().greater(Joi.ref('checkIn')).required(),
@@ -34,7 +35,6 @@ export default function (Room, PendingBooking, bot, adminChatId) {
         return res.status(404).json({ error: 'Room not found' });
       }
 
-      // Check if any date in range is already booked
       const stayDates = [];
       let dateCursor = dayjs(checkIn);
       while (dateCursor.isBefore(checkOut, 'day')) {
@@ -47,25 +47,32 @@ export default function (Room, PendingBooking, bot, adminChatId) {
         dateCursor = dateCursor.add(1, 'day');
       }
 
-      // Save pending booking
       const pendingBooking = new PendingBooking({
         name,
         phone,
         roomId,
-        date: checkInStr,
+        checkIn: checkInStr,
         checkOut: checkOutStr,
       });
+      console.log('PendingBooking before save:', pendingBooking.toObject());
       await pendingBooking.save();
+      console.log('PendingBooking saved:', pendingBooking.toObject());
 
-      // Send Telegram message
       const message = `📢 New booking request:
 🏠 Room: ${room.name.ru}
 📅 Dates: ${checkInStr} → ${checkOutStr}
 👤 Name: ${name}
-📞 Phone: ${phone}
-
-To confirm: /confirm roomId:${roomId}, ${checkInStr} ${checkOutStr}`;
-      await bot.telegram.sendMessage(adminChatId, message);
+📞 Phone: ${phone}`;
+      await bot.telegram.sendMessage(adminChatId, message, {
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: 'Confirm Booking',
+              callback_data: `confirm:${roomId}:${checkInStr}:${checkOutStr}`,
+            },
+          ]],
+        },
+      });
 
       res.json({ message: 'Booking request sent' });
     } catch (err) {

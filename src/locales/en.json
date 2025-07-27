@@ -13,9 +13,26 @@
   "check-out": "Check-out",
   "guests": "Guests",
   "find": "Find",
+  "lifeHappens": "is where life happens",
+  "bookNow": "Book now",
+  "heading1": "You're going to fall in love with nature",
+  "heading2": "Welcome to your peaceful escape.",
+  "paragraph1":"Surrounded by untouched landscapes and soothing silence, our resort invites you to reconnect with nature in its purest form. Wake up to breathtaking views, explore serene walking trails, and let the gentle sounds of the forest heal your soul. Whether you're seeking adventure or calm, nature here becomes more than a backdrop — it becomes a part of your story",
+  "paragraph2": "Nestled in the heart of nature, our resort offers a perfect blend of comfort and tranquility. Whether you're here for a weekend getaway or a long retreat, every detail is crafted to help you relax, recharge, and reconnect with what matters most",
   "charvak": "Charvak",
   "rooms": "Rooms",
   "price": "Know the price",
+  "bookRoom": "Book Room",
+  "name": "Name",
+  "invalidName": "Name must be at least 2 characters long",
+  "invalidPhone": "Phone number must contain only digits and be at least 9 digits long",
+  "bookingSuccess": "Booking request sent successfully",
+  "networkError": "Unable to connect to the server. Please try again later.",
+  "bookingError": "Failed to submit booking. Please try again.",
+  "submit": "Submit",
+  "cancel": "Cancel",
+  "loading": "Loading...",
+  "roomsTitle": "Available rooms",
   "roomsData": {
     "room1": {
       "title": "Standard Single Room",
@@ -30,7 +47,7 @@
       "description": "A room designed for families — a separate area for children and a shared living space for comfortable stay."
     }
   },
-  "services": "Our Services",
+  "services": "Our services",
   "servicesData": {
   "restaurants": {
     "title": "Restaurants",

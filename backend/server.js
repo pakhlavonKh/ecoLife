@@ -17,7 +17,7 @@ app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000'], crede
 app.use(morgan('dev'));
 app.use(express.json());
 
-// --- Validate Environment Variables ---
+// Validate Environment Variables
 const requiredEnvVars = ['MONGO_URI', 'BOT_TOKEN', 'ADMIN_CHAT_ID', 'PORT'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingEnvVars.length > 0) {
@@ -25,13 +25,13 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-// --- Health Check Endpoint ---
+// Health Check Endpoint
 app.get('/health', (req, res) => {
   console.log('Received request to /health');
   res.status(200).json({ status: 'OK', message: 'Server is running', timestamp: new Date().toISOString() });
 });
 
-// --- Database Setup with Retry ---
+// Database Setup with Retry
 const connectWithRetry = () => {
   mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
@@ -43,7 +43,7 @@ const connectWithRetry = () => {
 };
 connectWithRetry();
 
-// --- Schemas ---
+// Schemas
 const RoomSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { ru: String, uz: String },
@@ -54,10 +54,13 @@ const RoomSchema = new mongoose.Schema({
 RoomSchema.index({ capacity: 1, bookings: 1 });
 
 const PendingBookingSchema = new mongoose.Schema({
-  name: String,
-  phone: String,
-  roomId: String,
-  date: String,
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  roomId: { type: String, required: true },
+  checkIn: { type: String, required: true },
+  checkOut: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 const AdminSchema = new mongoose.Schema({
@@ -71,7 +74,7 @@ const Room = mongoose.model('Room', RoomSchema);
 const PendingBooking = mongoose.model('PendingBooking', PendingBookingSchema);
 const Admin = mongoose.model('Admin', AdminSchema);
 
-// --- Localization ---
+// Localization
 const translations = {
   ru: {
     welcome: 'Добро пожаловать! Введите ваше имя и пароль (формат: /login Имя Пароль).',
@@ -86,6 +89,8 @@ const translations = {
     bookingConfirmed: '✅ Бронирование подтверждено для комнаты "%s" на %s',
     error: '❌ Произошла ошибка при обработке команды',
     getId: 'Ваш ID чата: %s',
+    listPending: 'Список ожидающих бронирований:\n%s',
+    noPending: 'Нет ожидающих бронирований.',
   },
   uz: {
     welcome: 'Xush kelibsiz! Ismingiz va parolingizni kiriting (format: /login Ism Parol).',
@@ -100,20 +105,22 @@ const translations = {
     bookingConfirmed: '✅ "%s" xonasi uchun %s sanasida bron qilindi',
     error: '❌ Buyruqni qayta ishlashda xatolik yuz berdi',
     getId: 'Sizning chat ID: %s',
+    listPending: 'Kutayotgan bronlar ro‘yxati:\n%s',
+    noPending: 'Kutayotgan bronlar yo‘q.',
   },
 };
 
-// --- Telegram Bot Setup ---
+// Telegram Bot Setup
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const authenticatedAdmins = new Set();
-const onboardingState = new Map(); // chatId -> { stage: 'language' | 'login', language?: 'ru'|'uz' }
+const onboardingState = new Map();
 
 async function getUserLanguage(chatId) {
   const admin = await Admin.findOne({ chatId });
   return admin ? admin.language : 'ru';
 }
 
-// --- Start Command ---
+// Start Command
 bot.command('start', async (ctx) => {
   const chatId = ctx.chat.id;
   if (authenticatedAdmins.has(chatId)) {
@@ -124,7 +131,7 @@ bot.command('start', async (ctx) => {
   ctx.reply('Choose language: /language ru or /language uz');
 });
 
-// --- Language Command ---
+// Language Command
 bot.command('language', async (ctx) => {
   const chatId = ctx.chat.id;
   const parts = ctx.message.text.split(' ');
@@ -149,7 +156,7 @@ bot.command('language', async (ctx) => {
   ctx.reply('Please start with /start');
 });
 
-// --- Login Command ---
+// Login Command
 bot.command('login', async (ctx) => {
   const chatId = ctx.chat.id;
   const state = onboardingState.get(chatId);
@@ -174,19 +181,94 @@ bot.command('login', async (ctx) => {
   authenticatedAdmins.add(chatId);
   onboardingState.delete(chatId);
 
-  ctx.reply(`${translations[state.language].welcome}\n✅ You are now logged in. Available commands:\n/confirm\n/getid`);
+  ctx.reply(`${translations[state.language].welcome}\n✅ You are now logged in. Available commands:\n/confirm\n/getid\n/listpending`);
 });
 
-// --- Get Chat ID ---
+// Get Chat ID
 bot.command('getid', async (ctx) => {
   const lang = await getUserLanguage(ctx.chat.id);
   ctx.reply(translations[lang].getId.replace('%s', ctx.chat.id));
 });
 
-// --- Confirm Command ---
+// List Pending Bookings
+bot.command('listpending', async (ctx) => {
+  const chatId = ctx.chat.id;
+  if (!authenticatedAdmins.has(chatId)) {
+    const lang = await getUserLanguage(chatId);
+    return ctx.reply(translations[lang].unauthorized);
+  }
+
+  const bookings = await PendingBooking.find({});
+  const lang = await getUserLanguage(chatId);
+  if (bookings.length === 0) {
+    return ctx.reply(translations[lang].noPending);
+  }
+  const message = bookings
+    .map((b) => `Room: ${b.roomId}, Dates: ${b.checkIn} → ${b.checkOut}, Name: ${b.name}`)
+    .join('\n');
+  ctx.reply(translations[lang].listPending.replace('%s', message));
+});
+
+// Confirm Command
 bot.command('confirm', confirmHandler(Room, PendingBooking, process.env.ADMIN_CHAT_ID));
 
-// --- API Routes ---
+// Inline Button Handler
+bot.on('callback_query', async (ctx) => {
+  const [action, roomId, checkInStr, checkOutStr] = ctx.callbackQuery.data.split(':');
+  const chatId = ctx.chat.id;
+  if (!authenticatedAdmins.has(chatId)) {
+    const lang = await getUserLanguage(chatId);
+    return ctx.reply(translations[lang].unauthorized);
+  }
+
+  if (action === 'confirm') {
+    try {
+      const checkIn = dayjs(checkInStr);
+      const checkOut = dayjs(checkOutStr);
+      if (!checkIn.isValid() || !checkOut.isValid() || !checkIn.isBefore(checkOut)) {
+        return ctx.reply('❌ Invalid date range');
+      }
+
+      const room = await Room.findOne({ id: roomId });
+      if (!room) {
+        return ctx.reply('❌ Room not found');
+      }
+
+      const datesToBook = [];
+      let current = checkIn.clone();
+      while (current.isBefore(checkOut)) {
+        const dateStr = current.format('YYYY-MM-DD');
+        if (room.bookings.includes(dateStr)) {
+          return ctx.reply(`⚠️ Room already booked on ${dateStr}`);
+        }
+        datesToBook.push(dateStr);
+        current = current.add(1, 'day');
+      }
+
+      const pendingBooking = await PendingBooking.findOne({
+        roomId,
+        checkIn: checkInStr,
+        checkOut: checkOutStr,
+      });
+      if (!pendingBooking) {
+        return ctx.reply('❌ No matching pending booking found');
+      }
+
+      room.bookings.push(...datesToBook);
+      await room.save();
+      await PendingBooking.deleteOne({ _id: pendingBooking._id });
+
+      const lang = await getUserLanguage(chatId);
+      ctx.reply(`✅ Booking confirmed for room "${room.name[lang]}" from ${checkInStr} to ${checkOutStr}`);
+    } catch (err) {
+      console.error('Error in callback handler:', err.message, err.stack);
+      ctx.reply('❌ Error processing command');
+    }
+  }
+  ctx.answerCbQuery();
+});
+
+// API Routes
 app.post('/api/search', (req, res, next) => {
   console.log('Received request to /api/search:', req.body);
   searchHandler(Room)(req, res, next);
@@ -196,19 +278,19 @@ app.post('/api/booking', (req, res, next) => {
   bookHandler(Room, PendingBooking, bot, process.env.ADMIN_CHAT_ID)(req, res, next);
 });
 
-// --- Catch-All Route ---
+// Catch-All Route
 app.use((req, res) => {
   console.log(`Received unknown request: ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// --- Error Handling Middleware ---
+// Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err.message, err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// --- Start Server ---
+// Start Server
 const PORT = process.env.PORT || 5000;
 bot.launch().catch(err => {
   console.error('Failed to launch bot:', err.message, err.stack);
@@ -218,7 +300,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
 
-// --- Graceful Shutdown ---
+// Graceful Shutdown
 process.on('SIGTERM', () => {
   bot.stop('SIGTERM');
   mongoose.connection.close(() => {
