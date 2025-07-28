@@ -32,30 +32,45 @@
   "submit": "Yuborish",
   "cancel": "Bekor qilish",
   "loading": "Yuklanmoqda...",
+  "phoneN": "Telefon",
+  "step1": "Bizga qanday boriladi",
+  "step2": "1-burilish",
+  "step3": "2-burilish",
+  "step4": "3-burilish",
+  "step5": "4-burilish",
+  "step6": "Siz keldingiz",
   "roomsTitle": "Bo‘sh xonalar",
   "roomsData": {
     "room1": {
-      "title": "Standart Yagona Xona",
-      "description": "Zamonaviy dizayn, qulay mebel, alohida hammom va tog'lar manzarasiga ega. Bir kishi uchun qulay xona."
+      "title": "Standar",
+      "description": "Qulay va arzon xona, qisqa muddatli qolish uchun mos."
     },  
     "room2": {
       "title": "Deluxe Ikki Kishilik Xona",
-      "description": "Ikkilik balkonli keng xona, zamonaviy qulayliklar va qulay muhit. Dam olish uchun ajoyib tanlov."
+      "description": "Yuqori darajadagi shinamlik va kenglik bilan ta'minlangan xona."
     },
     "room3": {
       "title": "Oilaviy Suite",
-      "description": "Oilalar uchun mo'ljallangan xona — bolalar uchun alohida hudud va qulay yashash uchun umumiy yashash maydoni."
+      "description": "To‘liq jihozlangan oshxona va yashash maydoniga ega mustaqil turar joy."
     }
   },
   "services": "Bizning xizmatlarimiz",
+  "stableH": "Otlarda Sayr Tajribasi",
+  "stableP": "Bizning dam olish maskanimizda mehmonlar uchun tabiatda ot minishni boshdan kechirish imkonini beruvchi chiroyli va yaxshi saqlangan otxonamiz mavjud. Siz yangi boshlovchi bo‘lasizmi yoki tajribali chavandoz – otlarimiz sizni kutmoqda.",
+  "flourMillH": "An'anaviy Tegirmon",
+  "flourMillp": "Yangi, organik donlar qadimgi uslubda mayin un holiga keltiriladigan an'anaviy un tegirmonimiz bilan tanishing.",
+  "apiaryH": "Asalarichilik va Asal Ferma",
+  "apiaryP": "Toza va tabiiy asal qanday tayyorlanishini ko‘rish uchun asal fermamizga tashrif buyuring. Asalari dunyosining ajoyib jihatlarini kashf eting va manbadan yangi asal tatib ko‘ring.",
+  "poolH": "Alohida Suzish Hovuzlari",
+  "poolP": "Toza va yaxshi parvarishlangan suzish havzalarimizda suzib, tetiklaning. Barcha mehmonlar uchun qulaylik va shaxsiylikni ta'minlash maqsadida erkaklar va ayollar uchun alohida havzalar mavjud.",
   "servicesData": {
     "restaurants": {
       "title": "Restoranlar",
       "description": "Restoranlarimizda har xil taomlar va menyular."
     },
-    "spa": {
-      "title": "Spa va Parvarish",
-      "description": "Spa markazida dam olish va tana parvarishi."
+    "horses": {
+      "title": "Otda sayr qilish",
+      "description": "Tabiat qoʻynida otda sayr qilish zavqini his eting. "
     },
     "conference": {
       "title": "Konferensiya Zali",
@@ -65,25 +80,13 @@
       "title": "Suv Havzasi",
       "description": "Dam olish va suzish uchun yopiq va ochiq havzalar."
     },
-    "fitness": {
-      "title": "Fitness Markazi",
-      "description": "Zamonaviy uskunalar va shaklda qolish uchun sharoitlar."
+    "playstation": {
+      "title": "PlayStation o‘yin zonasi",
+      "description": "Eng so‘nggi o‘yinlardan bahramand bo‘ling va hordiq chiqaring. "
     },
     "honey": {
       "title": "Asalarichilik",
       "description": "O'zimizning asalarichiligimizdan tabiiy asal."
-    },
-    "horses": {
-      "title": "Ot Minish",
-      "description": "Tabiatda ot minish, barcha yoshdagilar uchun."
-    },
-    "buffet": {
-      "title": "Shved Stoli",
-      "description": "Har kuni nonushta, tushlik va kechki ovqat shved stoli shaklida."
-    },
-    "mosque": {
-      "title": "Masjid",
-      "description": "Tinchlik va ibodat uchun masjid."
     }
   }
 }

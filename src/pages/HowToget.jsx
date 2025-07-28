@@ -1,54 +1,103 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import CurtainReveal from '../components/CurtainReveal';
 
 function HowToGet() {
   const { t } = useTranslation();
 
+  const handleMapClick = () => {
+    window.open(
+      'https://maps.app.goo.gl/AkuWyeP4rFHGKua57',
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
+  const arriveImages = import.meta.glob('../assets/arrive-*.JPG', { eager: true, as: 'url' });
+
+  const [type, setType] = useState('vertical');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+     const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setType('vertical');
+      } else {
+        setType('horizontal');
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <section className="how-to-get">
-      <h2>{t('howToGet')}</h2>
-      <div className="steps-container">
+  <section className="how-to-get">
+  <h1>{t('howToGet')}</h1>
+    <div className="steps-container">
+      
+      {/* Row 1 */}
+      
+  <CurtainReveal type={type}>
+      <div className="step-row">
+        <div className="step">
+          <h2>{t('step1')}</h2>
+          <div className="map-container" onClick={handleMapClick}>
+            <iframe
+              title="Map to Resort"
+              src="https://www.google.com/maps/embed?pb=!1m22!1m8!1m3!1d47704.31500521876!2d69.8828908!3d41.6445124!3m2!1i1024!2i768!4f13.1!4m11!3e0!4m3!3m2!1d41.6276343!2d69.9408682!4m5!1s0x38af17e8021478db%3A0x75f244721ee86a1c!2sMW85%2BV47%20Turbaza%20%22Lastochka%22%2C%20Khumsan%2C%20Tashkent%20Region%2C%20Uzbekistan!3m2!1d41.6671593!2d69.9078047!5e0!3m2!1sen!2s!4v1753689927445!5m2!1sen!2s"
+              width="100%"
+              height="100%"
+              style={{ border: 0, pointerEvents: 'none' }}
+              loading="lazy"
+            />
+          </div>
+        </div>
+          <div className="arrow arrow-right">&gt;</div>
 
         <div className="step">
-          <img src="/images/step1.jpg" alt="Arrive in City" />
-          <h3>Step 1</h3>
-          <p>Take a flight, train, or bus to [Your City]</p>
+          <h2>{t('step2')}</h2>
+          <img src={arriveImages['../assets/arrive-2.JPG']} alt="Arrive 2" />
         </div>
-
-        <div className="arrow">➡️</div>
+        <div className="arrow arrow-right">&gt;</div>
 
         <div className="step">
-          <img src="/images/step2.jpg" alt="City Center" />
-          <h3>Step 2</h3>
-          <p>Reach city center via taxi or metro</p>
+          <h2>{t('step3')}</h2>
+          <img src={arriveImages['../assets/arrive-3.JPG']}  alt="Arrive 3" />
+            <span className="arrow arrow-down">&gt;</span>
+          
         </div>
-
-        <div className="arrow">➡️</div>
-
-        <div className="step">
-          <img src="/images/step3.jpg" alt="Navigation" />
-          <h3>Step 3</h3>
-          <p>Use Google Maps to find our exact location</p>
-          <iframe src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d2980.455598978849!2d69.90463107559276!3d41.66750297857416!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zNDHCsDQwJzAzLjAiTiA2OcKwNTQnMjUuOSJF!5e0!3m2!1sru!2s!4v1752751367991!5m2!1sru!2s" 
-          width="100%"
-          height="400"
-          style={{ border: 0, borderRadius: '0' }}
-          allowFullScreen=""
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade">
-          </iframe>
-        </div>
-
-        <div className="arrow">➡️</div>
-
-        <div className="step final">
-          <img src="/images/step4.jpg" alt="Arrival" />
-          <h3>Step 4</h3>
-          <p>You’ve arrived — Welcome! 🎉</p>
-        </div>
-
       </div>
-    </section>
+      </CurtainReveal>
+      <CurtainReveal type={type}>
+      {/* Row 2 */}
+      <div className="step-row step-row-2">
+        <div className="step">
+          <h2>{t('step4')}</h2>
+          <img src={arriveImages['../assets/arrive-4.JPG']}  alt="Arrive 4" />
+        </div>
+        <div className="arrow arrow-left">&lt;</div>
+        <div className="step">
+          <h2>{t('step5')}</h2>
+          <img src={arriveImages['../assets/arrive-5.JPG']}  alt="Arrive 5" />
+        </div>
+        <div className="arrow arrow-left">&lt;</div>
+        <div className="step">
+          <h2>{t('step6')}</h2>
+          <img src={arriveImages['../assets/arrive-6.JPG']}  alt="Arrive 6" />
+        </div>
+      </div>
+
+    </CurtainReveal>
+    </div>
+</section>
+
   );
 }
 

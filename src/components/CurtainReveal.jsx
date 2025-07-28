@@ -12,7 +12,7 @@ const CurtainReveal = ({ children, type = 'vertical' }) => {
           node.classList.add('revealed');
         }
       },
-      { threshold: 0.5 }
+      { threshold: 0.3 }
     );
 
     if (node) observer.observe(node);

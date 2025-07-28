@@ -32,30 +32,45 @@
   "submit": "Submit",
   "cancel": "Cancel",
   "loading": "Loading...",
+  "phoneN": "Phone",
+  "step1": "How to get to us",
+  "step2": "Turn 1",
+  "step3": "Turn 2",
+  "step4": "Turn 3",
+  "step5": "Turn 4",
+  "step6": "You arrived",
   "roomsTitle": "Available rooms",
   "roomsData": {
     "room1": {
-      "title": "Standard Single Room",
-      "description": "Modern design, comfortable furniture, private bathroom, and a beautiful view of the mountains. A convenient room for one person."
+      "title": "Standard",
+      "description": "Comfortable and affordable room, ideal for short stays."
     },
     "room2": {
-      "title": "Deluxe Double Room",
-      "description": "Spacious room with a balcony for two, modern amenities, and a cozy atmosphere. A great choice for relaxation."
+      "title": "Semi-Luxury",
+      "description": "Spacious suite offering high-end comfort and amenities."
     },
     "room3": {
-      "title": "Family Suite",
-      "description": "A room designed for families — a separate area for children and a shared living space for comfortable stay."
+      "title": "Luxury",
+      "description": "Fully equipped independent unit with kitchen and living area."
     }
   },
   "services": "Our services",
+  "stableH": "Horse Riding Experience",
+  "stableP": "Our resort features a beautiful and well-maintained horse stable, perfect for guests who want to experience horseback riding in nature. Whether you're a beginner or an experienced rider, our horses are ready to welcome you.",
+  "flourMillH": "Traditional Flour Mill",
+  "flourMillp": "Experience the charm of our traditional flour mill where fresh, organic grains are ground into fine flour just like in the old days.",
+  "apiaryH": "Apiary and Honey Farm",
+  "apiaryP": "Visit our apiary to see how pure, natural honey is made. Discover the fascinating world of bees and enjoy fresh honey straight from the source.",
+  "poolH": "Separate Swimming Pools",
+  "poolP": "Enjoy a refreshing swim in our clean, well-maintained pools. We offer separate pools for men and women to ensure privacy and comfort for all guests.",
   "servicesData": {
   "restaurants": {
     "title": "Restaurants",
     "description": "A diverse menu and dishes for every taste in our restaurants."
   },
-  "spa": {
-    "title": "Spa & Care",
-    "description": "Relaxing treatments and body care at the spa center."
+  "horses": {
+    "title": "Horse Riding",
+    "description": "Experience the thrill of nature on horseback. "
   },
   "conference": {
     "title": "Conference Hall",
@@ -65,25 +80,13 @@
     "title": "Swimming Pool",
     "description": "Indoor and outdoor pools for relaxation and swimming."
   },
-  "fitness": {
-    "title": "Fitness Center",
-    "description": "Modern equipment and conditions to stay in shape."
+  "playstation": {
+    "title": "PlayStation Lounge",
+    "description": "Relax and enjoy the latest games on PlayStation. "
   },
   "honey": {
     "title": "Apiary",
     "description": "Natural honey from our own apiary."
-  },
-  "horses": {
-    "title": "Horse Riding",
-    "description": "Horseback riding in nature for all ages."
-  },
-  "buffet": {
-    "title": "Buffet",
-    "description": "Daily breakfast, lunch, and dinner in buffet format."
-  },
-  "mosque": {
-    "title": "Mosque",
-    "description": "A place for prayer on the hotel premises."
   }
 }
 

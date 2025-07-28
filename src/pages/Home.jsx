@@ -6,36 +6,53 @@ import Slider from '../components/Slider';
 import BookingFind from '../components/BookingFind';
 import Gallery from '../components/Gallery';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUtensils, faSpa, faUsers, faSwimmer, faDumbbell, faHeart } from '@fortawesome/free-solid-svg-icons';
+import { faUtensils,faHorse, faUsers, faSwimmer, faGamepad, faHeart } from '@fortawesome/free-solid-svg-icons';
 import CurtainReveal from '../components/CurtainReveal';
 
-
-const heroImages = Object.entries(
-  import.meta.glob('../assets/hero-*.JPG', { eager: true, as: 'url' })
+const mobileImages = Object.entries(
+  import.meta.glob('../assets/mobile__hero-*.JPG', { eager: true, as: 'url' })
 )
   .slice(0, 5)
   .map(([, url]) => url);
+
+const desktopImages = Object.entries(
+  import.meta.glob('../assets/desktop__hero-*.JPG', { eager: true, as: 'url' })
+)
+  .slice(0, 5)
+  .map(([, url]) => url);
+
+
 
 const compositionImages = import.meta.glob('../assets/composition-*.jpg', { eager: true, as: 'url' });
 
 const roomsImages = import.meta.glob('../assets/room-*.jpg', { eager: true, as: 'url' });
 
-function Home() {
+const serviceImages = import.meta.glob('../assets/service-*.JPG', { eager: true, as: 'url' });
+
+function Home() {  
   const [type, setType] = useState('vertical');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+     const handleResize = () => {
       if (window.innerWidth < 768) {
         setType('vertical');
       } else {
         setType('horizontal');
       }
     };
-
-    handleResize(); // run once on mount
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const heroImages = isMobile ? mobileImages : desktopImages;
 
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -63,10 +80,10 @@ function Home() {
 
   const services = [
     { icon: faUtensils, title: 'servicesData.restaurants.title', description: 'servicesData.restaurants.description' },
-    { icon: faSpa, title: 'servicesData.spa.title', description: 'servicesData.spa.description' },
+    { icon: faHorse, title: 'servicesData.horses.title', description: 'servicesData.horses.description' },
     { icon: faUsers, title: 'servicesData.conference.title', description: 'servicesData.conference.description' },
     { icon: faSwimmer, title: 'servicesData.pool.title', description: 'servicesData.pool.description' },
-    { icon: faDumbbell, title: 'servicesData.fitness.title', description: 'servicesData.fitness.description' },
+    { icon: faGamepad, title: 'servicesData.playstation.title', description: 'servicesData.playstation.description' },
     { icon: faHeart, title: 'servicesData.honey.title', description: 'servicesData.honey.description' },
   ];
 
@@ -86,9 +103,9 @@ function Home() {
               <span class="heading-primary--sub">{t('lifeHappens')}</span>
           </h1>
 
-          <a href="#section-tours" class="btn btn--white btn--animated">{t('bookNow')}</a>
+          <a href="#section-tours" class="btn btn--white btn--animated">{t('rooms')}</a>
         </div>
-        <Slider autoplay interval={5000}>
+        <Slider autoplay interval={3500}>
           {heroImages.map((url, idx) => (
             <img
               key={idx}
@@ -153,7 +170,7 @@ function Home() {
                     to="/booking"
                     state={{ showAll: true }} className="room-card__button"
                   >
-                    {t('bookNow')}
+                    {t('rooms')}
                   </Link>
               </div>
             </div>
@@ -178,38 +195,38 @@ function Home() {
           
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={roomsImages['../assets/room-1.jpg']} alt="Service 1" />
+            <img src={serviceImages['../assets/service-1.JPG']} alt="Service 1" />
             <div className="service-info">
-              <h2>{t('servicesData.restaurants.title')}</h2>
-              <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. </p>
+              <h2>{t('stableH')}</h2>
+              <p>{t('stableP')} </p>
             </div>
           </div>
           </CurtainReveal>
       <CurtainReveal type={type}>
           <div className="service-card" id="reverse">
             <div className="service-info">
-              <h2>{t('servicesData.restaurants.title')}</h2>
-              <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. </p>
+              <h2>{t('flourMillH')}</h2>
+              <p>{t('flourMillp')}</p>
             </div>
-            <img src={roomsImages['../assets/room-1.jpg']} alt="Service 2" />
+            <img src={serviceImages['../assets/service-2.JPG']} alt="Service 2" />
           </div>
           </CurtainReveal>
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={roomsImages['../assets/room-1.jpg']} alt="Service 3" />
+            <img src={serviceImages['../assets/service-3.JPG']} alt="Service 3" />
             <div className="service-info">
-              <h2>{t('servicesData.restaurants.title')}</h2>
-              <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. </p>
+              <h2>{t('apiaryH')}</h2>
+              <p>{t('apiaryP')}</p>
             </div>
           </div>
           </CurtainReveal>
       <CurtainReveal type={type}>
           <div className="service-card" id="reverse">
             <div className="service-info">
-              <h2>{t('servicesData.restaurants.title')}</h2>
-              <p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. </p>
-            </div>
-            <img src={roomsImages['../assets/room-1.jpg']} alt="Service 4" />
+              <h2>{t('poolH')}</h2>
+                <p>{t('poolP')}</p>
+              </div>
+            <img src={serviceImages['../assets/service-4.JPG']} alt="Service 4" />
           </div>
           </CurtainReveal>
         </div>

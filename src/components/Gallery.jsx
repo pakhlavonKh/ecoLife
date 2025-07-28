@@ -1,10 +1,9 @@
 import React from 'react';
 
 function Gallery() {
-  const images = import.meta.glob('../assets/photo-*.jpg', { eager: true, as: 'url' });
+  const images = import.meta.glob('../assets/gallery-*.jpg', { eager: true, as: 'url' });
 
   const sortedImages = Object.entries(images)
-    .sort(([a], [b]) => a.localeCompare(b))
     .map(([, url]) => url);
 
   return (
