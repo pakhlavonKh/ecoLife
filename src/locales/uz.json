@@ -42,7 +42,7 @@
   "roomsTitle": "Bo‘sh xonalar",
   "roomsData": {
     "room1": {
-      "title": "Standar",
+      "title": "Standart",
       "description": "Qulay va arzon xona, qisqa muddatli qolish uchun mos."
     },  
     "room2": {
@@ -51,22 +51,22 @@
     },
     "room3": {
       "title": "Oilaviy Suite",
-      "description": "To‘liq jihozlangan oshxona va yashash maydoniga ega mustaqil turar joy."
+      "description": "Juda keng va qulay oilaviy xona, katta balkon bilan.  "
     }
   },
   "services": "Bizning xizmatlarimiz",
   "stableH": "Otlarda Sayr Tajribasi",
   "stableP": "Bizning dam olish maskanimizda mehmonlar uchun tabiatda ot minishni boshdan kechirish imkonini beruvchi chiroyli va yaxshi saqlangan otxonamiz mavjud. Siz yangi boshlovchi bo‘lasizmi yoki tajribali chavandoz – otlarimiz sizni kutmoqda.",
   "flourMillH": "An'anaviy Tegirmon",
-  "flourMillp": "Yangi, organik donlar qadimgi uslubda mayin un holiga keltiriladigan an'anaviy un tegirmonimiz bilan tanishing.",
+  "flourMillp": "Kurort hududidagi barcha un mahsulotlari o‘zimizning an’anaviy tegirmonda tayyorlangan undan tayyorlanadi. Biz qadimiy texnologiyalar asosida tabiiy donlarni maydalaymiz va ularning foydasi bilan ta'mini saqlaymiz. Non, patir va pishiriqlar har kuni yangi unimizdan tayyorlanadi — sizning salomatligingiz uchun g‘amxo‘rlik bilan.",
   "apiaryH": "Asalarichilik va Asal Ferma",
   "apiaryP": "Toza va tabiiy asal qanday tayyorlanishini ko‘rish uchun asal fermamizga tashrif buyuring. Asalari dunyosining ajoyib jihatlarini kashf eting va manbadan yangi asal tatib ko‘ring.",
   "poolH": "Alohida Suzish Hovuzlari",
   "poolP": "Toza buloq suvi bilan to‘ldirilgan hovuzlarimizda tetiklashtiruvchi suzishdan bahramand bo‘ling. Erkaklar va ayollar uchun alohida hovuzlar qulaylik va shaxsiylikni ta'minlaydi.",
   "servicesData": {
     "restaurants": {
-      "title": "Restoranlar",
-      "description": "Restoranlarimizda har xil taomlar va menyular."
+      "title": "Restoran",
+      "description": "Shved stolidan bahramanding kuniga uch mahal – hech qanday cheklovlarsiz."
     },
     "horses": {
       "title": "Otda sayr qilish",
@@ -81,8 +81,8 @@
       "description": "Dam olish va suzish uchun yopiq va ochiq havzalar."
     },
     "water": {
-      "title": "Tabiiy Buloq Suvi",
-      "description": "Butun dam olish maskanida toza buloq suvidan foydalaniladi."
+      "title": "Buloq Suvi",
+      "description": "Kurort hududidagi barcha suv — buloqdan."
     },
     "honey": {
       "title": "Asalarichilik",

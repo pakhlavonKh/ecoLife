@@ -51,22 +51,22 @@
     },
     "room3": {
       "title": "Luxury",
-      "description": "Fully equipped independent unit with kitchen and living area."
+      "description": "A very spacious and roomy family suite with a large balcony."
     }
   },
   "services": "Our services",
   "stableH": "Horse Riding Experience",
   "stableP": "Our resort features a beautiful and well-maintained horse stable, perfect for guests who want to experience horseback riding in nature. Whether you're a beginner or an experienced rider, our horses are ready to welcome you.",
   "flourMillH": "Traditional Flour Mill",
-  "flourMillp": "Experience the charm of our traditional flour mill where fresh, organic grains are ground into fine flour just like in the old days.",
+  "flourMillp": "All flour-based products on the resort are made using flour milled in our own traditional mill. We grind natural grains using time-honored methods, preserving their full taste and nutritional value. Our bread, flatbreads, and pastries are baked daily — from our flour, with care for your well-being.",
   "apiaryH": "Apiary and Honey Farm",
   "apiaryP": "Visit our apiary to see how pure, natural honey is made. Discover the fascinating world of bees and enjoy fresh honey straight from the source.",
   "poolH": "Separate Swimming Pools",
   "poolP": "Enjoy a refreshing swim in our clean pools filled with natural spring water. Separate pools for men and women ensure comfort and privacy.",
   "servicesData": {
   "restaurants": {
-    "title": "Restaurants",
-    "description": "A diverse menu and dishes for every taste in our restaurants."
+    "title": "Restaurant",
+    "description": "Enjoy the buffet dining\nthree times a day – with no limits."
   },
   "horses": {
     "title": "Horse Riding",
@@ -81,8 +81,8 @@
     "description": "Indoor and outdoor pools for relaxation and swimming."
   },
   "water": {
-    "title": "Natural Spring Water",
-    "description": "Fresh spring water is used throughout the entire resort."
+    "title": "Spring Water",
+    "description": "All water on the resort grounds is spring-sourced."
   },
   "honey": {
     "title": "Apiary",

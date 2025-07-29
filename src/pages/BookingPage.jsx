@@ -58,18 +58,18 @@ function BookingPage() {
     id: 3,
     name: { en: "Luxury", ru: "Люкс", uz: "Lyuks" },
     description: {
-      en: "Fully equipped independent unit with kitchen and living area.",
-      ru: "Полностью оборудованные апартаменты с кухней и гостиной.",
-      uz: "To‘liq jihozlangan oshxona va yashash maydoniga ega mustaqil turar joy."
+      en: "A very spacious and roomy family suite with a large balcony.",
+      ru: "Очень вместительный и просторный семейный номер с большим балконом.",
+      uz: "Juda keng va qulay oilaviy xona, katta balkon bilan."
     }
   },
   {
     id: 4,
     name: { en: "Apartment", ru: "Апартаменты", uz: "Apartament" },
     description: {
-      en: "Wooden cabin ideal for nature lovers.",
-      ru: "Деревянный домик для любителей природы.",
-      uz: "Tabiat ishqibozlari uchun yog‘ochdan yasalgan uycha."
+      en: "Cozy double room with a private bathroom.",
+      ru: "Уютный двухместный номер с собственным санузлом.",
+      uz: "Shaxsiy hojatxonali qulay ikki kishilik xona."
     }
   }]
 
