@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import logoDesktop from '../assets/logo-big.png';
 
+
 function Header() {
   const { i18n, t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -71,7 +72,6 @@ function Header() {
           <div className="header__logo">
             <Link to="/" onClick={() => setIsOpen(false)}>
               <img src={logoDesktop} alt="logo" className="logo logo--desktop" />
-              <img src={logoMobile} alt="logo mobile" className="logo logo--mobile" />
             </Link>
           </div>
           <div className="header__lang">
