@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import logoDesktop from '../assets/logo-big.png';
-import logoMobile from '../assets/logo-white.png';
 
 function Header() {
   const { i18n, t } = useTranslation();
