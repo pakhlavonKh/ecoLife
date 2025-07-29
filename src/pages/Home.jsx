@@ -10,24 +10,24 @@ import { faUtensils,faHorse, faUsers, faSwimmer, faDroplet, faHeart } from '@for
 import CurtainReveal from '../components/CurtainReveal';
 
 const mobileImages = Object.entries(
-  import.meta.glob('../assets/mobile__hero-*.JPG', { eager: true, as: 'url' })
+  import.meta.glob('../assets/mobile__hero-*.webp', { eager: true, as: 'url' })
 )
   .slice(0, 5)
   .map(([, url]) => url);
 
 const desktopImages = Object.entries(
-  import.meta.glob('../assets/desktop__hero-*.JPG', { eager: true, as: 'url' })
+  import.meta.glob('../assets/desktop__hero-*.webp', { eager: true, as: 'url' })
 )
   .slice(0, 5)
   .map(([, url]) => url);
 
 
 
-const compositionImages = import.meta.glob('../assets/composition-*.jpg', { eager: true, as: 'url' });
+const compositionImages = import.meta.glob('../assets/composition-*.webp', { eager: true, as: 'url' });
 
-const roomsImages = import.meta.glob('../assets/room-*.jpg', { eager: true, as: 'url' });
+const roomsImages = import.meta.glob('../assets/room-*.webp', { eager: true, as: 'url' });
 
-const serviceImages = import.meta.glob('../assets/service-*.JPG', { eager: true, as: 'url' });
+const serviceImages = import.meta.glob('../assets/service-*.webp', { eager: true, as: 'url' });
 
 function Home() {  
   const [type, setType] = useState('vertical');
@@ -62,19 +62,19 @@ function Home() {
           id: '1',
           title: t('roomsData.room1.title'),
           description: t('roomsData.room1.description'),
-          img: roomsImages['../assets/room-1.jpg'],
+          img: roomsImages['../assets/room-1.webp'],
         },
         {
           id: '2',
           title: t('roomsData.room2.title'),
           description: t('roomsData.room2.description'),
-          img: roomsImages['../assets/room-2.jpg'],
+          img: roomsImages['../assets/room-2.webp'],
         },
         {
           id: '3',
           title: t('roomsData.room3.title'),
           description: t('roomsData.room3.description'),
-          img: roomsImages['../assets/room-3.jpg'],
+          img: roomsImages['../assets/room-3.webp'],
         },
       ];
 
@@ -112,7 +112,9 @@ function Home() {
             <img
               key={idx}
               src={url}
-              alt={`Slide ${idx + 1}`}
+              alt={`Slide ${idx + 1}`
+              
+            }loading="eager"
             />
           ))}
         </Slider>
@@ -139,19 +141,19 @@ function Home() {
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 1"
               class="composition__photo composition__photo--p1"
-              src={compositionImages['../assets/composition-1.jpg']}/>
+              src={compositionImages['../assets/composition-1.webp']}/>
 
             <img 
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 2"
               class="composition__photo composition__photo--p2"
-              src={compositionImages['../assets/composition-2.jpg']}/>
+              src={compositionImages['../assets/composition-2.webp']}/>
 
             <img 
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 3"
               class="composition__photo composition__photo--p3"
-              src={compositionImages['../assets/composition-3.jpg']}/>
+              src={compositionImages['../assets/composition-3.webp']}/>
 
           </div>
         </div>
@@ -197,7 +199,7 @@ function Home() {
           
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={serviceImages['../assets/service-1.JPG']} alt="Service 1" />
+            <img src={serviceImages['../assets/service-1.webp']} alt="Service 1" loading='lazy' />
             <div className="service-info">
               <h2>{t('stableH')}</h2>
               <p>{t('stableP')} </p>
@@ -210,12 +212,12 @@ function Home() {
               <h2>{t('flourMillH')}</h2>
               <p>{t('flourMillp')}</p>
             </div>
-            <img src={serviceImages['../assets/service-2.JPG']} alt="Service 2" />
+            <img src={serviceImages['../assets/service-2.webp']} alt="Service 2" loading='lazy' />
           </div>
           </CurtainReveal>
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={serviceImages['../assets/service-3.JPG']} alt="Service 3" />
+            <img src={serviceImages['../assets/service-3.webp']} alt="Service 3" loading='lazy' />
             <div className="service-info">
               <h2>{t('apiaryH')}</h2>
               <p>{t('apiaryP')}</p>
@@ -228,7 +230,7 @@ function Home() {
               <h2>{t('poolH')}</h2>
                 <p>{t('poolP')}</p>
               </div>
-            <img src={serviceImages['../assets/service-4.JPG']} alt="Service 4" />
+            <img src={serviceImages['../assets/service-4.webp']} alt="Service 4" loading='lazy' />
           </div>
           </CurtainReveal>
         </div>

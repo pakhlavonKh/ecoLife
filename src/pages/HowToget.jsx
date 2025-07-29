@@ -63,13 +63,13 @@ function HowToGet() {
 
         <div className="step">
           <h2>{t('step2')}</h2>
-          <img src={arriveImages['../assets/arrive-2.JPG']} alt="Arrive 2" />
+          <img src={arriveImages['../assets/arrive-2.JPG']} alt="Arrive 2" loading='lazy' />
         </div>
         <div className="arrow arrow-right">&gt;</div>
 
         <div className="step">
           <h2>{t('step3')}</h2>
-          <img src={arriveImages['../assets/arrive-3.JPG']}  alt="Arrive 3" />
+          <img src={arriveImages['../assets/arrive-3.JPG']}  alt="Arrive 3" loading='lazy' />
             <span className="arrow arrow-down">&gt;</span>
           
         </div>
@@ -80,17 +80,17 @@ function HowToGet() {
       <div className="step-row step-row-2">
         <div className="step">
           <h2>{t('step4')}</h2>
-          <img src={arriveImages['../assets/arrive-4.JPG']}  alt="Arrive 4" />
+          <img src={arriveImages['../assets/arrive-4.JPG']}  alt="Arrive 4" loading='lazy'/>
         </div>
         <div className="arrow arrow-left">&lt;</div>
         <div className="step">
           <h2>{t('step5')}</h2>
-          <img src={arriveImages['../assets/arrive-5.JPG']}  alt="Arrive 5" />
+          <img src={arriveImages['../assets/arrive-5.JPG']}  alt="Arrive 5" loading='lazy' />
         </div>
         <div className="arrow arrow-left">&lt;</div>
         <div className="step">
           <h2>{t('step6')}</h2>
-          <img src={arriveImages['../assets/arrive-6.JPG']}  alt="Arrive 6" />
+          <img src={arriveImages['../assets/arrive-6.JPG']}  alt="Arrive 6" loading='lazy' />
         </div>
       </div>
 

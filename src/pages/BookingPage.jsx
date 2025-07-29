@@ -8,7 +8,7 @@ import CurtainReveal from '../components/CurtainReveal';
 // Extend dayjs with isSameOrBefore plugin
 dayjs.extend(isSameOrBefore);
 
-const roomsImages = import.meta.glob('../assets/room-*.jpg', { eager: true, as: 'url' });
+const roomsImages = import.meta.glob('../assets/room-*.webp', { eager: true, as: 'url' });
 
 function BookingPage() {
   const { t, i18n } = useTranslation();
@@ -85,7 +85,7 @@ function BookingPage() {
         <div className="room-list">
           {roomsData.map((room, idx) => (
             <div className="room-card" key={idx}>
-              <img src={roomsImages[`../assets/room-${room.id}.jpg`] } alt={room.title} className="room-card__image" />
+              <img src={roomsImages[`../assets/room-${room.id}.webp`] } alt={room.title} className="room-card__image" />
               
               <div className="room-card__content">
                 <h2>{room.name?.[i18n.language]}</h2>
