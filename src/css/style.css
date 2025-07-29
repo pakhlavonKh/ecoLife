@@ -153,7 +153,7 @@ h1 {
   width: 100%;
   z-index: 2;
   background: #f7f7f7;
-  transition: transform 1.5s ease-in-out;
+  transition: transform 0.7s ease-in-out;
 }
 
 .curtain-reveal.vertical .curtain {
@@ -949,7 +949,7 @@ select option {
     animation-name: moveInLeft;
     animation-duration: 1s;
     animation-timing-function: ease-out;
-    animation-delay: 1.5s;
+    animation-delay: 0.7s;
     opacity: 0;
     transform: translateX(-10rem);
     animation-fill-mode: both;
