@@ -51,10 +51,10 @@ function Header() {
             </Link>
             <Link to="/how-to-get" className="navigation__item" onClick={() => setIsOpen(false)}>
               {t('howToGet')}
-            </Link>
-            <Link to="/booking" className="navigation__item" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
-              {t('rooms')}
-            </Link>
+              </Link>
+              <Link to="/booking" className="navigation__item" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
+                {t('rooms')}
+              </Link>
             <div className="header__lang navigation__item">
               <select onChange={(e) => changeLanguage(e.target.value)} value={i18n.language}>
                 <option value="en">EN</option>

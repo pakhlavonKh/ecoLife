@@ -103,7 +103,7 @@ function Home() {
               <span class="heading-primary--sub">{t('lifeHappens')}</span>
           </h1>
 
-          <Link to="/booking" className="btn btn--white btn--animated" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
+          <Link to="/booking" className="btn btn--white btn--animated" >
             {t('rooms')}
           </Link>
         </div>
