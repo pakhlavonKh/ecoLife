@@ -135,6 +135,51 @@ h1 {
     text-transform: uppercase;
 }
 
+.curtain-reveal {
+  position: relative;
+  overflow: hidden;
+}
+
+.curtain-content {
+  position: relative;
+  z-index: 1;
+}
+
+.curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 2;
+  background: #f7f7f7;
+  transition: transform 1.5s ease-in-out;
+}
+
+.curtain-reveal.vertical .curtain {
+  transform: translateY(0%); 
+}
+.curtain-reveal.vertical.revealed .curtain {
+  transform: translateY(100%); 
+}
+
+.curtain-reveal.horizontal .curtain {
+  transform: translateX(0%);
+}
+.curtain-reveal.horizontal.revealed .curtain {
+  transform: translateX(100%);
+}
+
+.curtain-reveal.diagonal .curtain {
+  transform: scale(1) rotate(45deg);
+  transform-origin: top left;
+  width: 200%;
+  height: 200%;
+}
+.curtain-reveal.diagonal.revealed .curtain {
+  transform: scale(0) rotate(45deg);
+}
+
 .header {
   align-items: center;
   padding: 0 5rem;
@@ -194,7 +239,6 @@ h1 {
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   padding: 0.5rem 2.5rem 0.5rem 1rem;
-  font-size: 1.6rem;
   align-self: self-end;
   border-radius: 4px;
   border: none;
@@ -343,6 +387,8 @@ select option {
 .navigation__checkbox:checked ~ .navigation__nav {
   opacity: 1;
   width: 100%; }
+  .navigation__checkbox:checked ~ .navigation__nav .header__lang {
+    display: block; }
 
 
 .navigation__background {
@@ -804,7 +850,6 @@ select option {
   z-index: 10;
   transition: all .2s;
   outline-offset: 2rem;
-  /* z-index: 100; */
 }
 
 .composition__photo--p1 {
@@ -1034,7 +1079,6 @@ select option {
 
 .rooms-section .room-card {
   grid-column: span 1;
-  /* margin: auto; */
 }
 
 .rooms-section h2 {
@@ -1093,7 +1137,6 @@ select option {
   border-radius: 6px;
   font-size: 1.4rem;
   cursor: pointer;
-  transition: background 0.3s;
 }
 
 .room-card__button:hover {
@@ -1314,6 +1357,7 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
     flex-direction: column;
     align-items: center;
     color: #fff;
+    display: none;
   }
 
   .navigation__button {
@@ -1469,7 +1513,7 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
 }
 
 @media (hover: none), (pointer: coarse) {
-  .results:is(:hover, :focus-within) .gallery__image {
+  .gallery__list:is(:hover, :focus-within) .gallery__image {
     opacity: 1; 
     filter: none;
   }
@@ -1497,52 +1541,4 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
     transform: none !important;
     filter: none !important;
   }
-}
-.curtain-reveal {
-  position: relative;
-  overflow: hidden;
-}
-
-.curtain-content {
-  position: relative;
-  z-index: 1;
-}
-
-/* Curtain covers content initially */
-.curtain {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  z-index: 2;
-  background: #f7f7f7;
-  transition: transform 1.5s ease-in-out;
-}
-
-/* 1. Top to Bottom (vertical) */
-.curtain-reveal.vertical .curtain {
-  transform: translateY(0%); /* Covering initially */
-}
-.curtain-reveal.vertical.revealed .curtain {
-  transform: translateY(100%); /* Slide down to reveal */
-}
-
-/* 2. Left to Right (horizontal) */
-.curtain-reveal.horizontal .curtain {
-  transform: translateX(0%);
-}
-.curtain-reveal.horizontal.revealed .curtain {
-  transform: translateX(100%);
-}
-
-/* 3. Diagonal (top-left to bottom-right) */
-.curtain-reveal.diagonal .curtain {
-  transform: scale(1) rotate(45deg);
-  transform-origin: top left;
-  width: 200%;
-  height: 200%;
-}
-.curtain-reveal.diagonal.revealed .curtain {
-  transform: scale(0) rotate(45deg);
 }

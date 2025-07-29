@@ -62,7 +62,7 @@
   "apiaryH": "Apiary and Honey Farm",
   "apiaryP": "Visit our apiary to see how pure, natural honey is made. Discover the fascinating world of bees and enjoy fresh honey straight from the source.",
   "poolH": "Separate Swimming Pools",
-  "poolP": "Enjoy a refreshing swim in our clean, well-maintained pools. We offer separate pools for men and women to ensure privacy and comfort for all guests.",
+  "poolP": "Enjoy a refreshing swim in our clean pools filled with natural spring water. Separate pools for men and women ensure comfort and privacy.",
   "servicesData": {
   "restaurants": {
     "title": "Restaurants",
@@ -80,9 +80,9 @@
     "title": "Swimming Pool",
     "description": "Indoor and outdoor pools for relaxation and swimming."
   },
-  "playstation": {
-    "title": "PlayStation Lounge",
-    "description": "Relax and enjoy the latest games on PlayStation. "
+  "water": {
+    "title": "Natural Spring Water",
+    "description": "Fresh spring water is used throughout the entire resort."
   },
   "honey": {
     "title": "Apiary",

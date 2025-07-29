@@ -6,7 +6,7 @@ import Slider from '../components/Slider';
 import BookingFind from '../components/BookingFind';
 import Gallery from '../components/Gallery';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUtensils,faHorse, faUsers, faSwimmer, faGamepad, faHeart } from '@fortawesome/free-solid-svg-icons';
+import { faUtensils,faHorse, faUsers, faSwimmer, faDroplet, faHeart } from '@fortawesome/free-solid-svg-icons';
 import CurtainReveal from '../components/CurtainReveal';
 
 const mobileImages = Object.entries(
@@ -83,7 +83,7 @@ function Home() {
     { icon: faHorse, title: 'servicesData.horses.title', description: 'servicesData.horses.description' },
     { icon: faUsers, title: 'servicesData.conference.title', description: 'servicesData.conference.description' },
     { icon: faSwimmer, title: 'servicesData.pool.title', description: 'servicesData.pool.description' },
-    { icon: faGamepad, title: 'servicesData.playstation.title', description: 'servicesData.playstation.description' },
+    { icon: faDroplet, title: 'servicesData.water.title', description: 'servicesData.water.description' },
     { icon: faHeart, title: 'servicesData.honey.title', description: 'servicesData.honey.description' },
   ];
 
@@ -103,7 +103,9 @@ function Home() {
               <span class="heading-primary--sub">{t('lifeHappens')}</span>
           </h1>
 
-          <a href="#section-tours" class="btn btn--white btn--animated">{t('rooms')}</a>
+          <Link to="/booking" className="btn btn--white btn--animated" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
+            {t('rooms')}
+          </Link>
         </div>
         <Slider autoplay interval={3500}>
           {heroImages.map((url, idx) => (

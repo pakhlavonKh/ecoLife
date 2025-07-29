@@ -62,7 +62,7 @@
   "apiaryH": "Asalarichilik va Asal Ferma",
   "apiaryP": "Toza va tabiiy asal qanday tayyorlanishini ko‘rish uchun asal fermamizga tashrif buyuring. Asalari dunyosining ajoyib jihatlarini kashf eting va manbadan yangi asal tatib ko‘ring.",
   "poolH": "Alohida Suzish Hovuzlari",
-  "poolP": "Toza va yaxshi parvarishlangan suzish havzalarimizda suzib, tetiklaning. Barcha mehmonlar uchun qulaylik va shaxsiylikni ta'minlash maqsadida erkaklar va ayollar uchun alohida havzalar mavjud.",
+  "poolP": "Toza buloq suvi bilan to‘ldirilgan hovuzlarimizda tetiklashtiruvchi suzishdan bahramand bo‘ling. Erkaklar va ayollar uchun alohida hovuzlar qulaylik va shaxsiylikni ta'minlaydi.",
   "servicesData": {
     "restaurants": {
       "title": "Restoranlar",
@@ -80,9 +80,9 @@
       "title": "Suv Havzasi",
       "description": "Dam olish va suzish uchun yopiq va ochiq havzalar."
     },
-    "playstation": {
-      "title": "PlayStation o‘yin zonasi",
-      "description": "Eng so‘nggi o‘yinlardan bahramand bo‘ling va hordiq chiqaring. "
+    "water": {
+      "title": "Tabiiy Buloq Suvi",
+      "description": "Butun dam olish maskanida toza buloq suvidan foydalaniladi."
     },
     "honey": {
       "title": "Asalarichilik",

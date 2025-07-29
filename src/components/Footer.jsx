@@ -21,6 +21,7 @@ function Footer() {
         <div className='footer-copyright'>
           <p>© {new Date().getFullYear()} Eco-Life. {t('rights')}.</p>
           <p>Made by Pakhlavon Khamidov</p>
+          <p>Vision and production by Mukhsin Kamolov</p>
         </div>
       </div>
     </footer>
