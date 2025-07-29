@@ -107,7 +107,7 @@ function Home() {
             {t('rooms')}
           </Link>
         </div>
-        <Slider autoplay interval={3500}>
+        <Slider autoplay interval={6000}>
           {heroImages.map((url, idx) => (
             <img
               key={idx}
