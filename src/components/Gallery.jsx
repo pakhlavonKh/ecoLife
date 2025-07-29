@@ -1,7 +1,19 @@
 import React from 'react';
 
 function Gallery() {
-  const images = import.meta.glob('../assets/gallery-*.webp', { eager: true, as: 'url' });
+  const images = [
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-3.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-4.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-5.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-6.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-7.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-8.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-9.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-10.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-11.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/gallery-12.webp?tr=f-auto,q-80"
+  ]
 
   const sortedImages = Object.entries(images)
     .map(([, url]) => url);

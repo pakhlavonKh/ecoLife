@@ -9,25 +9,40 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUtensils,faHorse, faUsers, faSwimmer, faDroplet, faHeart } from '@fortawesome/free-solid-svg-icons';
 import CurtainReveal from '../components/CurtainReveal';
 
-const mobileImages = Object.entries(
-  import.meta.glob('../assets/mobile__hero-*.webp', { eager: true, as: 'url' })
-)
-  .slice(0, 5)
-  .map(([, url]) => url);
+const mobileImages = [
+  
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-3.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-4.webp?tr=f-auto,q-80"
+]
 
-const desktopImages = Object.entries(
-  import.meta.glob('../assets/desktop__hero-*.webp', { eager: true, as: 'url' })
-)
-  .slice(0, 5)
-  .map(([, url]) => url);
+const desktopImages = [
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-3.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-4.webp?tr=f-auto,q-80"
+  ]
 
 
+const compositionImages = [
+    "https://ik.imagekit.io/hyp089vmms/assets/composition-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/composition-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/composition-3.webp?tr=f-auto,q-80"
 
-const compositionImages = import.meta.glob('../assets/composition-*.webp', { eager: true, as: 'url' });
+]
 
-const roomsImages = import.meta.glob('../assets/room-*.webp', { eager: true, as: 'url' });
+const roomsImages = [
+    "https://ik.imagekit.io/hyp089vmms/assets/room-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/room-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/room-3.webp?tr=f-auto,q-80"
+  ]
 
-const serviceImages = import.meta.glob('../assets/service-*.webp', { eager: true, as: 'url' });
+const serviceImages = [
+    "https://ik.imagekit.io/hyp089vmms/assets/service-1.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/service-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/service-3.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/service-4.webp?tr=f-auto,q-80"]
 
 function Home() {  
   const [type, setType] = useState('vertical');
@@ -62,19 +77,19 @@ function Home() {
           id: '1',
           title: t('roomsData.room1.title'),
           description: t('roomsData.room1.description'),
-          img: roomsImages['../assets/room-1.webp'],
+          img: roomsImages[0],
         },
         {
           id: '2',
           title: t('roomsData.room2.title'),
           description: t('roomsData.room2.description'),
-          img: roomsImages['../assets/room-2.webp'],
+          img: roomsImages[1],
         },
         {
           id: '3',
           title: t('roomsData.room3.title'),
           description: t('roomsData.room3.description'),
-          img: roomsImages['../assets/room-3.webp'],
+          img: roomsImages[2],
         },
       ];
 
@@ -141,19 +156,19 @@ function Home() {
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 1"
               class="composition__photo composition__photo--p1"
-              src={compositionImages['../assets/composition-1.webp']}/>
+              src={compositionImages[0]}/>
 
             <img 
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 2"
               class="composition__photo composition__photo--p2"
-              src={compositionImages['../assets/composition-2.webp']}/>
+              src={compositionImages[1]}/>
 
             <img 
               sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
               alt="Composition 3"
               class="composition__photo composition__photo--p3"
-              src={compositionImages['../assets/composition-3.webp']}/>
+              src={compositionImages[2]}/>
 
           </div>
         </div>
@@ -199,7 +214,7 @@ function Home() {
           
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={serviceImages['../assets/service-1.webp']} alt="Service 1" loading='lazy' />
+            <img src={serviceImages[0]} alt="Service 1" loading='lazy' />
             <div className="service-info">
               <h2>{t('stableH')}</h2>
               <p>{t('stableP')} </p>
@@ -212,12 +227,12 @@ function Home() {
               <h2>{t('flourMillH')}</h2>
               <p>{t('flourMillp')}</p>
             </div>
-            <img src={serviceImages['../assets/service-2.webp']} alt="Service 2" loading='lazy' />
+            <img src={serviceImages[1]} alt="Service 2" loading='lazy' />
           </div>
           </CurtainReveal>
       <CurtainReveal type={type}>
           <div className="service-card">
-            <img src={serviceImages['../assets/service-3.webp']} alt="Service 3" loading='lazy' />
+            <img src={serviceImages[2]} alt="Service 3" loading='lazy' />
             <div className="service-info">
               <h2>{t('apiaryH')}</h2>
               <p>{t('apiaryP')}</p>
@@ -230,7 +245,7 @@ function Home() {
               <h2>{t('poolH')}</h2>
                 <p>{t('poolP')}</p>
               </div>
-            <img src={serviceImages['../assets/service-4.webp']} alt="Service 4" loading='lazy' />
+            <img src={serviceImages[3]} alt="Service 4" loading='lazy' />
           </div>
           </CurtainReveal>
         </div>

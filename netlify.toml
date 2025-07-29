@@ -8,3 +8,4 @@
 
   [plugins.inputs]
   cloudName = "ECOLIFE_CLOUD_IMAGES"
+  folder = "src/assets"

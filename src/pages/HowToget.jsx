@@ -13,7 +13,13 @@ function HowToGet() {
     );
   };
 
-  const arriveImages = import.meta.glob('../assets/arrive-*.JPG', { eager: true, as: 'url' });
+  const arriveImages = [
+    "https://ik.imagekit.io/hyp089vmms/assets/arrive-2.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/arrive-3.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/arrive-4.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/arrive-5.webp?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/arrive-6.webp?tr=f-auto,q-80"
+  ]
 
   const [type, setType] = useState('vertical');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -63,13 +69,13 @@ function HowToGet() {
 
         <div className="step">
           <h2>{t('step2')}</h2>
-          <img src={arriveImages['../assets/arrive-2.JPG']} alt="Arrive 2" loading='lazy' />
+          <img src={arriveImages[0]} alt="Arrive 2" loading='lazy' />
         </div>
         <div className="arrow arrow-right">&gt;</div>
 
         <div className="step">
           <h2>{t('step3')}</h2>
-          <img src={arriveImages['../assets/arrive-3.JPG']}  alt="Arrive 3" loading='lazy' />
+          <img src={arriveImages[1]}  alt="Arrive 3" loading='lazy' />
             <span className="arrow arrow-down">&gt;</span>
           
         </div>
@@ -80,17 +86,17 @@ function HowToGet() {
       <div className="step-row step-row-2">
         <div className="step">
           <h2>{t('step4')}</h2>
-          <img src={arriveImages['../assets/arrive-4.JPG']}  alt="Arrive 4" loading='lazy'/>
+          <img src={arriveImages[2]}  alt="Arrive 4" loading='lazy'/>
         </div>
         <div className="arrow arrow-left">&lt;</div>
         <div className="step">
           <h2>{t('step5')}</h2>
-          <img src={arriveImages['../assets/arrive-5.JPG']}  alt="Arrive 5" loading='lazy' />
+          <img src={arriveImages[3]}  alt="Arrive 5" loading='lazy' />
         </div>
         <div className="arrow arrow-left">&lt;</div>
         <div className="step">
           <h2>{t('step6')}</h2>
-          <img src={arriveImages['../assets/arrive-6.JPG']}  alt="Arrive 6" loading='lazy' />
+          <img src={arriveImages[4]}  alt="Arrive 6" loading='lazy' />
         </div>
       </div>
 
