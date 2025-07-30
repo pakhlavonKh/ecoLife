@@ -1048,13 +1048,15 @@ select option {
 
 .booking-page .room-card {
   height: 35rem;
+  width: 26rem;
 }
 .booking-page .room-card h2 {
   margin: 2rem auto;
 }
 .booking-page .room-card p {
   margin: 0 auto;
-  text-align: center;
+  text-align:center;
+  align-self:flex-start;
 }
 
 .room-list {
@@ -1112,6 +1114,8 @@ select option {
   justify-content: space-between;
   background-color: #fff;
   border-radius: 1rem;
+  justify-content: flex-start; 
+  align-items: flex-start;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
   height: 100%;
   color: #333;
@@ -1121,19 +1125,24 @@ select option {
   font-size: 2rem;
   color: #074F1C;
   font-weight: 450;
-  margin-bottom: 1rem;
+  margin: 1rem auto;
+  text-align:center;
+  align-self:flex-start;
 }
 
 .room-card__content p {
   font-size: 1.4rem;
   margin-bottom: 2rem;
   color: #074F1C;
+  text-align:center;
+  align-self:flex-start;
 }
 
 .room-card__button {
   background-color: #2E7F27;
   color: white;
   border: none;
+  margin: 1rem auto;
   padding: 1rem 1.5rem;
   border-radius: 6px;
   font-size: 1.4rem;
