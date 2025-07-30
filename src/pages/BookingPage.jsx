@@ -36,42 +36,28 @@ function BookingPage() {
     }, []);
   
 
-  const roomsData = [{
-    id: 1,
-    name: { en: "Standard", ru: "Стандарт", uz: "Standart" },
-    description: {
-      en: "Comfortable and affordable room, ideal for short stays.",
-      ru: "Уютный и недорогой номер, идеален для краткосрочного проживания.",
-      uz: "Qulay va arzon xona, qisqa muddatli qolish uchun mos."
-    }
-  },
-  {
-    id: 2,
-    name: { en: "Semi-Luxury", ru: "Полулюкс", uz: "Yarim lyuks" },
-    description: {
-      en: "Spacious suite offering high-end comfort and amenities.",
-      ru: "Просторный номер с высоким уровнем комфорта и удобств.",
-      uz: "Yuqori darajadagi shinamlik va kenglik bilan ta'minlangan xona."
-    }
-  },
-  {
-    id: 3,
-    name: { en: "Luxury", ru: "Люкс", uz: "Lyuks" },
-    description: {
-      en: "A very spacious and roomy family suite with a large balcony.",
-      ru: "Очень вместительный и просторный семейный номер с большим балконом.",
-      uz: "Juda keng va qulay oilaviy xona, katta balkon bilan."
-    }
-  },
-  {
-    id: 4,
-    name: { en: "Apartment", ru: "Апартаменты", uz: "Apartament" },
-    description: {
-      en: "Cozy double room with a private bathroom.",
-      ru: "Уютный двухместный номер с собственным санузлом.",
-      uz: "Shaxsiy hojatxonali qulay ikki kishilik xona."
-    }
-  }]
+  const roomsData = [
+        {
+          id: '1',
+          title: t('roomsData.room1.title'),
+          description: t('roomsData.room1.description'),
+        },
+        {
+          id: '2',
+          title: t('roomsData.room2.title'),
+          description: t('roomsData.room2.description'),
+        },
+        {
+          id: '3',
+          title: t('roomsData.room3.title'),
+          description: t('roomsData.room3.description'),
+        },
+        {
+          id: '4',
+          title: t('roomsData.room4.title'),
+          description: t('roomsData.room4.description'),
+        }
+      ]
 
 
   return (
@@ -88,8 +74,8 @@ function BookingPage() {
               <img src={roomsImages[`../assets/room-${room.id}.webp`] } alt={room.title} className="room-card__image" />
               
               <div className="room-card__content">
-                <h2>{room.name?.[i18n.language]}</h2>
-                <p>{room.description?.[i18n.language]}</p>
+                <h2>{room.title}</h2>
+                <p>{room.description}</p>
               </div>
             </div>
           ))}

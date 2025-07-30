@@ -52,6 +52,10 @@
     "room3": {
       "title": "Luxury",
       "description": "A very spacious and roomy family suite with a large balcony."
+    },
+    "room4": {
+      "title": "Apartment",
+      "description": "Cozy double room with a private bathroom."
     }
   },
   "services": "Our services",

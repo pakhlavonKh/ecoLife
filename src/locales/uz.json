@@ -52,6 +52,10 @@
     "room3": {
       "title": "Lyuks",
       "description": "Juda keng va qulay oilaviy xona, katta balkon bilan.  "
+    },
+    "room4": {
+      "title": "Apartament",
+      "description": "Shaxsiy hojatxonali qulay ikki kishilik xona.  "
     }
   },
   "services": "Bizning xizmatlarimiz",
