@@ -11,17 +11,19 @@ import CurtainReveal from '../components/CurtainReveal';
 
 const mobileImages = [
   
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-1.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-2.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-3.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-4.webp?tr=f-auto,q-80"
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-1.webp?updatedAt=1753981401061?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-2.webp?updatedAt=1753981312220?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-3.webp?updatedAt=1753981289543?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-4.webp?updatedAt=1753981267039?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-5.webp?updatedAt=1753980978699?tr=f-auto,q-80"
 ]
 
 const desktopImages = [
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-1.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-2.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-3.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-4.webp?tr=f-auto,q-80"
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-1.webp?updatedAt=1753981417614?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-2.webp?updatedAt=1753981200985?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-3.webp?updatedAt=1753981166209?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-4.webp?updatedAt=1753981085606?tr=f-auto,q-80",
+    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-5.webp?updatedAt=1753981050935?tr=f-auto,q-80"
   ]
 
 
