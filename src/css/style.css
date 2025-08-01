@@ -1038,11 +1038,13 @@ select option {
 .room-list {
   display: flex;
   gap: 2.5rem;
+  padding: 4rem;
+  border-radius: 3rem;
   justify-content: space-around;
 }
 
 .rooms-section {
-  padding: 0 0 4rem 0;
+  padding: 4rem 0 4rem 0;
   text-align: center;
   display: grid;
   background-color: #F7F3EF;
@@ -1052,6 +1054,10 @@ select option {
 @media screen and (max-width: 565px) {
   .rooms-section {
     grid-template-columns: 1fr;
+  }
+
+  .booking-page {
+    background-color: #F7F3EF;
   }
   
 }
@@ -1430,6 +1436,11 @@ li:is(:hover, :focus-within) + li + li + li + li + li + li {
   .room-list {
     flex-direction: column;
     align-items: center;
+    background-color: #F7F3EF;
+  }
+
+  .room-list .room-card {
+    width: 100%;
   }
 
   .room-card__content h2 {
