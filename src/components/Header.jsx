@@ -55,6 +55,7 @@ function Header() {
               <Link to="/booking" className="navigation__item" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
                 {t('rooms')}
               </Link>
+            <a href="#footer" className="navigation__item" onClick={() => setIsOpen(false)}>{t('contact')}</a>
             <div className="header__lang navigation__item">
               <select onChange={(e) => changeLanguage(e.target.value)} value={i18n.language}>
                 <option value="en">EN</option>
@@ -74,6 +75,7 @@ function Header() {
               <img src={logoDesktop} alt="logo" className="logo logo--desktop" />
             </Link>
           </div>
+          <a href="#footer">{t('contact')}</a>
           <div className="header__lang">
             <select onChange={(e) => changeLanguage(e.target.value)} value={i18n.language}>
               <option value="en">EN</option>
