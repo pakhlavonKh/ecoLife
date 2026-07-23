@@ -144,7 +144,8 @@ function Home() {
         <div className="hero__content">
           <p className="eyebrow hero__rise">{t('heroEyebrow')}</p>
           <h1 className="hero__title hero__rise">
-            {t('heroTitle1')} <em>{t('heroTitle2')}</em>
+            <span>{t('heroTitle1')}</span>
+            <em>{t('heroTitle2')}</em>
           </h1>
           <p className="hero__lead hero__rise">{t('heroLead')}</p>
           <div className="hero__actions hero__rise">

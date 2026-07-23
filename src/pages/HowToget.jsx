@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import arrive2 from '../assets/arrive-2.webp';
@@ -7,12 +7,73 @@ import arrive4 from '../assets/arrive-4.webp';
 import arrive5 from '../assets/arrive-5.webp';
 import arrive6 from '../assets/arrive-6.webp';
 
-const MAP_URL = 'https://maps.app.goo.gl/AkuWyeP4rFHGKua57';
-const MAP_EMBED =
-  'https://www.google.com/maps/embed?pb=!1m22!1m8!1m3!1d47704.31500521876!2d69.8828908!3d41.6445124!3m2!1i1024!2i768!4f13.1!4m11!3e0!4m3!3m2!1d41.6276343!2d69.9408682!4m5!1s0x38af17e8021478db%3A0x75f244721ee86a1c!2sMW85%2BV47%20Turbaza%20%22Lastochka%22%2C%20Khumsan%2C%20Tashkent%20Region%2C%20Uzbekistan!3m2!1d41.6671593!2d69.9078047!5e0!3m2!1sen!2s!4v1753689927445!5m2!1sen!2s';
+const DEST = {
+  lat: 41.6671593,
+  lng: 69.9078047,
+};
+
+const MAP_EMBED = `https://www.google.com/maps?q=${DEST.lat},${DEST.lng}&z=14&output=embed`;
+
+const MAP_APPS = [
+  { id: 'google', labelKey: 'mapGoogle' },
+  { id: 'yandex', labelKey: 'mapYandex' },
+  { id: 'apple', labelKey: 'mapApple' },
+];
+
+function buildMapUrl(appId, origin) {
+  const dest = `${DEST.lat},${DEST.lng}`;
+
+  if (appId === 'google') {
+    if (origin) {
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+    }
+    return `https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+  }
+
+  if (appId === 'yandex') {
+    if (origin) {
+      return `https://yandex.ru/maps/?rtext=${origin.lat},${origin.lng}~${DEST.lat},${DEST.lng}&rtt=auto`;
+    }
+    return `https://yandex.ru/maps/?rtext=~${DEST.lat},${DEST.lng}&rtt=auto`;
+  }
+
+  // Apple Maps
+  if (origin) {
+    return `https://maps.apple.com/?saddr=${origin.lat},${origin.lng}&daddr=${DEST.lat},${DEST.lng}&dirflg=d`;
+  }
+  return `https://maps.apple.com/?daddr=${DEST.lat},${DEST.lng}&dirflg=d`;
+}
+
+function getCurrentPosition() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 60_000,
+      }
+    );
+  });
+}
 
 function HowToGet() {
   const { t } = useTranslation();
+  const titleId = useId();
+  const closeBtnRef = useRef(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [openingApp, setOpeningApp] = useState(null);
 
   const steps = [
     { title: t('step2'), img: arrive2 },
@@ -22,14 +83,43 @@ function HowToGet() {
     { title: t('step6'), img: arrive6 },
   ];
 
-  const openMap = () => {
-    window.open(MAP_URL, '_blank', 'noopener,noreferrer');
+  useEffect(() => {
+    if (!pickerOpen) return undefined;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeBtnRef.current?.focus();
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setPickerOpen(false);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pickerOpen]);
+
+  const openPicker = () => setPickerOpen(true);
+  const closePicker = () => {
+    if (openingApp) return;
+    setPickerOpen(false);
   };
 
-  const onKeyDown = (e) => {
+  const openInApp = async (appId) => {
+    setOpeningApp(appId);
+    const origin = await getCurrentPosition();
+    const url = buildMapUrl(appId, origin);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setOpeningApp(null);
+    setPickerOpen(false);
+  };
+
+  const onMapKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      openMap();
+      openPicker();
     }
   };
 
@@ -44,10 +134,12 @@ function HowToGet() {
 
         <div
           className="map-card"
-          role="link"
+          role="button"
           tabIndex={0}
-          onClick={openMap}
-          onKeyDown={onKeyDown}
+          onClick={openPicker}
+          onKeyDown={onMapKeyDown}
+          aria-haspopup="dialog"
+          aria-expanded={pickerOpen}
           aria-label={t('mapHint')}
         >
           <iframe
@@ -73,6 +165,53 @@ function HowToGet() {
           ))}
         </ol>
       </div>
+
+      {pickerOpen && (
+        <div className="map-picker" role="presentation" onClick={closePicker}>
+          <div
+            className="map-picker__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="map-picker__head">
+              <h2 id={titleId} className="map-picker__title">
+                {t('mapPickerTitle')}
+              </h2>
+              <button
+                ref={closeBtnRef}
+                type="button"
+                className="map-picker__close"
+                onClick={closePicker}
+                disabled={Boolean(openingApp)}
+                aria-label={t('mapClose')}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="map-picker__lead">{t('mapPickerLead')}</p>
+
+            <div className="map-picker__apps">
+              {MAP_APPS.map((app) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  className="map-picker__app"
+                  onClick={() => openInApp(app.id)}
+                  disabled={Boolean(openingApp)}
+                >
+                  <span className="map-picker__app-name">{t(app.labelKey)}</span>
+                  <span className="map-picker__app-meta">
+                    {openingApp === app.id ? t('mapLocating') : t('mapOpenRoute')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

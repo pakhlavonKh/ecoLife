@@ -84,11 +84,14 @@ function Header() {
             <a href="#footer" className="header__link">
               {t('contact')}
             </a>
+          </nav>
+
+          <div className="header__tools">
             <LangSwitch />
-            <Link to="/booking" className="btn btn--primary" state={{ showAll: true }}>
+            <Link to="/booking" className="btn btn--primary btn--compact" state={{ showAll: true }}>
               {t('booking')}
             </Link>
-          </nav>
+          </div>
 
           <button
             type="button"
