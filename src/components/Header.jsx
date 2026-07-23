@@ -1,93 +1,131 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
-import logoDesktop from '../assets/logo-big.png';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import logo from '../assets/logo.png';
 
+const LANGS = ['ru', 'uz', 'en'];
+
+function LangSwitch() {
+  const { i18n } = useTranslation();
+  const active = (i18n.resolvedLanguage || i18n.language || 'en').slice(0, 2).toLowerCase();
+
+  return (
+    <div className="lang-switch" role="group" aria-label="Language">
+      {LANGS.map((lng, index) => (
+        <React.Fragment key={lng}>
+          {index > 0 && (
+            <span className="lang-switch__sep" aria-hidden="true">
+              |
+            </span>
+          )}
+          <button
+            type="button"
+            className={`lang-switch__btn${active === lng ? ' is-active' : ''}`}
+            onClick={() => i18n.changeLanguage(lng)}
+            aria-pressed={active === lng}
+          >
+            {lng.toUpperCase()}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
 
 function Header() {
-  const { i18n, t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
-  const [show, setShow] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const { t } = useTranslation();
   const location = useLocation();
+  const [scrolled, setScrolled] = useState(() => window.scrollY > 40);
+  const [open, setOpen] = useState(false);
 
-  const handleScroll = () => {
-    const currentScrollY = window.scrollY;
-    setShow(currentScrollY <= lastScrollY || currentScrollY <= 50);
-    setLastScrollY(currentScrollY);
-  };
+  const isClear = location.pathname === '/' && !scrolled && !open;
 
   useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
-    setIsOpen(false); // Auto-close menu on route change
+    setOpen(false);
   }, [location]);
 
-  const changeLanguage = (lng) => {
-    i18n.changeLanguage(lng);
-  };
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
+  const linkClass = ({ isActive }) =>
+    `header__link${isActive ? ' is-active' : ''}`;
+
+  const closeDrawer = () => setOpen(false);
 
   return (
     <>
-      <nav className="navigation">
-        <input
-          type="checkbox"
-          id="nav-toggle"
-          className="navigation__checkbox"
-          checked={isOpen}
-          onChange={() => setIsOpen(!isOpen)}
-        />
-        <label htmlFor="nav-toggle" className="navigation__button">
-          <span className={`navigation__icon ${isOpen ? 'open' : ''}`}>&nbsp;</span>
-        </label>
-        <div className="navigation__background">&nbsp;</div>
-        <div className="navigation__nav">
-          <div className="navigation__list">
-            <Link to="/" className="navigation__item" onClick={() => setIsOpen(false)}>
-              {t('home')}
-            </Link>
-            <Link to="/how-to-get" className="navigation__item" onClick={() => setIsOpen(false)}>
-              {t('howToGet')}
-              </Link>
-              <Link to="/booking" className="navigation__item" state={{ showAll: true }} onClick={() => setIsOpen(false)}>
-                {t('rooms')}
-              </Link>
-            <a href="#footer" className="navigation__item" onClick={() => setIsOpen(false)}>{t('contact')}</a>
-            <div className="header__lang navigation__item">
-              <select onChange={(e) => changeLanguage(e.target.value)} value={i18n.language}>
-                <option value="en">EN</option>
-                <option value="ru">RU</option>
-                <option value="uz">UZ</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </nav>
-      <header className={`header ${show ? 'visible' : 'hidden'}`}>
-        <div className="header__menu">
-          <Link to="/">{t('home')}</Link>
-          <Link to="/how-to-get">{t('howToGet')}</Link>
-          <div className="header__logo">
-            <Link to="/" onClick={() => setIsOpen(false)}>
-              <img src={logoDesktop} alt="logo" className="logo logo--desktop" />
-            </Link>
-          </div>
-          <a href="#footer">{t('contact')}</a>
-          <div className="header__lang">
-            <select onChange={(e) => changeLanguage(e.target.value)} value={i18n.language}>
-              <option value="en">EN</option>
-              <option value="ru">RU</option>
-              <option value="uz">UZ</option>
-            </select>
-          </div>
-          <Link to="/booking" className="book-link btn" state={{ showAll: true }}>
-            {t('rooms')}
+      <header className={`header${isClear ? ' header--clear' : ''}`}>
+        <div className="header__inner">
+          <Link to="/" className="header__brand" onClick={closeDrawer}>
+            <img src={logo} alt="Eco-Life Etiqod" className="header__logo" />
           </Link>
+
+          <nav className="header__nav" aria-label="Primary">
+            <NavLink to="/" end className={linkClass}>
+              {t('home')}
+            </NavLink>
+            <NavLink to="/booking" className={linkClass} state={{ showAll: true }}>
+              {t('rooms')}
+            </NavLink>
+            <NavLink to="/how-to-get" className={linkClass}>
+              {t('howToGet')}
+            </NavLink>
+            <a href="#footer" className="header__link">
+              {t('contact')}
+            </a>
+            <LangSwitch />
+            <Link to="/booking" className="btn btn--primary" state={{ showAll: true }}>
+              {t('booking')}
+            </Link>
+          </nav>
+
+          <button
+            type="button"
+            className={`header__burger${open ? ' open' : ''}`}
+            onClick={() => setOpen((prev) => !prev)}
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
       </header>
+
+      <div className={`drawer${open ? ' is-open' : ''}`} aria-hidden={!open}>
+        <nav className="drawer__nav" aria-label="Mobile">
+          <NavLink to="/" end onClick={closeDrawer}>
+            {t('home')}
+          </NavLink>
+          <NavLink to="/booking" state={{ showAll: true }} onClick={closeDrawer}>
+            {t('rooms')}
+          </NavLink>
+          <NavLink to="/how-to-get" onClick={closeDrawer}>
+            {t('howToGet')}
+          </NavLink>
+          <a href="#footer" onClick={closeDrawer}>
+            {t('contact')}
+          </a>
+          <Link to="/booking" className="btn btn--primary" state={{ showAll: true }} onClick={closeDrawer}>
+            {t('booking')}
+          </Link>
+        </nav>
+        <div className="drawer__lang">
+          <LangSwitch />
+        </div>
+      </div>
     </>
   );
 }

@@ -1,54 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Slider from '../components/Slider';
-import BookingFind from '../components/BookingFind';
+import { Link } from 'react-router-dom';
 import Gallery from '../components/Gallery';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUtensils,faHorse, faUsers, faSwimmer, faDroplet, faHeart } from '@fortawesome/free-solid-svg-icons';
-import CurtainReveal from '../components/CurtainReveal';
+import Reveal from '../components/Reveal';
+import { icons } from '../components/icons';
 
-const mobileImages = [
-  
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-1.webp?updatedAt=1753981401061?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-2.webp?updatedAt=1753981312220?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-3.webp?updatedAt=1753981289543?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-4.webp?updatedAt=1753981267039?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/mobile__hero-5.webp?updatedAt=1753980978699?tr=f-auto,q-80"
-]
+import mobile1 from '../assets/mobile__hero-1.webp';
+import mobile2 from '../assets/mobile__hero-2.webp';
+import mobile3 from '../assets/mobile__hero-3.webp';
+import mobile4 from '../assets/mobile__hero-4.webp';
+import desktop1 from '../assets/desktop__hero-1.webp';
+import desktop2 from '../assets/desktop__hero-2.webp';
+import desktop3 from '../assets/desktop__hero-3.webp';
+import desktop4 from '../assets/desktop__hero-4.webp';
+import compositionArch from '../assets/composition-1.webp';
+import compositionSmall from '../assets/composition-2.webp';
+import room1 from '../assets/room-1.webp';
+import room2 from '../assets/room-2.webp';
+import room3 from '../assets/room-3.webp';
+import serviceFlour from '../assets/service-2.webp';
+import serviceApiary from '../assets/service-3.webp';
+import serviceStables from '../assets/service-1.webp';
+import servicePool from '../assets/service-4.webp';
 
-const desktopImages = [
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-1.webp?updatedAt=1753981417614?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-2.webp?updatedAt=1753981200985?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-3.webp?updatedAt=1753981166209?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-4.webp?updatedAt=1753981085606?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/desktop__hero-5.webp?updatedAt=1753981050935?tr=f-auto,q-80"
-  ]
+const mobileImages = [mobile1, mobile2, mobile3, mobile4];
+const desktopImages = [desktop1, desktop2, desktop3, desktop4];
 
+const SERVICE_KEYS = [
+  'restaurants',
+  'horses',
+  'conference',
+  'pool',
+  'water',
+  'honey',
+];
 
-const compositionImages = [
-    "https://ik.imagekit.io/hyp089vmms/assets/composition-1.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/composition-2.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/composition-3.webp?tr=f-auto,q-80"
+function HeroSlider({ images, interval = 6000 }) {
+  const [index, setIndex] = useState(0);
+  const startX = useRef(null);
+  const total = images.length;
 
-]
+  useEffect(() => {
+    const timer = setInterval(() => setIndex((i) => (i + 1) % total), interval);
+    return () => clearInterval(timer);
+  }, [interval, total]);
 
-const roomsImages = [
-    "https://ik.imagekit.io/hyp089vmms/assets/room-1.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/room-2.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/room-3.webp?tr=f-auto,q-80"
-  ]
+  const handleTouchStart = (e) => {
+    startX.current = e.touches[0].clientX;
+  };
 
-const serviceImages = [
-    "https://ik.imagekit.io/hyp089vmms/assets/service-1.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/service-2.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/service-3.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/service-4.webp?tr=f-auto,q-80"]
+  const handleTouchEnd = (e) => {
+    if (startX.current == null) return;
+    const diff = startX.current - e.changedTouches[0].clientX;
+    if (diff > 50) setIndex((i) => (i + 1) % total);
+    else if (diff < -50) setIndex((i) => (i - 1 + total) % total);
+    startX.current = null;
+  };
 
-function Home() {  
-  const [type, setType] = useState('vertical');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  return (
+    <div
+      className="slider"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div
+        className="slider__container"
+        style={{ transform: `translateX(-${index * 100}%)` }}
+      >
+        {images.map((url, idx) => (
+          <div className="slider__slide" key={url}>
+            <img src={url} alt="" loading={idx === 0 ? 'eager' : 'lazy'} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Home() {
+  const { t } = useTranslation();
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  );
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -56,207 +89,244 @@ function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-     const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setType('vertical');
-      } else {
-        setType('horizontal');
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const heroImages = isMobile ? mobileImages : desktopImages;
-
-  const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
-
-  const roomSlides =  [
-        {
-          id: '1',
-          title: t('roomsData.room1.title'),
-          description: t('roomsData.room1.description'),
-          img: roomsImages[0],
-        },
-        {
-          id: '2',
-          title: t('roomsData.room2.title'),
-          description: t('roomsData.room2.description'),
-          img: roomsImages[1],
-        },
-        {
-          id: '3',
-          title: t('roomsData.room3.title'),
-          description: t('roomsData.room3.description'),
-          img: roomsImages[2],
-        },
-      ];
-
-  const services = [
-    { icon: faUtensils, title: 'servicesData.restaurants.title', description: 'servicesData.restaurants.description' },
-    { icon: faHorse, title: 'servicesData.horses.title', description: 'servicesData.horses.description' },
-    { icon: faUsers, title: 'servicesData.conference.title', description: 'servicesData.conference.description' },
-    { icon: faSwimmer, title: 'servicesData.pool.title', description: 'servicesData.pool.description' },
-    { icon: faDroplet, title: 'servicesData.water.title', description: 'servicesData.water.description' },
-    { icon: faHeart, title: 'servicesData.honey.title', description: 'servicesData.honey.description' },
+  const rooms = [
+    {
+      id: '1',
+      title: t('roomsData.room1.title'),
+      description: t('roomsData.room1.description'),
+      img: room1,
+    },
+    {
+      id: '2',
+      title: t('roomsData.room2.title'),
+      description: t('roomsData.room2.description'),
+      img: room2,
+    },
+    {
+      id: '3',
+      title: t('roomsData.room3.title'),
+      description: t('roomsData.room3.description'),
+      img: room3,
+    },
   ];
 
-  const handleSearch = ({ checkIn, checkOut, guests}) => {
-    navigate('/booking', {
-      state: { checkIn, checkOut, guests },
-    });
-  };
+  const stories = [
+    {
+      index: '01',
+      title: t('flourMillH'),
+      text: t('flourMillp'),
+      img: serviceFlour,
+    },
+    {
+      index: '02',
+      title: t('apiaryH'),
+      text: t('apiaryP'),
+      img: serviceApiary,
+    },
+    {
+      index: '03',
+      title: t('stableH'),
+      text: t('stableP'),
+      img: serviceStables,
+    },
+    {
+      index: '04',
+      title: t('poolH'),
+      text: t('poolP'),
+      img: servicePool,
+    },
+  ];
 
   return (
     <div className="home-page">
-      <CurtainReveal type={type}>
       <section className="hero">
-        <div class="hero__text">
-          <h1 class="heading-primary">
-              <span class="heading-primary--main">Eco Life Etiqod</span>
-              <span class="heading-primary--sub">{t('lifeHappens')}</span>
+        <HeroSlider images={isMobile ? mobileImages : desktopImages} />
+        <div className="hero__content">
+          <p className="eyebrow hero__rise">{t('heroEyebrow')}</p>
+          <h1 className="hero__title hero__rise">
+            {t('heroTitle1')} <em>{t('heroTitle2')}</em>
           </h1>
-
-          <Link to="/booking" className="btn btn--white btn--animated" >
-            {t('rooms')}
-          </Link>
-        </div>
-        <Slider autoplay interval={6000}>
-          {heroImages.map((url, idx) => (
-            <img
-              key={idx}
-              src={url}
-              alt={`Slide ${idx + 1}`
-              
-            }loading="eager"
-            />
-          ))}
-        </Slider>
-      </section>
-      {/* <BookingFind onResults={handleSearch} /> */}
-          
-      </CurtainReveal>
-      <CurtainReveal type={type}>
-      <section className="about">
-        <h2>Eco-Life Etiqod, {t('charvak')}</h2>
-        <div className="about__info">
-          <div className="about__text">
-            <h3 class="heading-tertiary">{t('heading1')}</h3>
-            <p class="paragraph">
-                {t('paragraph1')}
-            </p>
-            <h3 class="heading-tertiary">{t('heading2')}</h3>
-            <p class="paragraph">
-              {t('paragraph2')}
-            </p>
-          </div>
-          <div className="composition">
-            <img
-              sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
-              alt="Composition 1"
-              class="composition__photo composition__photo--p1"
-              src={compositionImages[0]}/>
-
-            <img 
-              sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
-              alt="Composition 2"
-              class="composition__photo composition__photo--p2"
-              src={compositionImages[1]}/>
-
-            <img 
-              sizes="(max-width: 56.25em) 20vw, (max-width: 37.5em) 30vw, 300px"
-              alt="Composition 3"
-              class="composition__photo composition__photo--p3"
-              src={compositionImages[2]}/>
-
+          <p className="hero__lead hero__rise">{t('heroLead')}</p>
+          <div className="hero__actions hero__rise">
+            <Link to="/booking" className="btn btn--primary" state={{ showAll: true }}>
+              {t('bookNow')}
+            </Link>
+            <Link to="/how-to-get" className="btn btn--ghost">
+              {t('howToGet')}
+            </Link>
           </div>
         </div>
       </section>
-      </CurtainReveal>
-      
-      <CurtainReveal type={type}>
-      <section className="rooms-section">
-        <h2>{t('rooms')}</h2>
-          {roomSlides.map((room, idx) => (
-            <div className="room-card" key={idx}>
-              <img src={room.img} alt={room.title} className="room-card__image" />
-              
-              <div className="room-card__content">
-                <h2>{room.title}</h2>
-                <p>{room.description}</p>
-                  <Link
-                    to="/booking"
-                    state={{ showAll: true }} className="room-card__button"
-                  >
-                    {t('rooms')}
-                  </Link>
+
+      <Reveal delay={0.05}>
+        <section className="section">
+          <div className="container about__grid">
+            <div className="about__text">
+              <p className="eyebrow">{t('aboutEyebrow')}</p>
+              <h2 className="section-title">
+                Eco-Life Etiqod, {t('charvak')}
+              </h2>
+              <h3 className="heading-tertiary">{t('heading1')}</h3>
+              <p className="paragraph">{t('paragraph1')}</p>
+              <h3 className="heading-tertiary">{t('heading2')}</h3>
+              <p className="paragraph">{t('paragraph2')}</p>
+            </div>
+            <div className="composition" aria-hidden="true">
+              <img
+                className="composition__arch"
+                src={compositionArch}
+                alt=""
+                loading="lazy"
+              />
+              <img
+                className="composition__small"
+                src={compositionSmall}
+                alt=""
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.1}>
+        <section className="section section--tight">
+          <div className="container">
+            <header className="section-head">
+              <p className="eyebrow">{t('roomsEyebrow')}</p>
+              <h2 className="section-title">{t('rooms')}</h2>
+              <p className="section-lead">{t('roomsLead')}</p>
+            </header>
+
+            <div className="rooms-grid">
+              {rooms.map((room) => (
+                <article className="room-card" key={room.id}>
+                  <div className="room-card__media">
+                    <img src={room.img} alt={room.title} loading="lazy" />
+                  </div>
+                  <div className="room-card__body">
+                    <h3>{room.title}</h3>
+                    <p>{room.description}</p>
+                    <Link
+                      to="/booking"
+                      state={{ showAll: true }}
+                      className="link-more"
+                    >
+                      {t('learnMore')}
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="rooms-footer">
+              <Link
+                to="/booking"
+                state={{ showAll: true }}
+                className="btn btn--outline"
+              >
+                {t('allRooms')}
+              </Link>
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.15}>
+        <section className="section farm">
+          <div className="container">
+            <header className="section-head">
+              <p className="eyebrow">{t('farmEyebrow')}</p>
+              <h2 className="section-title">{t('farmTitle')}</h2>
+              <p className="section-lead">{t('farmLead')}</p>
+            </header>
+
+            <div className="stories">
+              {stories.map((story) => (
+                <article className="story" key={story.index}>
+                  <div className="story__media">
+                    <img src={story.img} alt="" loading="lazy" />
+                  </div>
+                  <div className="story__body">
+                    <span className="story__index">{story.index}</span>
+                    <h3 className="section-title">{story.title}</h3>
+                    <p>{story.text}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.2}>
+        <section className="section section--tight">
+          <div className="container">
+            <header className="section-head">
+              <p className="eyebrow">{t('servicesEyebrow')}</p>
+              <h2 className="section-title">{t('services')}</h2>
+            </header>
+
+            <div className="amenities">
+              {SERVICE_KEYS.map((key) => {
+                const Icon = icons[key];
+                return (
+                  <article className="amenity" key={key}>
+                    <div className="amenity__icon">
+                      <Icon />
+                    </div>
+                    <h3 className="amenity__title">
+                      {t(`servicesData.${key}.title`)}
+                    </h3>
+                    <p className="amenity__text">
+                      {t(`servicesData.${key}.description`)}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.25}>
+        <section className="section section--tight">
+          <div className="container">
+            <header className="section-head">
+              <p className="eyebrow">{t('galleryEyebrow')}</p>
+              <h2 className="section-title">{t('galleryTitle')}</h2>
+            </header>
+            <Gallery />
+          </div>
+        </section>
+      </Reveal>
+
+      <Reveal delay={0.3}>
+        <section className="section section--tight">
+          <div className="container">
+            <div className="contact-band">
+              <div>
+                <p className="eyebrow">{t('contact')}</p>
+                <h2 className="contact-band__title">{t('contactTitle')}</h2>
+                <p className="contact-band__text">{t('contactLead')}</p>
+              </div>
+              <div className="contact-band__actions">
+                <a href="tel:+998559000110" className="btn btn--paper">
+                  {t('callUs')}
+                </a>
+                <a
+                  href="https://t.me/EcoLifeEtiqod"
+                  className="btn btn--line"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('writeTelegram')}
+                </a>
               </div>
             </div>
-          ))}
-      </section>
-      </CurtainReveal>
-      <section className="services">
-        <h2>{t('services')}</h2>
-        
-      <CurtainReveal type={type}>
-        <div className="service-grid">
-          {services.map((svc) => (
-            <div key={svc.title} className="service-item">
-              <FontAwesomeIcon icon={svc.icon} className="service-icon" />
-              <h3>{t(svc.title)}</h3>
-              <p>{t(svc.description)}</p>
-            </div>
-          ))}
-        </div>
-        </CurtainReveal>
-        <div className="sevice-cards">
-          
-      <CurtainReveal type={type}>
-          <div className="service-card">
-            <img src={serviceImages[0]} alt="Service 1" loading='lazy' />
-            <div className="service-info">
-              <h2>{t('stableH')}</h2>
-              <p>{t('stableP')} </p>
-            </div>
           </div>
-          </CurtainReveal>
-      <CurtainReveal type={type}>
-          <div className="service-card" id="reverse">
-            <div className="service-info">
-              <h2>{t('flourMillH')}</h2>
-              <p>{t('flourMillp')}</p>
-            </div>
-            <img src={serviceImages[1]} alt="Service 2" loading='lazy' />
-          </div>
-          </CurtainReveal>
-      <CurtainReveal type={type}>
-          <div className="service-card">
-            <img src={serviceImages[2]} alt="Service 3" loading='lazy' />
-            <div className="service-info">
-              <h2>{t('apiaryH')}</h2>
-              <p>{t('apiaryP')}</p>
-            </div>
-          </div>
-          </CurtainReveal>
-      <CurtainReveal type={type}>
-          <div className="service-card" id="reverse">
-            <div className="service-info">
-              <h2>{t('poolH')}</h2>
-                <p>{t('poolP')}</p>
-              </div>
-            <img src={serviceImages[3]} alt="Service 4" loading='lazy' />
-          </div>
-          </CurtainReveal>
-        </div>
-
-      </section>
-          
-      <CurtainReveal type="vertical">
-      <Gallery />
-      </CurtainReveal>
+        </section>
+      </Reveal>
     </div>
   );
 }

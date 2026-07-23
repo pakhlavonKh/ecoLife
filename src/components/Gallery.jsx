@@ -1,34 +1,37 @@
 import React from 'react';
 
+const galleryModules = import.meta.glob('../assets/gallery-*.webp', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+});
+
+const images = Object.entries(galleryModules)
+  .sort(([a], [b]) => {
+    const num = (path) => Number(path.match(/gallery-(\d+)/)?.[1] || 0);
+    return num(a) - num(b);
+  })
+  .map(([, url]) => url);
+
+const SPAN = {
+  0: 'gallery-grid__item--wide',
+  3: 'gallery-grid__item--tall',
+  5: 'gallery-grid__item--wide',
+  8: 'gallery-grid__item--tall',
+};
+
 function Gallery() {
-  const images = [
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-1.webp?updatedAt=1754059249466?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-3.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-4.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-5.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-6.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-7.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-8.webp?updatedAt=1754059338146?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-9.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-10.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-11.webp?tr=f-auto,q-80",
-    "https://ik.imagekit.io/hyp089vmms/assets/gallery-12.webp?tr=f-auto,q-80"
-  ]
-
-  const sortedImages = Object.entries(images)
-    .map(([, url]) => url);
-
   return (
-    <section className="gallery">
-      <ul className="gallery__list">
-        {sortedImages.map((src, idx) => (
-          <li key={idx} className={`gallery__item gallery__item--${idx + 1}`}>
-            <img src={src} alt={`Gallery ${idx + 1}`} className="gallery__image" loading='lazy' />
-          </li>
-        ))}
-
-      </ul>
-    </section>
+    <div className="gallery-grid">
+      {images.map((src, idx) => (
+        <figure
+          key={src}
+          className={`gallery-grid__item${SPAN[idx] ? ` ${SPAN[idx]}` : ''}`}
+        >
+          <img src={src} alt="" loading="lazy" />
+        </figure>
+      ))}
+    </div>
   );
 }
 
