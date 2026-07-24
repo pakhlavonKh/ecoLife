@@ -1,0 +1,17 @@
+# EcoLife API — local secrets (never commit)
+.env
+.env.local
+.env.*.local
+
+# Build / deps
+node_modules/
+dist/
+coverage/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Logs / OS
+*.log
+.DS_Store

@@ -25,3 +25,11 @@ my-app.rar
 *.sw?
 
 backend/.env
+
+# NestJS API
+api/.env
+api/dist
+api/node_modules
+
+# Netlify local
+.netlify

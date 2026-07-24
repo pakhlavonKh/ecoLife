@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  admin
+  manager
+
+  @@map("user_role")
+}
+
+enum PaymentStatus {
+  unpaid
+  deposit_paid
+  paid_full
+  refunded
+
+  @@map("payment_status")
+}
+
+enum BookingStatus {
+  pending_payment
+  deposit_paid
+  confirmed
+  checked_in
+  checked_out
+  cancelled
+
+  @@map("booking_status")
+}
+
+enum BookingSource {
+  online
+  manual
+
+  @@map("booking_source")
+}
+
+enum PaymentProvider {
+  payme
+  click
+  cash
+  mock
+
+  @@map("payment_provider")
+}
+
+enum PaymentRecordStatus {
+  created
+  pending
+  succeeded
+  failed
+  refunded
+
+  @@map("payment_record_status")
+}
+
+enum ActorType {
+  admin
+  system
+  customer
+
+  @@map("actor_type")
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         UserRole @default(admin)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  bookingsCreated Booking[] @relation("BookingCreatedBy")
+
+  @@map("users")
+}
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  phone     String
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  bookings Booking[]
+
+  @@index([phone])
+  @@map("customers")
+}
+
+model Cottage {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rooms Room[]
+
+  @@map("cottages")
+}
+
+model RoomCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique
+  name           String
+  description    String   @default("")
+  depositPercent Int      @map("deposit_percent")
+  images         String[] @default([])
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  priceTiers PriceTier[]
+  rooms      Room[]
+
+  @@map("room_categories")
+}
+
+model PriceTier {
+  id            String  @id @default(uuid()) @db.Uuid
+  categoryId    String  @map("category_id") @db.Uuid
+  capacity      Int
+  pricePerNight Decimal @map("price_per_night") @db.Decimal(14, 2)
+
+  category RoomCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([categoryId, capacity])
+  @@map("price_tiers")
+}
+
+model Room {
+  id            String   @id @default(uuid()) @db.Uuid
+  cottageId     String   @map("cottage_id") @db.Uuid
+  number        String   @unique
+  capacity      Int
+  categoryId    String   @map("category_id") @db.Uuid
+  priceOverride Decimal? @map("price_override") @db.Decimal(14, 2)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cottage      Cottage       @relation(fields: [cottageId], references: [id], onDelete: Restrict)
+  category     RoomCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  bookingRooms BookingRoom[]
+
+  @@map("rooms")
+}
+
+model Booking {
+  id               String          @id @default(uuid()) @db.Uuid
+  publicCode       String          @unique @map("public_code")
+  customerId       String          @map("customer_id") @db.Uuid
+  checkIn          DateTime        @map("check_in") @db.Date
+  checkOut         DateTime        @map("check_out") @db.Date
+  bedsTotal        Int             @map("beds_total")
+  totalAmount      Decimal         @map("total_amount") @db.Decimal(14, 2)
+  depositAmount    Decimal         @map("deposit_amount") @db.Decimal(14, 2)
+  paidAmount       Decimal         @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  remainingAmount  Decimal         @map("remaining_amount") @db.Decimal(14, 2)
+  paymentStatus    PaymentStatus   @default(unpaid) @map("payment_status")
+  status           BookingStatus   @default(pending_payment)
+  source           BookingSource   @default(online)
+  notes            String?
+  expiresAt        DateTime?       @map("expires_at") @db.Timestamptz(6)
+  createdById      String?         @map("created_by") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy    User?         @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  bookingRooms BookingRoom[]
+  payments     Payment[]
+
+  @@index([status])
+  @@index([checkIn, checkOut])
+  @@map("bookings")
+}
+
+model BookingRoom {
+  id         String   @id @default(uuid()) @db.Uuid
+  bookingId  String   @map("booking_id") @db.Uuid
+  roomId     String   @map("room_id") @db.Uuid
+  bedsBooked Int      @map("beds_booked")
+  checkIn    DateTime @map("check_in") @db.Date
+  checkOut   DateTime @map("check_out") @db.Date
+  isActive   Boolean  @default(true) @map("is_active")
+  /// Generated daterange [check_in, check_out) — added in SQL migration (btree_gist exclusion).
+  stay       Unsupported("daterange")?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room    Room    @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([roomId, isActive])
+  @@map("booking_rooms")
+}
+
+model Payment {
+  id            String              @id @default(uuid()) @db.Uuid
+  bookingId     String              @map("booking_id") @db.Uuid
+  provider      PaymentProvider
+  providerTxnId String?             @map("provider_txn_id")
+  amount        Decimal             @db.Decimal(14, 2)
+  currency      String              @default("UZS")
+  status        PaymentRecordStatus @default(created)
+  payload       Json?               @db.JsonB
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerTxnId])
+  @@map("payments")
+}
+
+model AuditLog {
+  id        String    @id @default(uuid()) @db.Uuid
+  actorType ActorType @map("actor_type")
+  actorId   String?   @map("actor_id")
+  entity    String
+  entityId  String    @map("entity_id")
+  action    String
+  diff      Json?     @db.JsonB
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
