@@ -1,6 +1,6 @@
 # EcoLife API (NestJS + Prisma)
 
-Phase 2 backend: auth (JWT + refresh rotation), RBAC, and core inventory CRUD.
+Phase 3 backend: availability engine, whole-room bookings with anti-overbooking, hold expiry worker, status machine.
 
 ## Prerequisites
 
@@ -21,17 +21,35 @@ npm run dev      # NestJS on http://localhost:3000
 - Swagger: http://localhost:3000/docs
 - Adminer: http://localhost:8080 (postgres / ecolife / ecolife / ecolife)
 
+## Phase 3 endpoints
+
+```bash
+# Availability (half-open [check_in, check_out))
+curl -s "http://localhost:3000/api/v1/availability?check_in=2026-08-01&check_out=2026-08-03"
+
+# With best-fit rooms (capacity >= guests)
+curl -s "http://localhost:3000/api/v1/availability?check_in=2026-08-01&check_out=2026-08-03&category_code=standart&guests=2"
+
+# Create booking (pending_payment hold)
+curl -s -X POST http://localhost:3000/api/v1/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Ali","lastName":"Karimov","phone":"+998901234567","roomId":"<uuid>","checkIn":"2026-08-01","checkOut":"2026-08-03","guests":2}'
+```
+
+## Tests (Phase 3 gate)
+
+```bash
+npm run test:unit   # overlap math, status machine, hold expiry rules
+npm run test:e2e    # 20 parallel POST /bookings → 1 success + 19×409
+npm run test:gate   # both
+```
+
 ## Auth
 
 ```bash
-# Login
 curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@ecolife.local","password":"ChangeMeAdmin123!"}'
-
-# Protected (Bearer access token)
-curl -s http://localhost:3000/api/v1/admin/categories \
-  -H "Authorization: Bearer <accessToken>"
 ```
 
 Default seed admin: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`.
@@ -47,6 +65,7 @@ Default seed admin: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`.
 | `npm run db:seed` | Seed real inventory (§4.1) |
 | `npm run dev` | NestJS watch mode |
 | `npm run build` | Compile to `dist/` |
+| `npm run test:gate` | Unit + concurrency gate |
 
 ## Seed sanity totals
 

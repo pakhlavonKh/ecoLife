@@ -89,6 +89,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
           path,
         };
       }
+      if (exception.code === 'P2034') {
+        return {
+          statusCode: HttpStatus.CONFLICT,
+          error: 'Conflict',
+          message:
+            'This room was just booked, please pick another room or dates',
+          timestamp,
+          path,
+        };
+      }
+    }
+
+    const rawMessage =
+      exception instanceof Error ? exception.message : String(exception ?? '');
+    if (
+      rawMessage.includes('booking_rooms_no_overlap') ||
+      rawMessage.includes('23P01')
+    ) {
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        message:
+          'This room was just booked, please pick another room or dates',
+        timestamp,
+        path,
+      };
     }
 
     return {
