@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
@@ -8,6 +9,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CottagesModule } from './cottages/cottages.module';
 import { AppController } from './app.controller';
+import { PaymentsModule } from './payments/payments.module';
 import { PriceTiersModule } from './price-tiers/price-tiers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RoomsModule } from './rooms/rooms.module';
@@ -19,6 +21,7 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     LoggerModule.forRoot({
       pinoHttp: {
@@ -43,6 +46,7 @@ import { UsersModule } from './users/users.module';
     RoomsModule,
     PriceTiersModule,
     AvailabilityModule,
+    PaymentsModule,
     BookingsModule,
   ],
   controllers: [AppController],

@@ -22,6 +22,7 @@ import {
 } from '../common/utils/money';
 import { normalizePhoneE164 } from '../common/utils/phone';
 import { generatePublicCode } from '../common/utils/public-code';
+import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import {
@@ -57,6 +58,7 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly availability: AvailabilityService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async createPublic(dto: CreateBookingDto) {
@@ -254,7 +256,19 @@ export class BookingsService {
         },
       );
 
-      return this.toView(booking);
+      const view = this.toView(booking);
+      const invoice = await this.payments.createInvoiceForBooking(
+        booking.id,
+        dto.provider,
+      );
+
+      return {
+        ...view,
+        paymentUrl: invoice.paymentUrl,
+        paymentId: invoice.paymentId,
+        paymentProvider: invoice.provider,
+        depositInvoiceAmount: invoice.amount,
+      };
     } catch (error) {
       if (
         error instanceof ConflictException ||

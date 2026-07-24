@@ -1,6 +1,6 @@
 # EcoLife API (NestJS + Prisma)
 
-Phase 3 backend: availability engine, whole-room bookings with anti-overbooking, hold expiry worker, status machine.
+Phase 4 backend: deposit payments (Mock end-to-end + Payme/Click adapters), availability engine, whole-room bookings.
 
 ## Prerequisites
 
@@ -21,25 +21,39 @@ npm run dev      # NestJS on http://localhost:3000
 - Swagger: http://localhost:3000/docs
 - Adminer: http://localhost:8080 (postgres / ecolife / ecolife / ecolife)
 
-## Phase 3 endpoints
+## Phase 4 — Mock payment (manual)
+
+1. Pick an available room and create a booking (deposit invoice is created server-side):
 
 ```bash
-# Availability (half-open [check_in, check_out))
-curl -s "http://localhost:3000/api/v1/availability?check_in=2026-08-01&check_out=2026-08-03"
-
-# With best-fit rooms (capacity >= guests)
+# List rooms via availability (example dates)
 curl -s "http://localhost:3000/api/v1/availability?check_in=2026-08-01&check_out=2026-08-03&category_code=standart&guests=2"
 
-# Create booking (pending_payment hold)
 curl -s -X POST http://localhost:3000/api/v1/bookings \
   -H "Content-Type: application/json" \
-  -d '{"firstName":"Ali","lastName":"Karimov","phone":"+998901234567","roomId":"<uuid>","checkIn":"2026-08-01","checkOut":"2026-08-03","guests":2}'
+  -d '{"firstName":"Ali","lastName":"Karimov","phone":"+998901234567","roomId":"<uuid>","checkIn":"2026-08-01","checkOut":"2026-08-03","guests":2,"provider":"mock"}'
 ```
 
-## Tests (Phase 3 gate)
+2. Response includes `paymentUrl` (e.g. `http://localhost:3000/api/v1/payments/mock/<paymentId>`).
+
+3. Open `paymentUrl` in a browser → click **«Оплатить успешно»**.
+
+4. Verify booking:
 
 ```bash
-npm run test:unit   # overlap math, status machine, hold expiry rules
+curl -s http://localhost:3000/api/v1/bookings/by-code/<PUBLIC_CODE>
+# status=deposit_paid, paymentStatus=deposit_paid, paidAmount=deposit, remainingAmount kept
+```
+
+Webhooks (for real providers later):
+
+- Payme JSON-RPC: `POST /api/v1/payments/webhooks/payme`
+- Click SHOP-API: `POST /api/v1/payments/webhooks/click`
+
+## Tests
+
+```bash
+npm run test:unit   # overlap, status machine, hold expiry, Payme/Click signature + idempotency
 npm run test:e2e    # 20 parallel POST /bookings → 1 success + 19×409
 npm run test:gate   # both
 ```

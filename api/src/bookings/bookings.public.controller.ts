@@ -20,7 +20,7 @@ export class BookingsPublicController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
-      'Create online booking (whole room). Returns pending_payment hold with money snapshot.',
+      'Create online booking (whole room). Returns pending_payment hold + deposit paymentUrl.',
   })
   create(@Body() dto: CreateBookingDto) {
     return this.bookingsService.createPublic(dto);

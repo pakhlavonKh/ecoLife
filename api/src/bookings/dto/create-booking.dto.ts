@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -60,4 +61,13 @@ export class CreateBookingDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    enum: ['mock', 'payme', 'click'],
+    description:
+      'Payment provider for deposit invoice. Defaults to mock when enabled.',
+  })
+  @IsOptional()
+  @IsIn(['mock', 'payme', 'click'])
+  provider?: 'mock' | 'payme' | 'click';
 }
