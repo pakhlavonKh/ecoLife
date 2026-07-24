@@ -1,6 +1,6 @@
 # EcoLife API (NestJS + Prisma)
 
-Phase 1 backend for the cottage resort booking platform.
+Phase 2 backend: auth (JWT + refresh rotation), RBAC, and core inventory CRUD.
 
 ## Prerequisites
 
@@ -17,12 +17,24 @@ npm run setup    # docker up postgres+adminer → migrate → seed
 npm run dev      # NestJS on http://localhost:3000
 ```
 
-Health check: `GET http://localhost:3000/api/v1/health`
+- Health: `GET http://localhost:3000/api/v1/health`
+- Swagger: http://localhost:3000/docs
+- Adminer: http://localhost:8080 (postgres / ecolife / ecolife / ecolife)
 
-Adminer (DB UI): http://localhost:8080  
-- System: PostgreSQL  
-- Server: `postgres`  
-- User / Password / Database: `ecolife` / `ecolife` / `ecolife`
+## Auth
+
+```bash
+# Login
+curl -s -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@ecolife.local","password":"ChangeMeAdmin123!"}'
+
+# Protected (Bearer access token)
+curl -s http://localhost:3000/api/v1/admin/categories \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+Default seed admin: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`.
 
 ## Scripts
 
@@ -45,4 +57,4 @@ After seed you should see:
 - STANDART: 23 rooms / 65 beds
 - Total beds: 215
 
-Price tiers are seeded with placeholder amounts (`1000000.00` UZS) — edit via admin later.
+Price tiers are seeded with placeholder amounts (`1000000.00` UZS) — edit via `PUT /api/v1/admin/price-tiers`.

@@ -1,7 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
+import { AuthModule } from './auth/auth.module';
+import { CategoriesModule } from './categories/categories.module';
+import { CottagesModule } from './cottages/cottages.module';
 import { AppController } from './app.controller';
+import { PriceTiersModule } from './price-tiers/price-tiers.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RoomsModule } from './rooms/rooms.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -9,7 +16,28 @@ import { PrismaModule } from './prisma/prisma.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.LOG_LEVEL ?? 'info',
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: { singleLine: true, colorize: true },
+              }
+            : undefined,
+        autoLogging: {
+          ignore: (req) => req.url === '/api/v1/health',
+        },
+      },
+    }),
     PrismaModule,
+    AuthModule,
+    UsersModule,
+    CategoriesModule,
+    CottagesModule,
+    RoomsModule,
+    PriceTiersModule,
   ],
   controllers: [AppController],
 })

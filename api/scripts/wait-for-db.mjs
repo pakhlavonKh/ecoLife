@@ -8,7 +8,7 @@ const port = Number(process.env.PGPORT ?? 5432);
 const maxAttempts = 60;
 const delayMs = 1000;
 
-function sleep(ms: number) {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
