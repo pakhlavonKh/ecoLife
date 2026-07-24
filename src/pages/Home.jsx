@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { fetchCategories } from '../api/categories';
 import Gallery from '../components/Gallery';
 import Reveal from '../components/Reveal';
 import { icons } from '../components/icons';
+import { sortCategories } from '../utils/booking';
 
 import mobile1 from '../assets/mobile__hero-1.webp';
 import mobile2 from '../assets/mobile__hero-2.webp';
@@ -15,13 +17,17 @@ import desktop3 from '../assets/desktop__hero-3.webp';
 import desktop4 from '../assets/desktop__hero-4.webp';
 import compositionArch from '../assets/composition-1.webp';
 import compositionSmall from '../assets/composition-2.webp';
-import room1 from '../assets/room-1.webp';
-import room2 from '../assets/room-2.webp';
-import room3 from '../assets/room-3.webp';
+import roomStandart from '../assets/room-1.webp';
+import roomLux from '../assets/room-3.webp';
 import serviceFlour from '../assets/service-2.webp';
 import serviceApiary from '../assets/service-3.webp';
 import serviceStables from '../assets/service-1.webp';
 import servicePool from '../assets/service-4.webp';
+
+const FALLBACK_IMAGES = {
+  standart: roomStandart,
+  lux: roomLux,
+};
 
 const mobileImages = [mobile1, mobile2, mobile3, mobile4];
 const desktopImages = [desktop1, desktop2, desktop3, desktop4];
@@ -82,6 +88,7 @@ function Home() {
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768
   );
+  const [rooms, setRooms] = useState([]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -89,26 +96,46 @@ function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const rooms = [
-    {
-      id: '1',
-      title: t('roomsData.room1.title'),
-      description: t('roomsData.room1.description'),
-      img: room1,
-    },
-    {
-      id: '2',
-      title: t('roomsData.room2.title'),
-      description: t('roomsData.room2.description'),
-      img: room2,
-    },
-    {
-      id: '3',
-      title: t('roomsData.room3.title'),
-      description: t('roomsData.room3.description'),
-      img: room3,
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchCategories();
+        if (cancelled) return;
+        setRooms(
+          sortCategories(data).map((cat) => ({
+            id: cat.id,
+            title: cat.name,
+            description:
+              cat.description ||
+              t(`roomsData.${cat.code}.description`, {
+                defaultValue: '',
+              }),
+            img: cat.images?.[0] || FALLBACK_IMAGES[cat.code] || roomStandart,
+          })),
+        );
+      } catch {
+        if (cancelled) return;
+        setRooms([
+          {
+            id: 'standart',
+            title: t('roomsData.standart.title'),
+            description: t('roomsData.standart.description'),
+            img: roomStandart,
+          },
+          {
+            id: 'lux',
+            title: t('roomsData.lux.title'),
+            description: t('roomsData.lux.description'),
+            img: roomLux,
+          },
+        ]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const stories = [
     {
@@ -149,7 +176,7 @@ function Home() {
           </h1>
           <p className="hero__lead hero__rise">{t('heroLead')}</p>
           <div className="hero__actions hero__rise">
-            <Link to="/booking" className="btn btn--primary" state={{ showAll: true }}>
+            <Link to="/booking" className="btn btn--primary">
               {t('bookNow')}
             </Link>
             <Link to="/how-to-get" className="btn btn--ghost">
@@ -199,7 +226,7 @@ function Home() {
               <p className="section-lead">{t('roomsLead')}</p>
             </header>
 
-            <div className="rooms-grid">
+            <div className="rooms-grid rooms-grid--two">
               {rooms.map((room) => (
                 <article className="room-card" key={room.id}>
                   <div className="room-card__media">
@@ -208,11 +235,7 @@ function Home() {
                   <div className="room-card__body">
                     <h3>{room.title}</h3>
                     <p>{room.description}</p>
-                    <Link
-                      to="/booking"
-                      state={{ showAll: true }}
-                      className="link-more"
-                    >
+                    <Link to="/booking" className="link-more">
                       {t('learnMore')}
                     </Link>
                   </div>
@@ -221,11 +244,7 @@ function Home() {
             </div>
 
             <div className="rooms-footer">
-              <Link
-                to="/booking"
-                state={{ showAll: true }}
-                className="btn btn--outline"
-              >
+              <Link to="/booking" className="btn btn--outline">
                 {t('allRooms')}
               </Link>
             </div>

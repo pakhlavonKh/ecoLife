@@ -8,7 +8,7 @@
   "phone": "Phone",
   "email": "Email",
   "rights": "All rights reserved",
-  "book":"Booking",
+  "book": "Booking",
   "official": "on the official website",
   "check-in": "Check-in",
   "check-out": "Check-out",
@@ -24,7 +24,7 @@
   "bookNow": "Book now",
   "aboutEyebrow": "About the resort",
   "roomsEyebrow": "Stay",
-  "roomsLead": "Four room categories — from a cosy standard to a family suite with a balcony.",
+  "roomsLead": "Two room categories — a cosy standard and a spacious luxury suite.",
   "allRooms": "All rooms",
   "details": "Learn more",
   "learnMore": "Learn more",
@@ -55,15 +55,27 @@
   "mapClose": "Close",
   "heading1": "You're going to fall in love with nature",
   "heading2": "Welcome to your peaceful escape.",
-  "paragraph1":"Surrounded by untouched landscapes and soothing silence, our resort invites you to reconnect with nature in its purest form. Wake up to breathtaking views, explore serene walking trails, and let the gentle sounds of the forest heal your soul. Whether you're seeking adventure or calm, nature here becomes more than a backdrop — it becomes a part of your story",
+  "paragraph1": "Surrounded by untouched landscapes and soothing silence, our resort invites you to reconnect with nature in its purest form. Wake up to breathtaking views, explore serene walking trails, and let the gentle sounds of the forest heal your soul. Whether you're seeking adventure or calm, nature here becomes more than a backdrop — it becomes a part of your story",
   "paragraph2": "Nestled in the heart of nature, our resort offers a perfect blend of comfort and tranquility. Whether you're here for a weekend getaway or a long retreat, every detail is crafted to help you relax, recharge, and reconnect with what matters most",
   "charvak": "Charvak",
   "rooms": "Rooms",
   "price": "Know the price",
+  "pricePerNight": "Price per night",
+  "priceFrom": "from {{price}}",
+  "priceUnavailable": "Price on request",
+  "depositPercent": "Prepayment",
+  "availability": "Availability",
+  "availableRoomsCount": "{{count}} rooms",
+  "availableBedsCount": "{{count}} beds",
+  "bookingDatesTitle": "Stay dates",
+  "bookingDatesHint": "Choose check-in and check-out dates",
+  "bookingDatesNights_one": "{{count}} night",
+  "bookingDatesNights_other": "{{count}} nights",
+  "bookingDatesNights": "{{count}} nights",
   "bookRoom": "Book Room",
   "name": "Name",
-  "invalidName": "Name must be at least 2 characters long",
-  "invalidPhone": "Phone number must contain only digits and be at least 9 digits long",
+  "invalidName": "First and last name must be at least 2 characters",
+  "invalidPhone": "Enter a phone number as +998 XX XXX XX XX",
   "bookingSuccess": "Booking request sent successfully",
   "networkError": "Unable to connect to the server. Please try again later.",
   "bookingError": "Failed to submit booking. Please try again.",
@@ -79,23 +91,52 @@
   "step6": "You arrived",
   "roomsTitle": "Available rooms",
   "roomsData": {
-    "room1": {
+    "standart": {
       "title": "Standard",
       "description": "Comfortable and affordable room, ideal for short stays."
     },
-    "room2": {
-      "title": "Semi-Luxury",
-      "description": "Spacious suite offering high-end comfort and amenities."
-    },
-    "room3": {
+    "lux": {
       "title": "Luxury",
-      "description": "A very spacious and roomy family suite with a large balcony."
-    },
-    "room4": {
-      "title": "Apartment",
-      "description": "Cozy double room with a private bathroom."
+      "description": "A very spacious family suite with a large balcony."
     }
   },
+  "bookingModal": {
+    "eyebrow": "Booking",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "availableRooms": "Available rooms",
+    "noRooms": "No suitable free rooms for the selected dates.",
+    "pickRoom": "Please select a room",
+    "roomLabel": "No. {{number}} · {{cottage}}",
+    "room": "Room",
+    "capacity": "{{count}} beds",
+    "perNight": "/night",
+    "nights_one": "{{count}} night",
+    "nights_other": "{{count}} nights",
+    "nights": "{{count}} nights",
+    "total": "Total",
+    "deposit": "Deposit ({{percent}}%)",
+    "depositPaid": "Deposit paid",
+    "remaining": "Balance on arrival",
+    "depositNote": "Only the deposit is paid online. The balance is due at check-in.",
+    "payWith": "Payment method",
+    "providers": {
+      "mock": "Mock (dev)",
+      "payme": "Payme",
+      "click": "Click"
+    },
+    "confirmPay": "Confirm and pay",
+    "roomTaken": "This room was just booked. Please pick another room or dates.",
+    "invalidDates": "Check-out must be after check-in."
+  },
+  "bookingSuccessTitle": "Booking confirmed",
+  "bookingSuccessLead": "Deposit received. Keep your booking code — you will need it at check-in.",
+  "bookingSuccessNoCode": "No booking code was provided. If you paid the deposit, check your messages or contact us.",
+  "bookingFailTitle": "Payment failed",
+  "bookingFailLead": "The deposit was not charged. You can try again or contact us.",
+  "bookingFailHint": "The room may stay on hold briefly. If payment did not complete, choose dates again.",
+  "bookingFailRetry": "Back to booking",
+  "bookingCode": "Booking code",
   "services": "Our services",
   "stableH": "Horse Riding Experience",
   "stableP": "Our resort features a beautiful and well-maintained horse stable, perfect for guests who want to experience horseback riding in nature. Whether you're a beginner or an experienced rider, our horses are ready to welcome you.",
@@ -106,30 +147,29 @@
   "poolH": "Separate Swimming Pools",
   "poolP": "Enjoy a refreshing swim in our clean pools filled with natural spring water. Separate pools for men and women ensure comfort and privacy.",
   "servicesData": {
-  "restaurants": {
-    "title": "Restaurant",
-    "description": "Enjoy the buffet dining\nthree times a day – with no limits."
-  },
-  "horses": {
-    "title": "Horse Riding",
-    "description": "Experience the thrill of nature on horseback. "
-  },
-  "conference": {
-    "title": "Conference Hall",
-    "description": "A hall equipped for meetings, trainings, and events."
-  },
-  "pool": {
-    "title": "Swimming Pool",
-    "description": "Indoor and outdoor pools for relaxation and swimming."
-  },
-  "water": {
-    "title": "Spring Water",
-    "description": "All water on the resort grounds is spring-sourced."
-  },
-  "honey": {
-    "title": "Apiary",
-    "description": "Natural honey from our own apiary."
+    "restaurants": {
+      "title": "Restaurant",
+      "description": "Enjoy the buffet dining three times a day – with no limits."
+    },
+    "horses": {
+      "title": "Horse Riding",
+      "description": "Experience the thrill of nature on horseback."
+    },
+    "conference": {
+      "title": "Conference Hall",
+      "description": "A hall equipped for meetings, trainings, and events."
+    },
+    "pool": {
+      "title": "Swimming Pool",
+      "description": "Indoor and outdoor pools for relaxation and swimming."
+    },
+    "water": {
+      "title": "Spring Water",
+      "description": "All water on the resort grounds is spring-sourced."
+    },
+    "honey": {
+      "title": "Apiary",
+      "description": "Natural honey from our own apiary."
+    }
   }
-}
-
 }

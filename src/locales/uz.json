@@ -5,10 +5,10 @@
   "menu": "Menyu",
   "howToGet": "Bizga qanday boriladi",
   "address": "Manzil",
-  "phone": "Telefon", 
+  "phone": "Telefon",
   "email": "Email",
   "rights": "Barcha huquqlar himoyalangan",
-  "book":"Xonani band qilish",
+  "book": "Xonani band qilish",
   "official": "rasmiy veb-saytida",
   "check-in": "Kelish sanasi",
   "check-out": "Chiqish sanasi",
@@ -24,7 +24,7 @@
   "bookNow": "Hozir buyurtma bering",
   "aboutEyebrow": "Kurort haqida",
   "roomsEyebrow": "Yashash",
-  "roomsLead": "To'rt toifadagi xonalar — qulay standartdan balkonli oilaviy lyuksgacha.",
+  "roomsLead": "Ikki toifadagi xonalar — qulay standart va keng lyuks.",
   "allRooms": "Barcha xonalar",
   "details": "Batafsil",
   "learnMore": "Batafsil",
@@ -60,10 +60,20 @@
   "charvak": "Charvak",
   "rooms": "Xonalar",
   "price": "Narxni bilish",
+  "pricePerNight": "Bir kecha narxi",
+  "priceFrom": "{{price}} dan",
+  "priceUnavailable": "Narx aniqlashtirilmoqda",
+  "depositPercent": "Oldindan to‘lov",
+  "availability": "Mavjudlik",
+  "availableRoomsCount": "{{count}} xona",
+  "availableBedsCount": "{{count}} o‘rin",
+  "bookingDatesTitle": "Yashash sanalari",
+  "bookingDatesHint": "Kelish va chiqish sanalarini tanlang",
+  "bookingDatesNights": "{{count}} kecha",
   "bookRoom": "Xonani band qilish",
   "name": "Ism",
-  "invalidName": "Ism kamida 2 belgidan iborat bo'lishi kerak",
-  "invalidPhone": "Telefon raqami faqat raqamlardan iborat bo'lishi va kamida 9 raqamdan iborat bo'lishi kerak",
+  "invalidName": "Ism va familiya kamida 2 belgidan iborat bo‘lishi kerak",
+  "invalidPhone": "Telefonni +998 XX XXX XX XX formatida kiriting",
   "bookingSuccess": "Rezervatsiya so'rovi muvaffaqiyatli yuborildi",
   "networkError": "Serverga ulana olmadi. Iltimos, keyinroq qayta urinib ko'ring.",
   "bookingError": "Rezervatsiyani yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
@@ -79,23 +89,50 @@
   "step6": "Siz keldingiz",
   "roomsTitle": "Bo‘sh xonalar",
   "roomsData": {
-    "room1": {
+    "standart": {
       "title": "Standart",
       "description": "Qulay va arzon xona, qisqa muddatli qolish uchun mos."
-    },  
-    "room2": {
-      "title": "Yarim lyuks",
-      "description": "Yuqori darajadagi shinamlik va kenglik bilan ta'minlangan xona."
     },
-    "room3": {
+    "lux": {
       "title": "Lyuks",
-      "description": "Juda keng va qulay oilaviy xona, katta balkon bilan.  "
-    },
-    "room4": {
-      "title": "Apartament",
-      "description": "Shaxsiy hojatxonali qulay ikki kishilik xona.  "
+      "description": "Juda keng va qulay oilaviy xona, katta balkon bilan."
     }
   },
+  "bookingModal": {
+    "eyebrow": "Rezervatsiya",
+    "firstName": "Ism",
+    "lastName": "Familiya",
+    "availableRooms": "Bo‘sh xonalar",
+    "noRooms": "Tanlangan sanalarga mos bo‘sh xona yo‘q.",
+    "pickRoom": "Xonani tanlang",
+    "roomLabel": "№{{number}} · {{cottage}}",
+    "room": "Xona",
+    "capacity": "{{count}} o‘rin",
+    "perNight": "/kecha",
+    "nights": "{{count}} kecha",
+    "total": "Jami",
+    "deposit": "Depozit ({{percent}}%)",
+    "depositPaid": "To‘langan depozit",
+    "remaining": "Joyida to‘lanadigan qoldiq",
+    "depositNote": "Onlayn faqat depozit to‘lanadi. Qoldiq — kelganda.",
+    "payWith": "To‘lov usuli",
+    "providers": {
+      "mock": "Mock (dev)",
+      "payme": "Payme",
+      "click": "Click"
+    },
+    "confirmPay": "Tasdiqlash va to‘lash",
+    "roomTaken": "Bu xona hozirgina band qilindi. Boshqa xona yoki sanalarni tanlang.",
+    "invalidDates": "Chiqish sanasi kelish sanasidan keyin bo‘lishi kerak."
+  },
+  "bookingSuccessTitle": "Rezervatsiya tasdiqlandi",
+  "bookingSuccessLead": "Depozit qabul qilindi. Rezervatsiya kodini saqlang — kelganda kerak bo‘ladi.",
+  "bookingSuccessNoCode": "Rezervatsiya kodi berilmadi. Depozit to‘lagan bo‘lsangiz, xabarlaringizni tekshiring yoki biz bilan bog‘laning.",
+  "bookingFailTitle": "To‘lov amalga oshmadi",
+  "bookingFailLead": "Depozit yechilmadi. Qayta urinib ko‘ring yoki biz bilan bog‘laning.",
+  "bookingFailHint": "Xona qisqa vaqtga rezervda qolishi mumkin. To‘lov tugamagan bo‘lsa — sanalarni qayta tanlang.",
+  "bookingFailRetry": "Rezervatsiyaga qaytish",
+  "bookingCode": "Rezervatsiya kodi",
   "services": "Bizning xizmatlarimiz",
   "stableH": "Otlarda Sayr Tajribasi",
   "stableP": "Bizning dam olish maskanimizda mehmonlar uchun tabiatda ot minishni boshdan kechirish imkonini beruvchi chiroyli va yaxshi saqlangan otxonamiz mavjud. Siz yangi boshlovchi bo‘lasizmi yoki tajribali chavandoz – otlarimiz sizni kutmoqda.",
@@ -112,7 +149,7 @@
     },
     "horses": {
       "title": "Otda sayr qilish",
-      "description": "Tabiat qoʻynida otda sayr qilish zavqini his eting. "
+      "description": "Tabiat qoʻynida otda sayr qilish zavqini his eting."
     },
     "conference": {
       "title": "Konferensiya Zali",

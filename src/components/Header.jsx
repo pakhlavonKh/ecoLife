@@ -75,7 +75,7 @@ function Header() {
             <NavLink to="/" end className={linkClass}>
               {t('home')}
             </NavLink>
-            <NavLink to="/booking" className={linkClass} state={{ showAll: true }}>
+            <NavLink to="/booking" className={linkClass}>
               {t('rooms')}
             </NavLink>
             <NavLink to="/how-to-get" className={linkClass}>
@@ -88,7 +88,7 @@ function Header() {
 
           <div className="header__tools">
             <LangSwitch />
-            <Link to="/booking" className="btn btn--primary btn--compact" state={{ showAll: true }}>
+            <Link to="/booking" className="btn btn--primary btn--compact">
               {t('booking')}
             </Link>
           </div>
@@ -112,7 +112,7 @@ function Header() {
           <NavLink to="/" end onClick={closeDrawer}>
             {t('home')}
           </NavLink>
-          <NavLink to="/booking" state={{ showAll: true }} onClick={closeDrawer}>
+          <NavLink to="/booking" onClick={closeDrawer}>
             {t('rooms')}
           </NavLink>
           <NavLink to="/how-to-get" onClick={closeDrawer}>
@@ -121,7 +121,7 @@ function Header() {
           <a href="#footer" onClick={closeDrawer}>
             {t('contact')}
           </a>
-          <Link to="/booking" className="btn btn--primary" state={{ showAll: true }} onClick={closeDrawer}>
+          <Link to="/booking" className="btn btn--primary" onClick={closeDrawer}>
             {t('booking')}
           </Link>
         </nav>

@@ -37,6 +37,9 @@ export class PaymentsController {
         : status === 'failed'
           ? '<p style="color:#c00">Оплата уже отмечена как ошибка.</p>'
           : '';
+    const siteUrl = (
+      process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173'
+    ).replace(/\/$/, '');
 
     const html = `<!DOCTYPE html>
 <html lang="ru">
@@ -85,9 +88,13 @@ export class PaymentsController {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || res.statusText);
         msg.textContent = outcome === 'success'
-          ? 'Оплата успешна. Статус брони: deposit_paid.'
-          : 'Оплата отклонена.';
+          ? 'Оплата успешна. Перенаправляем…'
+          : 'Оплата отклонена. Перенаправляем…';
         document.querySelectorAll('button').forEach(b => b.disabled = true);
+        const target = outcome === 'success'
+          ? '${siteUrl}/booking/success?code=${encodeURIComponent(code)}'
+          : '${siteUrl}/booking/fail?code=${encodeURIComponent(code)}';
+        setTimeout(function () { window.location.href = target; }, 700);
       } catch (e) {
         msg.textContent = 'Ошибка: ' + (e && e.message ? e.message : e);
       }

@@ -1,0 +1,386 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { fetchAvailability } from '../api/availability';
+import { createBooking } from '../api/bookings';
+import { getErrorMessage, isConflictError } from '../api/client';
+import {
+  calcPreview,
+  formatMoney,
+  formatPhoneMask,
+  isValidUzPhone,
+  nightsBetween,
+  paymentProviders,
+  phoneToE164,
+} from '../utils/booking';
+
+/**
+ * Whole-room booking modal (AGENTS §6).
+ */
+function BookingModal({
+  category,
+  initialCheckIn,
+  initialCheckOut,
+  onClose,
+  onBooked,
+}) {
+  const { t, i18n } = useTranslation();
+  const providers = paymentProviders();
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('+998 ');
+  const [checkIn, setCheckIn] = useState(initialCheckIn);
+  const [checkOut, setCheckOut] = useState(initialCheckOut);
+  const [guests, setGuests] = useState(2);
+  const [rooms, setRooms] = useState([]);
+  const [roomId, setRoomId] = useState('');
+  const [provider, setProvider] = useState(providers[0] || 'mock');
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [nights, setNights] = useState(0);
+
+  const selectedRoom = rooms.find((r) => r.id === roomId) || null;
+  const preview =
+    selectedRoom && nights > 0
+      ? calcPreview(
+          selectedRoom.pricePerNight,
+          nights,
+          category.depositPercent,
+        )
+      : null;
+
+  const loadRooms = useCallback(async () => {
+    if (!checkIn || !checkOut || !category?.code) return;
+    if (nightsBetween(checkIn, checkOut) < 1) {
+      setRooms([]);
+      setRoomId('');
+      setNights(0);
+      setError(t('bookingModal.invalidDates'));
+      return;
+    }
+
+    setLoadingRooms(true);
+    setError('');
+    try {
+      const data = await fetchAvailability({
+        checkIn,
+        checkOut,
+        categoryCode: category.code,
+        guests: Number(guests) || 1,
+      });
+      setNights(data.nights);
+      const list = data.categories?.[0]?.availableRooms ?? [];
+      setRooms(list);
+      setRoomId((prev) =>
+        list.some((r) => r.id === prev) ? prev : list[0]?.id || '',
+      );
+      if (list.length === 0) {
+        setError(t('bookingModal.noRooms'));
+      }
+    } catch (err) {
+      setRooms([]);
+      setRoomId('');
+      setError(getErrorMessage(err, t('networkError')));
+    } finally {
+      setLoadingRooms(false);
+    }
+  }, [checkIn, checkOut, category?.code, guests, t]);
+
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const handlePhoneChange = (e) => {
+    setPhone(formatPhoneMask(e.target.value));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+      setError(t('invalidName'));
+      return;
+    }
+    if (!isValidUzPhone(phone)) {
+      setError(t('invalidPhone'));
+      return;
+    }
+    if (!roomId) {
+      setError(t('bookingModal.pickRoom'));
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await createBooking({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phoneToE164(phone),
+        roomId,
+        checkIn,
+        checkOut,
+        guests: Number(guests),
+        provider,
+      });
+
+      if (result.paymentUrl) {
+        onBooked?.(result);
+        window.location.assign(result.paymentUrl);
+        return;
+      }
+      setError(t('bookingError'));
+    } catch (err) {
+      if (isConflictError(err)) {
+        setError(t('bookingModal.roomTaken'));
+        await loadRooms();
+      } else {
+        setError(getErrorMessage(err, t('bookingError')));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const locale = i18n.language?.startsWith('uz')
+    ? 'uz-UZ'
+    : i18n.language?.startsWith('en')
+      ? 'en-US'
+      : 'ru-RU';
+
+  return (
+    <div
+      className="booking-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="booking-modal-title"
+    >
+      <button
+        type="button"
+        className="booking-modal__backdrop"
+        aria-label={t('cancel')}
+        onClick={onClose}
+      />
+      <div className="booking-modal__panel">
+        <header className="booking-modal__head">
+          <div>
+            <p className="eyebrow">{t('bookingModal.eyebrow')}</p>
+            <h2 id="booking-modal-title" className="booking-modal__title">
+              {category.name}
+            </h2>
+          </div>
+          <button
+            type="button"
+            className="booking-modal__close"
+            onClick={onClose}
+            aria-label={t('cancel')}
+          >
+            ×
+          </button>
+        </header>
+
+        <form className="booking-modal__form" onSubmit={handleSubmit}>
+          <div className="booking-modal__grid">
+            <label className="field">
+              <span>{t('bookingModal.firstName')}</span>
+              <input
+                type="text"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>{t('bookingModal.lastName')}</span>
+              <input
+                type="text"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field field--full">
+              <span>{t('phoneN')}</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={handlePhoneChange}
+                placeholder="+998 90 123 45 67"
+                required
+              />
+            </label>
+            <label className="field">
+              <span>{t('check-in')}</span>
+              <input
+                type="date"
+                value={checkIn}
+                min={dayMin()}
+                onChange={(e) => setCheckIn(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>{t('check-out')}</span>
+              <input
+                type="date"
+                value={checkOut}
+                min={checkIn || dayMin()}
+                onChange={(e) => setCheckOut(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>{t('guests')}</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={guests}
+                onChange={(e) => setGuests(e.target.value)}
+                required
+              />
+            </label>
+          </div>
+
+          <fieldset className="booking-modal__rooms">
+            <legend>{t('bookingModal.availableRooms')}</legend>
+            {loadingRooms ? (
+              <p className="booking-modal__hint">{t('loading')}</p>
+            ) : rooms.length === 0 ? (
+              <p className="booking-modal__hint">{t('bookingModal.noRooms')}</p>
+            ) : (
+              <ul className="room-pick-list">
+                {rooms.map((room) => (
+                  <li key={room.id}>
+                    <label className="room-pick">
+                      <input
+                        type="radio"
+                        name="roomId"
+                        value={room.id}
+                        checked={roomId === room.id}
+                        onChange={() => setRoomId(room.id)}
+                      />
+                      <span className="room-pick__body">
+                        <strong>
+                          {t('bookingModal.roomLabel', {
+                            number: room.number,
+                            cottage: room.cottageName,
+                          })}
+                        </strong>
+                        <span>
+                          {t('bookingModal.capacity', {
+                            count: room.capacity,
+                          })}
+                          {' · '}
+                          {formatMoney(room.pricePerNight, locale)}
+                          {t('bookingModal.perNight')}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </fieldset>
+
+          {preview && (
+            <div className="booking-modal__summary">
+              <p>
+                {t('bookingModal.nights', { count: preview.nights })}
+                {' · '}
+                {formatMoney(preview.pricePerNight, locale)}
+                {t('bookingModal.perNight')}
+              </p>
+              <dl>
+                <div>
+                  <dt>{t('bookingModal.total')}</dt>
+                  <dd>{formatMoney(preview.total, locale)}</dd>
+                </div>
+                <div>
+                  <dt>
+                    {t('bookingModal.deposit', {
+                      percent: category.depositPercent,
+                    })}
+                  </dt>
+                  <dd>{formatMoney(preview.deposit, locale)}</dd>
+                </div>
+                <div>
+                  <dt>{t('bookingModal.remaining')}</dt>
+                  <dd>{formatMoney(preview.remaining, locale)}</dd>
+                </div>
+              </dl>
+              <p className="booking-modal__hint">
+                {t('bookingModal.depositNote')}
+              </p>
+            </div>
+          )}
+
+          <fieldset className="booking-modal__providers">
+            <legend>{t('bookingModal.payWith')}</legend>
+            <div className="provider-picks">
+              {providers.map((p) => (
+                <label key={p} className="provider-pick">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value={p}
+                    checked={provider === p}
+                    onChange={() => setProvider(p)}
+                  />
+                  <span>{t(`bookingModal.providers.${p}`)}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {error ? (
+            <p className="booking-modal__error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="booking-modal__actions">
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={submitting || !roomId || loadingRooms}
+            >
+              {submitting ? t('loading') : t('bookingModal.confirmPay')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function dayMin() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export default BookingModal;
