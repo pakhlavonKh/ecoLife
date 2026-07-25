@@ -210,3 +210,29 @@ export type PriceMatrix = {
     tiers: Array<{ id: string; capacity: number; pricePerNight: string }>;
   }>;
 };
+
+export type TelegramStaffRole = 'owner' | 'admin' | 'manager' | 'cleaner';
+
+export type TelegramRecipient = {
+  id: string;
+  chatId: string;
+  name: string;
+  role: TelegramStaffRole;
+  isActive: boolean;
+  mutedUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TelegramInvite = {
+  id: string;
+  code: string;
+  role: TelegramStaffRole;
+  deepLink: string | null;
+  createdById: string;
+  expiresAt: string;
+  usedAt: string | null;
+  usedByChatId: string | null;
+  createdAt: string;
+  isPending: boolean;
+};

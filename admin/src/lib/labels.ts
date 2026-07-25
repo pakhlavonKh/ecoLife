@@ -29,3 +29,14 @@ export function statusLabel(code: string): string {
 export function paymentLabel(code: string): string {
   return PAYMENT_LABELS[code] ?? code;
 }
+
+export const TELEGRAM_ROLE_LABELS: Record<string, string> = {
+  owner: 'Владелец',
+  admin: 'Администратор',
+  manager: 'Менеджер',
+  cleaner: 'Уборщица',
+};
+
+export function telegramRoleLabel(code: string): string {
+  return TELEGRAM_ROLE_LABELS[code] ?? code;
+}

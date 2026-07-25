@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AuditCoreModule } from './audit/audit-core.module';
 import { DashboardCoreModule } from './dashboard/dashboard-core.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TelegramModule } from './telegram/telegram.module';
@@ -17,6 +18,7 @@ import { TelegramModule } from './telegram/telegram.module';
     }),
     EventEmitterModule.forRoot(),
     PrismaModule,
+    AuditCoreModule,
     DashboardCoreModule,
     TelegramModule,
   ],

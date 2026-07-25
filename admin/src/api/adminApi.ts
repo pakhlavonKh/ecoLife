@@ -10,6 +10,9 @@ import type {
   DashboardStats,
   PriceMatrix,
   Room,
+  TelegramInvite,
+  TelegramRecipient,
+  TelegramStaffRole,
   Tokens,
   User,
   AvailableRoom,
@@ -97,4 +100,24 @@ export const calendarApi = {
 export const auditApi = {
   list: (params?: Record<string, string | number | undefined>) =>
     api.get<AuditEntry[]>('/api/v1/admin/audit-log', { params }),
+};
+
+export const telegramApi = {
+  recipients: () =>
+    api.get<TelegramRecipient[]>('/api/v1/admin/telegram/recipients'),
+  updateRecipient: (id: string, body: Record<string, unknown>) =>
+    api.patch<TelegramRecipient>(
+      `/api/v1/admin/telegram/recipients/${id}`,
+      body,
+    ),
+  deleteRecipient: (id: string) =>
+    api.delete(`/api/v1/admin/telegram/recipients/${id}`),
+  invites: (pending?: boolean) =>
+    api.get<TelegramInvite[]>('/api/v1/admin/telegram/invites', {
+      params: pending ? { pending: 'true' } : undefined,
+    }),
+  createInvite: (role: TelegramStaffRole) =>
+    api.post<TelegramInvite>('/api/v1/admin/telegram/invites', { role }),
+  revokeInvite: (id: string) =>
+    api.delete(`/api/v1/admin/telegram/invites/${id}`),
 };

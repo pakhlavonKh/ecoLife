@@ -12,6 +12,7 @@ import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
+import { TelegramPage } from './pages/TelegramPage';
 
 const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '') || undefined;
 
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="customers" element={<CustomersPage />} />
               <Route path="customers/:id" element={<CustomerDetailPage />} />
               <Route path="inventory" element={<InventoryPage />} />
+              <Route path="telegram" element={<TelegramPage />} />
               <Route path="audit" element={<AuditPage />} />
             </Route>
           </Route>

@@ -2,16 +2,20 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 const NAV = [
-  { to: '/', label: 'Дашборд', end: true },
-  { to: '/bookings', label: 'Бронирования' },
-  { to: '/calendar', label: 'Шахматка' },
-  { to: '/customers', label: 'Клиенты' },
-  { to: '/inventory', label: 'Номера' },
-  { to: '/audit', label: 'Журнал' },
+  { to: '/', label: 'Дашборд', end: true, roles: ['admin', 'manager'] as const },
+  { to: '/bookings', label: 'Бронирования', roles: ['admin', 'manager'] as const },
+  { to: '/calendar', label: 'Шахматка', roles: ['admin', 'manager'] as const },
+  { to: '/customers', label: 'Клиенты', roles: ['admin', 'manager'] as const },
+  { to: '/inventory', label: 'Номера', roles: ['admin', 'manager'] as const },
+  { to: '/telegram', label: 'Telegram', roles: ['admin'] as const },
+  { to: '/audit', label: 'Журнал', roles: ['admin', 'manager'] as const },
 ];
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const nav = NAV.filter((item) =>
+    user?.role ? item.roles.includes(user.role) : false,
+  );
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
@@ -23,7 +27,7 @@ export function Layout() {
           <div className="text-xs text-[var(--muted)]">Админ-панель</div>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:overflow-visible">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

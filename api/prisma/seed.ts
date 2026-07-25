@@ -1,7 +1,69 @@
-import { PrismaClient } from '@prisma/client';
+import {
+  NotificationEvent,
+  PrismaClient,
+  TelegramStaffRole,
+} from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
+
+/** Default routing matrix from BOT_ROLES.md §4 (true = enabled). */
+const NOTIFICATION_MATRIX: Record<
+  NotificationEvent,
+  Partial<Record<TelegramStaffRole, boolean>>
+> = {
+  [NotificationEvent.booking_created]: {
+    owner: true,
+    admin: true,
+    manager: true,
+  },
+  [NotificationEvent.payment_received]: {
+    owner: true,
+    admin: true,
+    manager: true,
+  },
+  [NotificationEvent.booking_checked_in]: {
+    admin: true,
+    manager: true,
+  },
+  [NotificationEvent.booking_checked_out]: {
+    admin: true,
+    manager: true,
+    cleaner: true,
+  },
+  [NotificationEvent.booking_updated]: {
+    owner: true,
+    admin: true,
+    manager: true,
+  },
+  [NotificationEvent.booking_cancelled]: {
+    owner: true,
+    admin: true,
+    manager: true,
+  },
+  [NotificationEvent.system_hold_expired]: {
+    admin: true,
+  },
+  [NotificationEvent.system_late_payment_review]: {
+    admin: true,
+  },
+  [NotificationEvent.system_payment_failed]: {
+    admin: true,
+  },
+  [NotificationEvent.digest_morning]: {
+    owner: true,
+    admin: true,
+    manager: true,
+    cleaner: true,
+  },
+};
+
+const ALL_STAFF_ROLES: TelegramStaffRole[] = [
+  TelegramStaffRole.owner,
+  TelegramStaffRole.admin,
+  TelegramStaffRole.manager,
+  TelegramStaffRole.cleaner,
+];
 
 /** Obvious placeholder UZS amounts — replace via admin before go-live. */
 const PLACEHOLDER_PRICE = '1000000.00';
@@ -279,6 +341,72 @@ async function seedInventory(categories: {
   }
 }
 
+async function seedNotificationRules() {
+  let upserted = 0;
+  for (const event of Object.values(NotificationEvent)) {
+    const enabledRoles = NOTIFICATION_MATRIX[event] ?? {};
+    for (const role of ALL_STAFF_ROLES) {
+      const enabled = enabledRoles[role] === true;
+      await prisma.notificationRule.upsert({
+        where: {
+          event_role: { event, role },
+        },
+        update: { enabled },
+        create: { event, role, enabled },
+      });
+      upserted += 1;
+    }
+  }
+  console.log(`Notification rules: ${upserted} rows (default matrix §4)`);
+}
+
+async function seedTelegramRecipientsFromEnv() {
+  const raw = process.env.TELEGRAM_ADMIN_CHAT_IDS ?? '';
+  const ids = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) {
+    console.log('Telegram recipients: none (TELEGRAM_ADMIN_CHAT_IDS empty)');
+    return;
+  }
+
+  let created = 0;
+  let kept = 0;
+  for (const id of ids) {
+    let chatId: bigint;
+    try {
+      chatId = BigInt(id);
+    } catch {
+      console.warn(`Skipping invalid TELEGRAM_ADMIN_CHAT_IDS entry: ${id}`);
+      continue;
+    }
+
+    const existing = await prisma.telegramRecipient.findUnique({
+      where: { chatId },
+    });
+    if (existing) {
+      kept += 1;
+      continue;
+    }
+
+    await prisma.telegramRecipient.create({
+      data: {
+        chatId,
+        name: 'Migrated from env',
+        role: TelegramStaffRole.admin,
+        isActive: true,
+      },
+    });
+    created += 1;
+  }
+
+  console.log(
+    `Telegram recipients from env: ${created} created, ${kept} already present`,
+  );
+}
+
 async function verifySanity() {
   const cottages = await prisma.cottage.count();
   const rooms = await prisma.room.findMany({
@@ -340,6 +468,8 @@ async function main() {
   const categories = await seedCategories();
   await seedPriceTiers(categories);
   await seedInventory(categories);
+  await seedNotificationRules();
+  await seedTelegramRecipientsFromEnv();
   await verifySanity();
 
   console.log('Seed complete.');
