@@ -16,6 +16,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PriceTiersModule } from './price-tiers/price-tiers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { TelegramModule } from './telegram/telegram.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -54,6 +55,7 @@ import { UsersModule } from './users/users.module';
     BookingsModule,
     CustomersModule,
     DashboardModule,
+    TelegramModule,
   ],
   controllers: [AppController],
 })
