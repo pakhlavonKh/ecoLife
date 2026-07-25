@@ -82,7 +82,8 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${access}`;
         return api(original);
       }
-      window.location.assign('/login');
+      const base = (import.meta.env.BASE_URL as string).replace(/\/$/, '');
+      window.location.assign(`${base}/login`);
     }
     return Promise.reject(error);
   },

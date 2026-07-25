@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,6 +14,7 @@ import { CottagesModule } from './cottages/cottages.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AppController } from './app.controller';
+import { OptionalThrottlerGuard } from './common/guards/optional-throttler.guard';
 import { PaymentsModule } from './payments/payments.module';
 import { PriceTiersModule } from './price-tiers/price-tiers.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -71,7 +72,7 @@ import { UsersModule } from './users/users.module';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: OptionalThrottlerGuard,
     },
   ],
 })

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { DashboardModule } from '../dashboard/dashboard.module';
+import { DashboardCoreModule } from '../dashboard/dashboard-core.module';
 import { TelegramBotService } from './telegram.bot.service';
 import { TelegramNotifyService } from './telegram.notify.service';
 import { TelegramQueueService } from './telegram.queue.service';
 
 @Module({
-  imports: [DashboardModule],
+  imports: [DashboardCoreModule],
   providers: [
     TelegramQueueService,
     TelegramBotService,

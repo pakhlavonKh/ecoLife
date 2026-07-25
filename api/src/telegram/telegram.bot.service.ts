@@ -48,6 +48,20 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    /**
+     * TELEGRAM_BOT_ROLE:
+     * - all (default): outbound notifications + long-polling (/today) — local/dev
+     * - api: outbound only (prod API container; worker handles polling)
+     * - worker: long-polling only (prod bot container)
+     */
+    const role = (
+      this.config.get<string>('TELEGRAM_BOT_ROLE') ?? 'all'
+    )
+      .trim()
+      .toLowerCase();
+    const enableOutbound = role === 'all' || role === 'api';
+    const enablePolling = role === 'all' || role === 'worker';
+
     if (ids.length === 0) {
       this.logger.warn(
         'TELEGRAM_BOT_TOKEN set but TELEGRAM_ADMIN_CHAT_IDS is empty — outbound notifications disabled; /today will reject all chats',
@@ -58,12 +72,25 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     this.bot = bot;
     this.enabled = true;
 
-    this.queue.configure({
-      sendFn: async (chatId, text) => {
-        await bot.api.sendMessage(chatId, text, { parse_mode: 'HTML' });
-      },
-      adminChatIds: ids,
-    });
+    if (enableOutbound) {
+      this.queue.configure({
+        sendFn: async (chatId, text) => {
+          await bot.api.sendMessage(chatId, text, { parse_mode: 'HTML' });
+        },
+        adminChatIds: ids,
+      });
+      this.logger.log(`Telegram outbound enabled (role=${role})`);
+    } else {
+      this.queue.configure({ sendFn: null, adminChatIds: [] });
+      this.logger.log(`Telegram outbound skipped (role=${role})`);
+    }
+
+    if (!enablePolling) {
+      this.logger.log(
+        `Telegram long-polling skipped (role=${role}) — use bot worker for /today`,
+      );
+      return;
+    }
 
     bot.command('start', async (ctx) => {
       if (!this.isAdminChat(ctx.chat?.id)) {
@@ -134,7 +161,9 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
           'Telegram bot failed to start (API continues without bot)',
         );
         this.enabled = false;
-        this.queue.configure({ sendFn: null, adminChatIds: [] });
+        if (enableOutbound) {
+          this.queue.configure({ sendFn: null, adminChatIds: [] });
+        }
       });
   }
 

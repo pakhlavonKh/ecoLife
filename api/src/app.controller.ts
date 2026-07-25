@@ -13,7 +13,7 @@ export class AppController {
     return {
       status: 'ok',
       service: 'ecolife-api',
-      phase: 8,
+      phase: 9,
     };
   }
 }

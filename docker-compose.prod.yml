@@ -1,0 +1,209 @@
+# EcoLife production stack
+# Usage:
+#   cp .env.prod.example .env
+#   # fill secrets, then:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Public site stays on Netlify (set VITE_API_URL to this host's public API URL).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecolife-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecolife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecolife}
+    volumes:
+      - ecolife_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-ecolife} -d $${POSTGRES_DB:-ecolife}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - ecolife
+
+  backup:
+    build:
+      context: ./deploy/backup
+    container_name: ecolife-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ecolife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ecolife}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      TZ: ${TZ:-Asia/Tashkent}
+    volumes:
+      - ecolife_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /backups && pgrep -f backup.sh >/dev/null"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ecolife
+
+  api:
+    build:
+      context: ./api
+    container_name: ecolife-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ecolife}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecolife}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+      JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ecolife.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?Set PUBLIC_SITE_URL}
+      ADMIN_PANEL_URL: ${ADMIN_PANEL_URL:?Set ADMIN_PANEL_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?Set PUBLIC_API_URL}
+      HOLD_MINUTES: ${HOLD_MINUTES:-30}
+      CHECK_IN_TIME: ${CHECK_IN_TIME:-14:00}
+      CHECK_OUT_TIME: ${CHECK_OUT_TIME:-12:00}
+      MIN_STAY_NIGHTS: ${MIN_STAY_NIGHTS:-1}
+      MAX_STAY_NIGHTS: ${MAX_STAY_NIGHTS:-30}
+      PAYMENT_PROVIDERS: ${PAYMENT_PROVIDERS:-payme,click}
+      PAYME_MERCHANT_ID: ${PAYME_MERCHANT_ID:-}
+      PAYME_KEY: ${PAYME_KEY:-}
+      PAYME_LOGIN: ${PAYME_LOGIN:-Paycom}
+      PAYME_CHECKOUT_URL: ${PAYME_CHECKOUT_URL:-https://checkout.paycom.uz}
+      CLICK_MERCHANT_ID: ${CLICK_MERCHANT_ID:-}
+      CLICK_SERVICE_ID: ${CLICK_SERVICE_ID:-}
+      CLICK_SECRET_KEY: ${CLICK_SECRET_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ADMIN_CHAT_IDS: ${TELEGRAM_ADMIN_CHAT_IDS:-}
+      TELEGRAM_BOT_ROLE: api
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ecolife_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ecolife
+
+  bot:
+    build:
+      context: ./api
+    container_name: ecolife-bot
+    restart: unless-stopped
+    command: ["bot"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ecolife}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecolife}?schema=public
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ADMIN_CHAT_IDS: ${TELEGRAM_ADMIN_CHAT_IDS:-}
+      TELEGRAM_BOT_ROLE: worker
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'bot.main' >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - ecolife
+
+  admin:
+    build:
+      context: ./admin
+    container_name: ecolife-admin
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/admin/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ecolife
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ecolife-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ecolife_certbot_www:/var/www/certbot:ro
+      - ecolife_letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ecolife
+
+  # Optional: certbot for TLS. Run manually once certificates are needed:
+  #   docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot \
+  #     -w /var/www/certbot -d your.domain --email you@example.com --agree-tos --no-eff-email
+  # Then uncomment the HTTPS server block in deploy/nginx/nginx.conf and reload nginx.
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ecolife-certbot
+    profiles: ["tls"]
+    volumes:
+      - ecolife_certbot_www:/var/www/certbot
+      - ecolife_letsencrypt:/etc/letsencrypt
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do certbot renew --webroot -w /var/www/certbot;
+      sleep 12h & wait $${!}; done"
+    restart: unless-stopped
+    networks:
+      - ecolife
+
+volumes:
+  ecolife_pgdata:
+    name: ecolife_pgdata
+  ecolife_backups:
+    name: ecolife_backups
+  ecolife_uploads:
+    name: ecolife_uploads
+  ecolife_certbot_www:
+    name: ecolife_certbot_www
+  ecolife_letsencrypt:
+    name: ecolife_letsencrypt
+
+networks:
+  ecolife:
+    name: ecolife_net
+    driver: bridge

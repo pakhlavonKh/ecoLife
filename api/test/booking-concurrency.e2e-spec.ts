@@ -4,14 +4,11 @@
  *
  * Requires PostgreSQL (DATABASE_URL) with seeded inventory.
  */
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { Logger } from 'nestjs-pino';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { createE2eApp } from './e2e-app';
 
 jest.setTimeout(120_000);
 
@@ -23,26 +20,7 @@ describe('POST /api/v1/bookings concurrency (gate)', () => {
   const checkOut = '2030-06-05';
 
   beforeAll(async () => {
-    process.env.LOG_LEVEL = 'silent';
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication({ bufferLogs: true, logger: false });
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    );
-    const logger = app.get(Logger);
-    app.useGlobalFilters(new AllExceptionsFilter(logger));
-    await app.init();
-
+    app = await createE2eApp();
     prisma = app.get(PrismaService);
   });
 

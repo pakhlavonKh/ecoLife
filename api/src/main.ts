@@ -64,7 +64,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('EcoLife Booking API')
       .setDescription('Cottage resort booking platform')
-      .setVersion('0.8.0')
+      .setVersion('0.9.0')
       .addBearerAuth()
       .build();
 

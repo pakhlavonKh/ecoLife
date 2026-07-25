@@ -38,6 +38,7 @@ api/uploads/*
 .env.*
 !.env.example
 !**/.env.example
+!.env.prod.example
 
 # Netlify local
 .netlify
