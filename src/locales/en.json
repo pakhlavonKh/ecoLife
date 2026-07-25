@@ -74,7 +74,15 @@
   "bookingDatesNights": "{{count}} nights",
   "bookRoom": "Book Room",
   "name": "Name",
-  "invalidName": "First and last name must be at least 2 characters",
+  "invalidName": "Enter a name (at least 2 characters). Surname is optional",
+  "cottages": {
+    "Seshanba kottej": "Tuesday cottage",
+    "Chorshanba kottej": "Wednesday cottage",
+    "Payshanba kottej": "Thursday cottage",
+    "Juma kottej": "Friday cottage",
+    "Shanba kottej": "Saturday cottage",
+    "Yakshanba kottej": "Sunday cottage"
+  },
   "invalidPhone": "Enter a phone number as +998 XX XXX XX XX",
   "bookingSuccess": "Booking request sent successfully",
   "networkError": "Unable to connect to the server. Please try again later.",
@@ -102,6 +110,7 @@
   },
   "bookingModal": {
     "eyebrow": "Booking",
+    "fullName": "First and last name",
     "firstName": "First name",
     "lastName": "Last name",
     "availableRooms": "Available rooms",

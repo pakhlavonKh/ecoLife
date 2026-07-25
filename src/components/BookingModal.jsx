@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchAvailability } from '../api/availability';
 import { createBooking } from '../api/bookings';
 import { getErrorMessage, isConflictError } from '../api/client';
+import DateField from './DateField';
 import {
   calcPreview,
   formatMoney,
@@ -11,6 +12,9 @@ import {
   nightsBetween,
   paymentProviders,
   phoneToE164,
+  splitFullName,
+  todayStr,
+  translateCottageName,
 } from '../utils/booking';
 
 /**
@@ -26,8 +30,7 @@ function BookingModal({
   const { t, i18n } = useTranslation();
   const providers = paymentProviders();
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('+998 ');
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [checkOut, setCheckOut] = useState(initialCheckOut);
@@ -107,7 +110,9 @@ function BookingModal({
     e.preventDefault();
     setError('');
 
-    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+    const { firstName, lastName } = splitFullName(fullName);
+    // Allow short aliases / initials (2+ chars); surname is optional.
+    if (firstName.length < 2) {
       setError(t('invalidName'));
       return;
     }
@@ -123,8 +128,8 @@ function BookingModal({
     setSubmitting(true);
     try {
       const result = await createBooking({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName,
+        lastName,
         phone: phoneToE164(phone),
         roomId,
         checkIn,
@@ -190,23 +195,14 @@ function BookingModal({
 
         <form className="booking-modal__form" onSubmit={handleSubmit}>
           <div className="booking-modal__grid">
-            <label className="field">
-              <span>{t('bookingModal.firstName')}</span>
+            <label className="field field--full">
+              <span>{t('bookingModal.fullName')}</span>
               <input
                 type="text"
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-              />
-            </label>
-            <label className="field">
-              <span>{t('bookingModal.lastName')}</span>
-              <input
-                type="text"
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder={t('bookingModal.fullName')}
                 required
               />
             </label>
@@ -224,21 +220,19 @@ function BookingModal({
             </label>
             <label className="field">
               <span>{t('check-in')}</span>
-              <input
-                type="date"
+              <DateField
                 value={checkIn}
-                min={dayMin()}
-                onChange={(e) => setCheckIn(e.target.value)}
+                min={todayStr()}
+                onChange={setCheckIn}
                 required
               />
             </label>
             <label className="field">
               <span>{t('check-out')}</span>
-              <input
-                type="date"
+              <DateField
                 value={checkOut}
-                min={checkIn || dayMin()}
-                onChange={(e) => setCheckOut(e.target.value)}
+                min={checkIn || todayStr()}
+                onChange={setCheckOut}
                 required
               />
             </label>
@@ -277,7 +271,7 @@ function BookingModal({
                         <strong>
                           {t('bookingModal.roomLabel', {
                             number: room.number,
-                            cottage: room.cottageName,
+                            cottage: translateCottageName(room.cottageName, t),
                           })}
                         </strong>
                         <span>
@@ -373,14 +367,6 @@ function BookingModal({
       </div>
     </div>
   );
-}
-
-function dayMin() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 export default BookingModal;

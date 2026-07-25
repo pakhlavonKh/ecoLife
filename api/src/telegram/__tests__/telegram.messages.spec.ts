@@ -2,6 +2,7 @@ import {
   escapeHtml,
   formatBookingCancelled,
   formatBookingEdited,
+  formatDateRu,
   formatNewBooking,
   formatPaymentReceived,
   formatToday,
@@ -42,15 +43,37 @@ describe('telegram.messages', () => {
     expect(escapeHtml('a<b>&"c')).toBe('a&lt;b&gt;&amp;&quot;c');
   });
 
-  it('formats new booking in Russian HTML', () => {
+  it('formats dates as DD/MM/YYYY', () => {
+    expect(formatDateRu('2026-08-01')).toBe('01/08/2026');
+  });
+
+  it('formats compact new booking in Russian HTML', () => {
     const text = formatNewBooking(sampleBooking);
     expect(text).toContain('<b>Новое бронирование</b>');
     expect(text).toContain('<code>BK-TEST</code>');
     expect(text).toContain('Ali Karimov');
     expect(text).toContain('+998901234567');
-    expect(text).toContain('Стандарт');
-    expect(text).toContain('Payshanba kottej / 401');
-    expect(text).toContain('онлайн');
+    expect(text).toContain('Коттедж Четверг / 401');
+    expect(text).toContain('Заезд: 01/08/2026');
+    expect(text).toContain('Выезд: 03/08/2026');
+    expect(text).toContain('Депозит: 600000.00 UZS');
+    expect(text).not.toContain('Мест:');
+    expect(text).not.toContain('Итого:');
+    expect(text).not.toContain('Оплачено:');
+    expect(text).not.toContain('(Стандарт)');
+    expect(text).not.toContain('Источник:');
+  });
+
+  it('does not duplicate guest name when surname empty or same', () => {
+    expect(
+      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: '' }),
+    ).toContain('Гость: MK');
+    expect(
+      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: 'MK' }),
+    ).toMatch(/Гость: MK\n/);
+    expect(
+      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: 'MK' }),
+    ).not.toContain('MK MK');
   });
 
   it('escapes guest name in new booking', () => {
@@ -63,7 +86,7 @@ describe('telegram.messages', () => {
     expect(text).not.toContain('<script>');
   });
 
-  it('formats payment received', () => {
+  it('formats compact payment received', () => {
     const text = formatPaymentReceived({
       bookingId: 'b1',
       paymentId: 'p1',
@@ -73,8 +96,9 @@ describe('telegram.messages', () => {
       providerTxnId: 'txn-1',
     });
     expect(text).toContain('<b>Оплата получена</b>');
-    expect(text).toContain('cash');
     expect(text).toContain('600000.00 UZS');
+    expect(text).not.toContain('Провайдер');
+    expect(text).not.toContain('Txn');
   });
 
   it('formats hold-expired cancellation', () => {
@@ -82,16 +106,16 @@ describe('telegram.messages', () => {
       { ...sampleBooking, status: 'cancelled' },
       { holdExpired: true },
     );
-    expect(text).toContain('авто-истечение холда');
+    expect(text).toContain('холд истёк');
   });
 
-  it('formats edited fields old → new', () => {
+  it('formats edited fields old → new with date format', () => {
     const text = formatBookingEdited('BK-TEST', [
       { field: 'checkIn', from: '2026-08-01', to: '2026-08-02' },
       { field: 'phone', from: '+998901111111', to: '+998902222222' },
     ]);
     expect(text).toContain('<b>Бронирование изменено</b>');
-    expect(text).toContain('Заезд: 2026-08-01 → 2026-08-02');
+    expect(text).toContain('Заезд: 01/08/2026 → 02/08/2026');
     expect(text).toContain('Телефон:');
   });
 
@@ -111,7 +135,7 @@ describe('telegram.messages', () => {
       ],
       [],
     );
-    expect(text).toContain('Сегодня 2026-07-25');
+    expect(text).toContain('Сегодня 25/07/2026');
     expect(text).toContain('Заезды (1)');
     expect(text).toContain('BK-IN');
     expect(text).toContain('Нет выездов');

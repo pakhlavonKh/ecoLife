@@ -16,13 +16,15 @@ import {
 export class CreateBookingDto {
   @ApiProperty({ example: 'Ali' })
   @IsString()
-  @MinLength(1)
+  @MinLength(2)
   @MaxLength(100)
   firstName!: string;
 
-  @ApiProperty({ example: 'Karimov' })
+  @ApiProperty({
+    example: 'Karimov',
+    description: 'Optional — guests may leave surname empty (e.g. initials only)',
+  })
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
   lastName!: string;
 

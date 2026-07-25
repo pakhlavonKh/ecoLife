@@ -10,14 +10,20 @@ export function formatMoney(value: string | number | null | undefined): string {
   }).format(n) + ' UZS';
 }
 
+/** Display dates as DD/MM/YYYY everywhere in the admin UI. */
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '—';
-  return dayjs(value).format('DD.MM.YYYY');
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const iso = value.slice(0, 10);
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return dayjs(value).format('DD/MM/YYYY');
 }
 
 export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return '—';
-  return dayjs(value).format('DD.MM.YYYY HH:mm');
+  return dayjs(value).format('DD/MM/YYYY HH:mm');
 }
 
 export function todayIso(): string {
@@ -26,4 +32,38 @@ export function todayIso(): string {
 
 export function addDaysIso(days: number, from = todayIso()): string {
   return dayjs(from).add(days, 'day').format('YYYY-MM-DD');
+}
+
+/** YYYY-MM-DD → DD/MM/YYYY */
+export function isoToDisplayDate(iso: string | undefined | null): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const [y, m, d] = iso.split('-');
+  const parsed = dayjs(iso);
+  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== iso) return '';
+  return `${d}/${m}/${y}`;
+}
+
+/** DD/MM/YYYY (or digits) → YYYY-MM-DD */
+export function displayToIsoDate(display: string): string {
+  const digits = String(display || '')
+    .replace(/\D/g, '')
+    .slice(0, 8);
+  if (digits.length !== 8) return '';
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+  const iso = `${year}-${month}-${day}`;
+  const parsed = dayjs(iso);
+  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== iso) return '';
+  return iso;
+}
+
+export function maskDateInput(raw: string): string {
+  const digits = String(raw || '')
+    .replace(/\D/g, '')
+    .slice(0, 8);
+  const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(
+    Boolean,
+  );
+  return parts.join('/');
 }

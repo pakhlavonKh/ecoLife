@@ -4,6 +4,7 @@ import { fetchAvailability } from '../api/availability';
 import { fetchCategories } from '../api/categories';
 import { getErrorMessage } from '../api/client';
 import BookingModal from '../components/BookingModal';
+import DateField from '../components/DateField';
 import {
   defaultCheckIn,
   defaultCheckOut,
@@ -107,12 +108,10 @@ function BookingPage() {
           <div className="booking-dates__grid">
             <label className="field">
               <span>{t('check-in')}</span>
-              <input
-                type="date"
+              <DateField
                 value={checkIn}
                 min={todayStr()}
-                onChange={(e) => {
-                  const next = e.target.value;
+                onChange={(next) => {
                   setCheckIn(next);
                   if (checkOut && checkOut <= next) {
                     setCheckOut('');
@@ -122,11 +121,10 @@ function BookingPage() {
             </label>
             <label className="field">
               <span>{t('check-out')}</span>
-              <input
-                type="date"
+              <DateField
                 value={checkOut}
                 min={checkIn || todayStr()}
-                onChange={(e) => setCheckOut(e.target.value)}
+                onChange={setCheckOut}
               />
             </label>
           </div>

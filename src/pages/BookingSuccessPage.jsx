@@ -3,7 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchBookingByCode } from '../api/bookings';
 import { getErrorMessage } from '../api/client';
-import { formatMoney } from '../utils/booking';
+import {
+  formatMoney,
+  isoToDisplayDate,
+  translateCottageName,
+} from '../utils/booking';
 
 function BookingSuccessPage() {
   const { t, i18n } = useTranslation();
@@ -64,11 +68,11 @@ function BookingSuccessPage() {
             <dl className="booking-result-card__meta">
               <div>
                 <dt>{t('check-in')}</dt>
-                <dd>{booking.checkIn}</dd>
+                <dd>{isoToDisplayDate(booking.checkIn) || booking.checkIn}</dd>
               </div>
               <div>
                 <dt>{t('check-out')}</dt>
-                <dd>{booking.checkOut}</dd>
+                <dd>{isoToDisplayDate(booking.checkOut) || booking.checkOut}</dd>
               </div>
               <div>
                 <dt>{t('bookingModal.total')}</dt>
@@ -86,7 +90,8 @@ function BookingSuccessPage() {
                 <div>
                   <dt>{t('bookingModal.room')}</dt>
                   <dd>
-                    {booking.rooms[0].number} · {booking.rooms[0].cottageName}
+                    {booking.rooms[0].number} ·{' '}
+                    {translateCottageName(booking.rooms[0].cottageName, t)}
                   </dd>
                 </div>
               ) : null}

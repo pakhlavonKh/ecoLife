@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { auditApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { AuditEntry } from '../api/types';
+import { DateField } from '../components/DateField';
 import {
   Card,
   Empty,
@@ -86,14 +87,10 @@ export function AuditPage() {
           />
         </Field>
         <Field label="С">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+          <DateField value={from} onChange={setFrom} />
         </Field>
         <Field label="По">
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DateField value={to} onChange={setTo} />
         </Field>
       </Card>
       <ErrorBox message={error} />

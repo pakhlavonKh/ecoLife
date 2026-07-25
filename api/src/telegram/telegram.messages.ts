@@ -2,6 +2,7 @@ import type {
   BookingFieldChange,
   BookingSnapshot,
 } from '../bookings/events/booking.events';
+import { formatGuestName } from '../common/utils/guest-name';
 import type { PaymentReceivedPayload } from '../payments/events/payment.events';
 
 /** Escape user-controlled text for Telegram HTML parse mode. */
@@ -13,6 +14,26 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** YYYY-MM-DD → DD/MM/YYYY */
+export function formatDateRu(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return escapeHtml(iso);
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+const COTTAGE_RU: Record<string, string> = {
+  'Seshanba kottej': 'Коттедж Вторник',
+  'Chorshanba kottej': 'Коттедж Среда',
+  'Payshanba kottej': 'Коттедж Четверг',
+  'Juma kottej': 'Коттедж Пятница',
+  'Shanba kottej': 'Коттедж Суббота',
+  'Yakshanba kottej': 'Коттедж Воскресенье',
+};
+
+function cottageLabel(name: string): string {
+  return escapeHtml(COTTAGE_RU[name] ?? name);
+}
+
 function fmtMoney(amount: string): string {
   return `${escapeHtml(amount)} UZS`;
 }
@@ -22,45 +43,25 @@ function roomsLine(booking: BookingSnapshot): string {
     return '—';
   }
   return booking.rooms
-    .map(
-      (r) =>
-        `${escapeHtml(r.cottageName)} / ${escapeHtml(r.number)} (${escapeHtml(r.categoryName)})`,
-    )
+    .map((r) => `${cottageLabel(r.cottageName)} / ${escapeHtml(r.number)}`)
     .join(', ');
 }
 
-function categoryLine(booking: BookingSnapshot): string {
-  const names = [...new Set(booking.rooms.map((r) => r.categoryName))];
-  return names.length > 0 ? names.map(escapeHtml).join(', ') : '—';
-}
-
-function sourceLabel(source: string): string {
-  if (source === 'online') return 'онлайн';
-  if (source === 'manual') return 'ручная';
-  return escapeHtml(source);
-}
-
 function guestLine(booking: BookingSnapshot): string {
-  return `${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)}`;
+  return escapeHtml(formatGuestName(booking.firstName, booking.lastName));
 }
 
+/** Compact new-booking alert — payment details come in a separate message. */
 export function formatNewBooking(booking: BookingSnapshot): string {
   return [
     '<b>Новое бронирование</b>',
     `Код: <code>${escapeHtml(booking.publicCode)}</code>`,
     `Гость: ${guestLine(booking)}`,
     `Телефон: ${escapeHtml(booking.phone)}`,
-    `Категория: ${categoryLine(booking)}`,
-    `Коттедж / номер: ${roomsLine(booking)}`,
-    `Мест: ${booking.bedsTotal}`,
-    `Заезд: ${escapeHtml(booking.checkIn)}`,
-    `Выезд: ${escapeHtml(booking.checkOut)}`,
-    `Итого: ${fmtMoney(booking.totalAmount)}`,
+    `Номер: ${roomsLine(booking)}`,
+    `Заезд: ${formatDateRu(booking.checkIn)}`,
+    `Выезд: ${formatDateRu(booking.checkOut)}`,
     `Депозит: ${fmtMoney(booking.depositAmount)}`,
-    `Оплачено: ${fmtMoney(booking.paidAmount)}`,
-    `Остаток: ${fmtMoney(booking.remainingAmount)}`,
-    `Источник: ${sourceLabel(booking.source)}`,
-    `Статус: ${escapeHtml(booking.status)}`,
   ].join('\n');
 }
 
@@ -69,10 +70,8 @@ export function formatPaymentReceived(
 ): string {
   return [
     '<b>Оплата получена</b>',
-    `Код брони: <code>${escapeHtml(payment.publicCode)}</code>`,
-    `Провайдер: ${escapeHtml(payment.provider)}`,
+    `Код: <code>${escapeHtml(payment.publicCode)}</code>`,
     `Сумма: ${fmtMoney(payment.amount)}`,
-    `Txn: <code>${escapeHtml(payment.providerTxnId || '—')}</code>`,
   ].join('\n');
 }
 
@@ -82,8 +81,8 @@ export function formatCheckIn(booking: BookingSnapshot): string {
     `Код: <code>${escapeHtml(booking.publicCode)}</code>`,
     `Гость: ${guestLine(booking)}`,
     `Телефон: ${escapeHtml(booking.phone)}`,
-    `Коттедж / номер: ${roomsLine(booking)}`,
-    `Заезд: ${escapeHtml(booking.checkIn)} → Выезд: ${escapeHtml(booking.checkOut)}`,
+    `Номер: ${roomsLine(booking)}`,
+    `Даты: ${formatDateRu(booking.checkIn)} → ${formatDateRu(booking.checkOut)}`,
   ].join('\n');
 }
 
@@ -93,8 +92,8 @@ export function formatCheckOut(booking: BookingSnapshot): string {
     `Код: <code>${escapeHtml(booking.publicCode)}</code>`,
     `Гость: ${guestLine(booking)}`,
     `Телефон: ${escapeHtml(booking.phone)}`,
-    `Коттедж / номер: ${roomsLine(booking)}`,
-    `Выезд: ${escapeHtml(booking.checkOut)}`,
+    `Номер: ${roomsLine(booking)}`,
+    `Выезд: ${formatDateRu(booking.checkOut)}`,
   ].join('\n');
 }
 
@@ -103,16 +102,15 @@ export function formatBookingCancelled(
   opts?: { holdExpired?: boolean },
 ): string {
   const title = opts?.holdExpired
-    ? '<b>Бронирование отменено</b> (авто-истечение холда)'
+    ? '<b>Бронирование отменено</b> (холд истёк)'
     : '<b>Бронирование отменено</b>';
   return [
     title,
     `Код: <code>${escapeHtml(booking.publicCode)}</code>`,
     `Гость: ${guestLine(booking)}`,
     `Телефон: ${escapeHtml(booking.phone)}`,
-    `Коттедж / номер: ${roomsLine(booking)}`,
-    `Даты: ${escapeHtml(booking.checkIn)} → ${escapeHtml(booking.checkOut)}`,
-    `Статус: ${escapeHtml(booking.status)}`,
+    `Номер: ${roomsLine(booking)}`,
+    `Даты: ${formatDateRu(booking.checkIn)} → ${formatDateRu(booking.checkOut)}`,
   ].join('\n');
 }
 
@@ -122,7 +120,7 @@ export function formatStatusChanged(
   nextStatus: string,
 ): string {
   return [
-    '<b>Статус бронирования изменён</b>',
+    '<b>Статус изменён</b>',
     `Код: <code>${escapeHtml(booking.publicCode)}</code>`,
     `Гость: ${guestLine(booking)}`,
     `Статус: ${escapeHtml(previousStatus)} → ${escapeHtml(nextStatus)}`,
@@ -145,15 +143,20 @@ const FIELD_LABELS: Record<string, string> = {
   bedsTotal: 'Мест',
 };
 
+const DATE_FIELDS = new Set(['checkIn', 'checkOut']);
+
 export function formatBookingEdited(
   publicCode: string,
   changes: BookingFieldChange[],
 ): string {
   const lines = changes.map((c) => {
     const label = FIELD_LABELS[c.field] ?? c.field;
-    const from = c.from === '' || c.from == null ? '—' : escapeHtml(c.from);
-    const to = c.to === '' || c.to == null ? '—' : escapeHtml(c.to);
-    return `• ${escapeHtml(label)}: ${from} → ${to}`;
+    const fmt = (v: string | null | undefined) => {
+      if (v === '' || v == null) return '—';
+      if (DATE_FIELDS.has(c.field)) return formatDateRu(v);
+      return escapeHtml(v);
+    };
+    return `• ${escapeHtml(label)}: ${fmt(c.from)} → ${fmt(c.to)}`;
   });
   return [
     '<b>Бронирование изменено</b>',
@@ -187,14 +190,14 @@ export function formatToday(
         return (
           `${i + 1}. <code>${escapeHtml(b.publicCode)}</code> — ` +
           `${escapeHtml(b.customerName)}, ${escapeHtml(b.phone)}\n` +
-          `   ${rooms} (${escapeHtml(b.status)})`
+          `   ${rooms}`
         );
       })
       .join('\n');
   };
 
   return [
-    `<b>Сегодня ${escapeHtml(date)}</b>`,
+    `<b>Сегодня ${formatDateRu(date)}</b>`,
     '',
     `<b>Заезды (${arrivals.length})</b>`,
     fmtList(arrivals, 'Нет заездов'),

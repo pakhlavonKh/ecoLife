@@ -21,6 +21,7 @@ import {
   parseIsoDate,
   validateStayDates,
 } from '../common/utils/dates';
+import { formatGuestName } from '../common/utils/guest-name';
 import {
   calcDepositAmount,
   calcTotalAmount,
@@ -949,7 +950,10 @@ export class BookingsService {
           paymentStatus: b.paymentStatus,
           checkIn: formatIsoDate(br.checkIn),
           checkOut: formatIsoDate(br.checkOut),
-          customerName: `${b.customer.firstName} ${b.customer.lastName}`,
+          customerName: formatGuestName(
+            b.customer.firstName,
+            b.customer.lastName,
+          ),
           roomId: br.roomId,
           roomNumber: br.room.number,
         });

@@ -19,9 +19,11 @@ export class CreateManualBookingDto {
   @MaxLength(100)
   firstName!: string;
 
-  @ApiProperty({ example: 'Karimov' })
+  @ApiProperty({
+    example: 'Karimov',
+    description: 'Optional — may be empty',
+  })
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
   lastName!: string;
 

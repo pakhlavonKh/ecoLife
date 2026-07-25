@@ -72,7 +72,15 @@
   "bookingDatesNights": "{{count}} kecha",
   "bookRoom": "Xonani band qilish",
   "name": "Ism",
-  "invalidName": "Ism va familiya kamida 2 belgidan iborat bo‘lishi kerak",
+  "invalidName": "Ism kiriting (kamida 2 belgi). Familiya ixtiyoriy",
+  "cottages": {
+    "Seshanba kottej": "Seshanba kottej",
+    "Chorshanba kottej": "Chorshanba kottej",
+    "Payshanba kottej": "Payshanba kottej",
+    "Juma kottej": "Juma kottej",
+    "Shanba kottej": "Shanba kottej",
+    "Yakshanba kottej": "Yakshanba kottej"
+  },
   "invalidPhone": "Telefonni +998 XX XXX XX XX formatida kiriting",
   "bookingSuccess": "Rezervatsiya so'rovi muvaffaqiyatli yuborildi",
   "networkError": "Serverga ulana olmadi. Iltimos, keyinroq qayta urinib ko'ring.",
@@ -100,6 +108,7 @@
   },
   "bookingModal": {
     "eyebrow": "Rezervatsiya",
+    "fullName": "Ism va familiya",
     "firstName": "Ism",
     "lastName": "Familiya",
     "availableRooms": "Bo‘sh xonalar",

@@ -14,7 +14,10 @@ export class RoomsRepository {
         category: true,
         // resolve tier via categoryId + capacity later in service
       },
-      orderBy: { number: 'asc' },
+      orderBy: [
+        { cottage: { sortOrder: 'asc' } },
+        { number: 'asc' },
+      ],
     });
   }
 

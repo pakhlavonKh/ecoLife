@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { bookingsApi, inventoryApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { Booking, Category, Cottage } from '../api/types';
+import { DateField } from '../components/DateField';
 import {
   Button,
   Card,
@@ -153,18 +154,10 @@ export function BookingsPage() {
             </Select>
           </Field>
           <Field label="Дата с">
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
+            <DateField value={dateFrom} onChange={setDateFrom} />
           </Field>
           <Field label="Дата по">
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
+            <DateField value={dateTo} onChange={setDateTo} />
           </Field>
         </div>
       </Card>

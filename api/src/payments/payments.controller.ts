@@ -30,7 +30,9 @@ export class PaymentsController {
     const amount = payment.amount.toFixed(2);
     const code = payment.booking.publicCode;
     const status = payment.status;
-    const guest = `${payment.booking.customer.firstName} ${payment.booking.customer.lastName}`;
+    const first = payment.booking.customer.firstName?.trim() ?? '';
+    const last = payment.booking.customer.lastName?.trim() ?? '';
+    const guest = !last || last === first ? first : `${first} ${last}`;
     const disabled =
       status === 'succeeded' || status === 'failed' ? 'disabled' : '';
     const statusNote =

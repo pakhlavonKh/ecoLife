@@ -4,15 +4,15 @@ import { Link } from 'react-router-dom';
 import { calendarApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { CalendarData } from '../api/types';
+import { DateField } from '../components/DateField';
 import {
   Button,
   Card,
   ErrorBox,
   Field,
-  Input,
   PageHeader,
 } from '../components/ui';
-import { addDaysIso, todayIso } from '../lib/format';
+import { addDaysIso, formatDate, todayIso } from '../lib/format';
 import { statusLabel } from '../lib/labels';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -75,14 +75,10 @@ export function CalendarPage() {
       />
       <Card className="mb-4 flex flex-wrap gap-3 p-4">
         <Field label="С">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+          <DateField value={from} onChange={setFrom} />
         </Field>
         <Field label="По (не включительно)">
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DateField value={to} onChange={setTo} min={from || undefined} />
         </Field>
       </Card>
       <ErrorBox message={error} />
@@ -165,7 +161,7 @@ export function CalendarPage() {
                           background:
                             STATUS_COLOR[bar.status] ?? STATUS_COLOR.confirmed,
                         }}
-                        title={`${bar.publicCode} · ${bar.customerName} · ${statusLabel(bar.status)}`}
+                        title={`${bar.publicCode} · ${bar.customerName} · ${formatDate(bar.checkIn)}–${formatDate(bar.checkOut)} · ${statusLabel(bar.status)}`}
                       >
                         <span className="truncate">
                           {bar.publicCode} {bar.customerName}

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { availabilityApi, bookingsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { AvailableRoom, Booking } from '../api/types';
+import { DateField } from '../components/DateField';
 import {
   Button,
   Card,
@@ -244,22 +245,17 @@ export function BookingDetailPage() {
               />
             </Field>
             <Field label="Заезд">
-              <Input
-                type="date"
+              <DateField
                 value={form.checkIn}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, checkIn: e.target.value }))
-                }
+                onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
                 required
               />
             </Field>
             <Field label="Выезд">
-              <Input
-                type="date"
+              <DateField
                 value={form.checkOut}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, checkOut: e.target.value }))
-                }
+                min={form.checkIn || undefined}
+                onChange={(checkOut) => setForm((f) => ({ ...f, checkOut }))}
                 required
               />
             </Field>

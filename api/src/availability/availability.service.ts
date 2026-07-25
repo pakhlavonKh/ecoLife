@@ -38,6 +38,7 @@ type RoomWithPrice = {
   categoryCode: string;
   cottageId: string;
   cottageName: string;
+  cottageSortOrder: number;
   pricePerNight: Decimal;
 };
 
@@ -105,7 +106,10 @@ export class AvailabilityService {
         cottage: true,
         category: true,
       },
-      orderBy: [{ capacity: 'asc' }, { number: 'asc' }],
+      orderBy: [
+        { cottage: { sortOrder: 'asc' } },
+        { number: 'asc' },
+      ],
     });
 
     const tiers = await this.prisma.priceTier.findMany();
@@ -129,6 +133,7 @@ export class AvailabilityService {
         categoryCode: room.category.code,
         cottageId: room.cottageId,
         cottageName: room.cottage.name,
+        cottageSortOrder: room.cottage.sortOrder,
         pricePerNight: price,
       });
     }
@@ -136,7 +141,22 @@ export class AvailabilityService {
   }
 
   /**
+   * Display order: cottage (Tue→Sun via sortOrder), then room number ascending.
+   */
+  sortByCottageThenNumber<
+    T extends { cottageSortOrder: number; number: string },
+  >(rooms: T[]): T[] {
+    return [...rooms].sort((a, b) => {
+      if (a.cottageSortOrder !== b.cottageSortOrder) {
+        return a.cottageSortOrder - b.cottageSortOrder;
+      }
+      return a.number.localeCompare(b.number, undefined, { numeric: true });
+    });
+  }
+
+  /**
    * Best-fit: capacity >= guests, smallest capacity first, then room number.
+   * Kept for assignment heuristics; lists use sortByCottageThenNumber.
    */
   sortBestFit<T extends { capacity: number; number: string }>(
     rooms: T[],
@@ -182,7 +202,7 @@ export class AvailabilityService {
           : true,
       )
       .map((cat) => {
-        const rooms = this.sortBestFit(
+        const rooms = this.sortByCottageThenNumber(
           available.filter((r) => r.categoryCode === cat.code),
         );
         const view: CategoryAvailabilityView = {
@@ -224,7 +244,7 @@ export class AvailabilityService {
 
     const categoryViews: CategoryAvailabilityView[] = categories.map(
       (cat) => {
-        const rooms = this.sortBestFit(
+        const rooms = this.sortByCottageThenNumber(
           available.filter((r) => r.categoryCode === cat.code),
         );
         return {
@@ -265,9 +285,9 @@ export class AvailabilityService {
       categoryCode: categoryCode.toLowerCase(),
       minCapacity: guests,
     });
-    return this.sortBestFit(bookable.filter((r) => !occupied.has(r.id))).map(
-      (r) => this.toRoomView(r),
-    );
+    return this.sortByCottageThenNumber(
+      bookable.filter((r) => !occupied.has(r.id)),
+    ).map((r) => this.toRoomView(r));
   }
 
   isRoomFree(

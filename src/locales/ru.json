@@ -75,7 +75,15 @@
   "bookingDatesNights": "{{count}} ночей",
   "bookRoom": "Забронировать номер",
   "name": "Имя",
-  "invalidName": "Имя и фамилия должны содержать не менее 2 символов",
+  "invalidName": "Укажите имя (не менее 2 символов). Фамилия необязательна",
+  "cottages": {
+    "Seshanba kottej": "Коттедж Вторник",
+    "Chorshanba kottej": "Коттедж Среда",
+    "Payshanba kottej": "Коттедж Четверг",
+    "Juma kottej": "Коттедж Пятница",
+    "Shanba kottej": "Коттедж Суббота",
+    "Yakshanba kottej": "Коттедж Воскресенье"
+  },
   "invalidPhone": "Введите номер в формате +998 XX XXX XX XX",
   "bookingSuccess": "Запрос на бронирование успешно отправлен",
   "networkError": "Не удалось подключиться к серверу. Пожалуйста, попробуйте позже.",
@@ -103,6 +111,7 @@
   },
   "bookingModal": {
     "eyebrow": "Бронирование",
+    "fullName": "Имя и фамилия",
     "firstName": "Имя",
     "lastName": "Фамилия",
     "availableRooms": "Свободные номера",

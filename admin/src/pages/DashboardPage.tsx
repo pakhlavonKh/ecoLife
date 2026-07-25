@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { dashboardApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { DashboardStats } from '../api/types';
-import { Card, ErrorBox, Field, Input, PageHeader, StatusBadge } from '../components/ui';
-import { formatMoney, todayIso } from '../lib/format';
+import { DateField } from '../components/DateField';
+import { Card, ErrorBox, Field, PageHeader, StatusBadge } from '../components/ui';
+import { formatDate, formatMoney, todayIso } from '../lib/format';
 
 export function DashboardPage() {
   const [from, setFrom] = useState(() => {
@@ -54,14 +55,14 @@ export function DashboardPage() {
     <div>
       <PageHeader
         title="Дашборд"
-        subtitle={data ? `Сегодня: ${data.today}` : undefined}
+        subtitle={data ? `Сегодня: ${formatDate(data.today)}` : undefined}
         actions={
           <div className="flex flex-wrap gap-2">
             <Field label="С">
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <DateField value={from} onChange={setFrom} />
             </Field>
             <Field label="По">
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <DateField value={to} onChange={setTo} />
             </Field>
           </div>
         }

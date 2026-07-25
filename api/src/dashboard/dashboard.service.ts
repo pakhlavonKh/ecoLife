@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BookingStatus, PaymentRecordStatus } from '@prisma/client';
 import { formatIsoDate, parseIsoDate } from '../common/utils/dates';
+import { formatGuestName } from '../common/utils/guest-name';
 import { decimalToString } from '../common/utils/money';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -159,7 +160,10 @@ export class DashboardService {
       id: b.id,
       publicCode: b.publicCode,
       status: b.status,
-      customerName: `${b.customer.firstName} ${b.customer.lastName}`,
+      customerName: formatGuestName(
+        b.customer.firstName,
+        b.customer.lastName,
+      ),
       phone: b.customer.phone,
       rooms: b.bookingRooms.map(
         (br) => `${br.room.cottage.name} / ${br.room.number}`,

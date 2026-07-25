@@ -28,6 +28,37 @@ export function nightsBetween(checkIn, checkOut) {
   return Math.max(0, b.diff(a, 'day'));
 }
 
+/** YYYY-MM-DD → DD/MM/YYYY */
+export function isoToDisplayDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const [y, m, d] = iso.split('-');
+  const parsed = dayjs(`${y}-${m}-${d}`);
+  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== iso) return '';
+  return `${d}/${m}/${y}`;
+}
+
+/** DD/MM/YYYY (or loose digits) → YYYY-MM-DD, or '' if incomplete/invalid */
+export function displayToIsoDate(display) {
+  const digits = String(display || '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length !== 8) return '';
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+  const iso = `${year}-${month}-${day}`;
+  const parsed = dayjs(iso);
+  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== iso) return '';
+  return iso;
+}
+
+/** Mask typing into DD/MM/YYYY */
+export function maskDateInput(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 8);
+  const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(
+    Boolean,
+  );
+  return parts.join('/');
+}
+
 export function formatMoney(amount, locale = 'ru-RU') {
   const n = Number(amount);
   if (!Number.isFinite(n)) return '—';
@@ -84,6 +115,32 @@ export function isValidUzPhone(masked) {
         ? digits
         : '';
   return /^[0-9]{9}$/.test(national);
+}
+
+/** Single "name surname" field → API firstName / lastName (surname optional). */
+export function splitFullName(fullName) {
+  const parts = String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return { firstName: '', lastName: '' };
+  }
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' };
+  }
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' '),
+  };
+}
+
+/** DB cottage name → localized label via i18n `cottages.*` keys */
+export function translateCottageName(name, t) {
+  if (!name) return '';
+  const key = `cottages.${name}`;
+  const translated = t(key, { defaultValue: '' });
+  return translated || name;
 }
 
 export function paymentProviders() {
