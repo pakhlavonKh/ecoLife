@@ -121,8 +121,20 @@ const EXPECTED = {
 
 async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL ?? 'admin@ecolife.local';
-  const password = process.env.ADMIN_PASSWORD ?? 'ChangeMeAdmin123!';
-  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ADMIN_PASSWORD is required to seed in production');
+    }
+    // Dev-only fallback — never used when NODE_ENV=production.
+    console.warn(
+      'ADMIN_PASSWORD unset; using temporary dev password ChangeMeAdmin123!',
+    );
+  }
+  const resolvedPassword = password ?? 'ChangeMeAdmin123!';
+  const passwordHash = await argon2.hash(resolvedPassword, {
+    type: argon2.argon2id,
+  });
 
   const admin = await prisma.user.upsert({
     where: { email },

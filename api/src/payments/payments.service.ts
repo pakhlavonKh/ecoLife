@@ -417,17 +417,37 @@ export class PaymentsService {
       return { applied: false, duplicate: true, lateManualReview: false };
     }
 
-    await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: PaymentRecordStatus.failed,
-        providerTxnId: payment.providerTxnId ?? event.providerTxnId ?? null,
-        payload: {
-          ...(asObject(payment.payload) ?? {}),
-          lastEvent: event.raw as Prisma.InputJsonValue,
-          failedAt: new Date().toISOString(),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentRecordStatus.failed,
+          providerTxnId: payment.providerTxnId ?? event.providerTxnId ?? null,
+          payload: {
+            ...(asObject(payment.payload) ?? {}),
+            lastEvent: event.raw as Prisma.InputJsonValue,
+            failedAt: new Date().toISOString(),
+          },
         },
-      },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: ActorType.system,
+          actorId: null,
+          entity: 'payment',
+          entityId: payment.id,
+          action: 'failed',
+          diff: {
+            bookingId: payment.bookingId,
+            publicCode: payment.booking.publicCode,
+            provider,
+            providerTxnId: event.providerTxnId ?? null,
+            beforeStatus: payment.status,
+            afterStatus: PaymentRecordStatus.failed,
+          },
+        },
+      });
     });
 
     const payload: PaymentFailedPayload = {

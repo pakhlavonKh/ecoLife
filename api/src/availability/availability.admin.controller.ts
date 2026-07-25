@@ -4,6 +4,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -13,6 +14,7 @@ import { AvailabilityQueryDto } from './dto/availability-query.dto';
 
 @ApiTags('admin / availability')
 @ApiBearerAuth()
+@AdminThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin, UserRole.manager)
 @Controller('admin/availability')

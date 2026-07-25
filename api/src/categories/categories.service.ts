@@ -1,10 +1,20 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ActorType, RoomCategory } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import {
+  assertAllowedImageMime,
+  assertSafeCategoryImages,
+  buildSafeCategoryImageFilename,
+  CATEGORY_IMAGE_MAX_BYTES,
+  CATEGORY_IMAGES_MAX_COUNT,
+} from '../common/utils/category-images';
 import { decimalToString } from '../common/utils/money';
 import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -73,12 +83,14 @@ export class CategoriesService {
       throw new ConflictException(`Category code "${code}" already exists`);
     }
 
+    const images = assertSafeCategoryImages(dto.images) ?? [];
+
     const created = await this.categoriesRepository.create({
       code,
       name: dto.name.trim(),
       description: dto.description?.trim() ?? '',
       depositPercent: dto.depositPercent,
-      images: dto.images ?? [],
+      images,
       isActive: dto.isActive ?? true,
     });
 
@@ -100,6 +112,7 @@ export class CategoriesService {
     actor?: { type: ActorType; id?: string },
   ): Promise<AdminCategoryView> {
     const before = await this.getAdmin(id);
+    const images = assertSafeCategoryImages(dto.images);
 
     await this.categoriesRepository.update(id, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
@@ -109,7 +122,7 @@ export class CategoriesService {
       ...(dto.depositPercent !== undefined
         ? { depositPercent: dto.depositPercent }
         : {}),
-      ...(dto.images !== undefined ? { images: dto.images } : {}),
+      ...(images !== undefined ? { images } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
     });
 
@@ -120,6 +133,52 @@ export class CategoriesService {
       entityId: id,
       action: 'update',
       diff: { before, after },
+    });
+    return after;
+  }
+
+  /**
+   * Store an uploaded category image under uploads/categories/ with a safe
+   * UUID filename; append path to category.images and audit.
+   */
+  async uploadImage(
+    id: string,
+    file: Express.Multer.File | undefined,
+    actor?: { type: ActorType; id?: string },
+  ): Promise<AdminCategoryView> {
+    if (!file) {
+      throw new BadRequestException('Image file is required (field name: file)');
+    }
+    if (file.size > CATEGORY_IMAGE_MAX_BYTES) {
+      throw new BadRequestException(
+        `Image must be at most ${CATEGORY_IMAGE_MAX_BYTES} bytes`,
+      );
+    }
+
+    const mime = assertAllowedImageMime(file.mimetype);
+    const before = await this.getAdmin(id);
+    if (before.images.length >= CATEGORY_IMAGES_MAX_COUNT) {
+      throw new BadRequestException(
+        `At most ${CATEGORY_IMAGES_MAX_COUNT} images allowed`,
+      );
+    }
+
+    const filename = buildSafeCategoryImageFilename(mime);
+    const dir = join(process.cwd(), 'uploads', 'categories');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, filename), file.buffer);
+
+    const publicPath = `/uploads/categories/${filename}`;
+    const images = [...before.images, publicPath];
+
+    await this.categoriesRepository.update(id, { images });
+    const after = await this.getAdmin(id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'category',
+      entityId: id,
+      action: 'image_upload',
+      diff: { before, after, uploaded: publicPath },
     });
     return after;
   }

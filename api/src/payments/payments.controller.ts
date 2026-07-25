@@ -9,7 +9,9 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { StrictThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('payments')
@@ -108,6 +110,7 @@ export class PaymentsController {
 
   @Post('mock/:paymentId/succeed')
   @HttpCode(200)
+  @StrictThrottle(20)
   @ApiOperation({ summary: 'Mock: mark deposit paid' })
   mockSucceed(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
     return this.payments.handleMockAction(paymentId, 'success');
@@ -115,13 +118,19 @@ export class PaymentsController {
 
   @Post('mock/:paymentId/fail')
   @HttpCode(200)
+  @StrictThrottle(20)
   @ApiOperation({ summary: 'Mock: mark payment failed' })
   mockFail(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
     return this.payments.handleMockAction(paymentId, 'fail');
   }
 
+  /**
+   * Payment provider callbacks must not be rate-limited — providers retry and
+   * a 429 could drop a legitimate deposit. Auth is signature / Basic verification.
+   */
   @Post('webhooks/payme')
   @HttpCode(200)
+  @SkipThrottle()
   @ApiOperation({ summary: 'Payme Merchant API JSON-RPC webhook' })
   async paymeWebhook(@Req() req: Request) {
     const result = await this.payments.handleProviderWebhook('payme', {
@@ -133,6 +142,7 @@ export class PaymentsController {
 
   @Post('webhooks/click')
   @HttpCode(200)
+  @SkipThrottle()
   @ApiOperation({ summary: 'Click SHOP-API prepare/complete webhook' })
   async clickWebhook(@Req() req: Request) {
     const result = await this.payments.handleProviderWebhook('click', {

@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Uploaded category images (local disk)
+uploads/*
+!uploads/.gitkeep
+
 # Build / deps
 node_modules/
 dist/

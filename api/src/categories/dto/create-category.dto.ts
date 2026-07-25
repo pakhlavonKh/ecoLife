@@ -1,14 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsInt,
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
+import { CATEGORY_IMAGES_MAX_COUNT } from '../../common/utils/category-images';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'lux' })
@@ -32,10 +35,16 @@ export class CreateCategoryDto {
   @Max(100)
   depositPercent!: number;
 
-  @ApiPropertyOptional({ type: [String] })
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Image URLs (http/https) or /uploads/... paths. Prefer POST .../images for uploads.',
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(CATEGORY_IMAGES_MAX_COUNT)
   @IsString({ each: true })
+  @MaxLength(2048, { each: true })
   images?: string[];
 
   @ApiPropertyOptional({ default: true })

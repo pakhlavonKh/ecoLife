@@ -30,6 +30,14 @@ backend/.env
 api/.env
 api/dist
 api/node_modules
+api/uploads/*
+!api/uploads/.gitkeep
+
+# Env files anywhere
+.env
+.env.*
+!.env.example
+!**/.env.example
 
 # Netlify local
 .netlify

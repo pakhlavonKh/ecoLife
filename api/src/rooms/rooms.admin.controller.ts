@@ -15,6 +15,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { ActorType, UserRole } from '@prisma/client';
 import { IsOptional, IsUUID } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -38,6 +39,7 @@ class ListRoomsQueryDto {
 
 @ApiTags('admin / rooms')
 @ApiBearerAuth()
+@AdminThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin, UserRole.manager)
 @Controller('admin/rooms')

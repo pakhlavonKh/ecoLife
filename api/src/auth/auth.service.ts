@@ -6,7 +6,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { User, UserRole } from '@prisma/client';
+import { ActorType, User, UserRole } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { UsersRepository } from '../users/users.repository';
 import { RefreshTokensRepository } from './refresh-tokens.repository';
 
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly refreshTokensRepository: RefreshTokensRepository,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {
     this.accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES', '15m');
     this.refreshExpiresIn = this.config.get<string>('JWT_REFRESH_EXPIRES', '7d');
@@ -45,17 +47,39 @@ export class AuthService {
     user: AuthUserView;
     tokens: AuthTokens;
   }> {
-    const user = await this.usersRepository.findByEmail(email.toLowerCase().trim());
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await this.usersRepository.findByEmail(normalizedEmail);
     if (!user || !user.isActive) {
+      await this.audit.write({
+        actor: { type: ActorType.system },
+        entity: 'auth',
+        entityId: normalizedEmail,
+        action: 'login_failed',
+        diff: { reason: 'unknown_or_inactive' },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) {
+      await this.audit.write({
+        actor: { type: ActorType.system },
+        entity: 'auth',
+        entityId: user.id,
+        action: 'login_failed',
+        diff: { reason: 'bad_password', email: normalizedEmail },
+      });
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const { tokens } = await this.issueTokenPair(user);
+    await this.audit.write({
+      actor: { type: ActorType.admin, id: user.id },
+      entity: 'auth',
+      entityId: user.id,
+      action: 'login',
+      diff: { email: user.email },
+    });
     return { user: this.toUserView(user), tokens };
   }
 
@@ -82,6 +106,12 @@ export class AuthService {
     const stored = await this.refreshTokensRepository.findByHash(tokenHash);
     if (stored && !stored.revokedAt) {
       await this.refreshTokensRepository.revoke(stored.id, null);
+      await this.audit.write({
+        actor: { type: ActorType.admin, id: stored.userId },
+        entity: 'auth',
+        entityId: stored.userId,
+        action: 'logout',
+      });
     }
     return { success: true };
   }

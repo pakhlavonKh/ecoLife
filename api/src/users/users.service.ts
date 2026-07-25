@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { User, UserRole } from '@prisma/client';
+import { ActorType, User, UserRole } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,7 +22,10 @@ export type UserView = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly audit: AuditService,
+  ) {}
 
   async list(): Promise<UserView[]> {
     const users = await this.usersRepository.findMany();
@@ -36,7 +40,10 @@ export class UsersService {
     return this.toView(user);
   }
 
-  async create(dto: CreateUserDto): Promise<UserView> {
+  async create(
+    dto: CreateUserDto,
+    actor?: { type: ActorType; id?: string },
+  ): Promise<UserView> {
     const email = dto.email.toLowerCase().trim();
     const existing = await this.usersRepository.findByEmail(email);
     if (existing) {
@@ -54,11 +61,23 @@ export class UsersService {
       role: dto.role,
     });
 
-    return this.toView(user);
+    const view = this.toView(user);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'user',
+      entityId: user.id,
+      action: 'create',
+      diff: { after: view },
+    });
+    return view;
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserView> {
-    await this.getById(id);
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    actor?: { type: ActorType; id?: string },
+  ): Promise<UserView> {
+    const before = await this.getById(id);
 
     const data: Partial<{
       name: string;
@@ -77,7 +96,19 @@ export class UsersService {
     }
 
     const user = await this.usersRepository.update(id, data);
-    return this.toView(user);
+    const after = this.toView(user);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'user',
+      entityId: id,
+      action: 'update',
+      diff: {
+        before,
+        after,
+        passwordChanged: dto.password !== undefined,
+      },
+    });
+    return after;
   }
 
   private toView(user: User): UserView {

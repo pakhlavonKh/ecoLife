@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { UserRole } from '@prisma/client';
 import { IsOptional, Matches } from 'class-validator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -19,6 +20,7 @@ class DashboardQueryDto {
 
 @ApiTags('admin / dashboard')
 @ApiBearerAuth()
+@AdminThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin, UserRole.manager)
 @Controller('admin/dashboard')

@@ -48,6 +48,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    // Never include stack traces in the HTTP body (logged server-side only).
     response.status(body.statusCode).json(body);
   }
 
@@ -57,7 +58,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const statusCode = exception.getStatus();
       const res = exception.getResponse();
-      const { error, message } = this.normalizeHttpResponse(res, exception.message);
+      const { error, message } = this.normalizeHttpResponse(
+        res,
+        exception.message,
+      );
       return { statusCode, error, message, timestamp, path };
     }
 

@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { ActorType, UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -31,6 +32,7 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 
 @ApiTags('admin / bookings')
 @ApiBearerAuth()
+@AdminThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin, UserRole.manager)
 @Controller('admin')

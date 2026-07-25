@@ -13,7 +13,8 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ActorType, UserRole } from '@prisma/client';
+import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -25,6 +26,7 @@ import { UsersService } from './users.service';
 
 @ApiTags('admin / users')
 @ApiBearerAuth()
+@AdminThrottle()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin, UserRole.manager)
 @Controller('admin/users')
@@ -54,8 +56,11 @@ export class UsersAdminController {
   @Post()
   @Roles(UserRole.admin)
   @ApiOperation({ summary: 'Create admin/manager user (admin only)' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(@Body() dto: CreateUserDto, @CurrentUser() user: RequestUser) {
+    return this.usersService.create(dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 
   @Patch(':id')
@@ -64,7 +69,11 @@ export class UsersAdminController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.usersService.update(id, dto);
+    return this.usersService.update(id, dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 }
