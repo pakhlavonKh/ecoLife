@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { RoomCategory } from '@prisma/client';
+import { ActorType, RoomCategory } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { decimalToString } from '../common/utils/money';
 import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -39,7 +40,10 @@ export type PublicCategoryView = {
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly categoriesRepository: CategoriesRepository) {}
+  constructor(
+    private readonly categoriesRepository: CategoriesRepository,
+    private readonly audit: AuditService,
+  ) {}
 
   async listAdmin(): Promise<AdminCategoryView[]> {
     const rows = await this.categoriesRepository.findMany();
@@ -59,7 +63,10 @@ export class CategoriesService {
     return rows.map((r) => this.toPublicView(r));
   }
 
-  async create(dto: CreateCategoryDto): Promise<AdminCategoryView> {
+  async create(
+    dto: CreateCategoryDto,
+    actor?: { type: ActorType; id?: string },
+  ): Promise<AdminCategoryView> {
     const code = dto.code.trim().toLowerCase();
     const existing = await this.categoriesRepository.findByCode(code);
     if (existing) {
@@ -76,11 +83,23 @@ export class CategoriesService {
     });
 
     const full = await this.categoriesRepository.findById(created.id);
-    return this.toAdminView(full!);
+    const view = this.toAdminView(full!);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'category',
+      entityId: created.id,
+      action: 'create',
+      diff: { after: view },
+    });
+    return view;
   }
 
-  async update(id: string, dto: UpdateCategoryDto): Promise<AdminCategoryView> {
-    await this.getAdmin(id);
+  async update(
+    id: string,
+    dto: UpdateCategoryDto,
+    actor?: { type: ActorType; id?: string },
+  ): Promise<AdminCategoryView> {
+    const before = await this.getAdmin(id);
 
     await this.categoriesRepository.update(id, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
@@ -94,7 +113,15 @@ export class CategoriesService {
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
     });
 
-    return this.getAdmin(id);
+    const after = await this.getAdmin(id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'category',
+      entityId: id,
+      action: 'update',
+      diff: { before, after },
+    });
+    return after;
   }
 
   private toAdminView(row: CategoryWithTiers): AdminCategoryView {

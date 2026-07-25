@@ -16,6 +16,11 @@ import {
 import { Decimal } from '@prisma/client/runtime/library';
 import { AvailabilityService } from '../availability/availability.service';
 import {
+  formatIsoDate,
+  parseIsoDate,
+  validateStayDates,
+} from '../common/utils/dates';
+import {
   calcDepositAmount,
   calcTotalAmount,
   decimalToString,
@@ -25,8 +30,12 @@ import { generatePublicCode } from '../common/utils/public-code';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 import {
   assertTransition,
+  listAllowedTransitions,
+  OCCUPYING_STATUSES,
   releasesInventory,
 } from './status-machine';
 
@@ -323,11 +332,20 @@ export class BookingsService {
 
   async listAdmin(filters?: {
     status?: BookingStatus;
+    paymentStatus?: PaymentStatus;
     search?: string;
+    categoryId?: string;
+    categoryCode?: string;
+    cottageId?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }) {
     const where: Prisma.BookingWhereInput = {};
     if (filters?.status) {
       where.status = filters.status;
+    }
+    if (filters?.paymentStatus) {
+      where.paymentStatus = filters.paymentStatus;
     }
     if (filters?.search) {
       const q = filters.search.trim();
@@ -336,6 +354,35 @@ export class BookingsService {
         { customer: { phone: { contains: q } } },
         { customer: { firstName: { contains: q, mode: 'insensitive' } } },
         { customer: { lastName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const roomFilter: Prisma.RoomWhereInput = {};
+    if (filters?.categoryId) {
+      roomFilter.categoryId = filters.categoryId;
+    }
+    if (filters?.categoryCode) {
+      roomFilter.category = { code: filters.categoryCode.toLowerCase() };
+    }
+    if (filters?.cottageId) {
+      roomFilter.cottageId = filters.cottageId;
+    }
+    if (Object.keys(roomFilter).length > 0) {
+      where.bookingRooms = { some: { room: roomFilter } };
+    }
+
+    if (filters?.dateFrom || filters?.dateTo) {
+      const from = filters.dateFrom
+        ? parseIsoDate(filters.dateFrom, 'dateFrom')
+        : undefined;
+      const to = filters.dateTo
+        ? parseIsoDate(filters.dateTo, 'dateTo')
+        : undefined;
+      // Overlap with inclusive calendar range [from, to].
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        ...(to ? [{ checkIn: { lte: to } }] : []),
+        ...(from ? [{ checkOut: { gt: from } }] : []),
       ];
     }
 
@@ -353,6 +400,541 @@ export class BookingsService {
       take: 200,
     });
     return rows.map((b) => this.toView(b));
+  }
+
+  async createManual(
+    dto: CreateManualBookingDto,
+    actor: { type: ActorType; id: string },
+  ) {
+    let phone: string;
+    try {
+      phone = normalizePhoneE164(dto.phone);
+    } catch {
+      throw new BadRequestException(
+        'phone must be a valid Uzbekistan number (+998…)',
+      );
+    }
+
+    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
+
+    try {
+      const booking = await this.prisma.$transaction(
+        async (tx) => {
+          const locked = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM rooms WHERE id = ${dto.roomId}::uuid FOR UPDATE
+          `;
+          if (locked.length === 0) {
+            throw new NotFoundException('Room not found');
+          }
+
+          const room = await tx.room.findUnique({
+            where: { id: dto.roomId },
+            include: { category: true, cottage: true },
+          });
+          if (!room || !room.isActive || !room.cottage.isActive) {
+            throw new BadRequestException('Room is not available for booking');
+          }
+          if (!room.category.isActive) {
+            throw new BadRequestException('Category is not available');
+          }
+          if (room.capacity < dto.guests) {
+            throw new BadRequestException(
+              `Room capacity (${room.capacity}) is less than guests (${dto.guests})`,
+            );
+          }
+
+          const tier = await tx.priceTier.findUnique({
+            where: {
+              categoryId_capacity: {
+                categoryId: room.categoryId,
+                capacity: room.capacity,
+              },
+            },
+          });
+          const pricePerNight = room.priceOverride ?? tier?.pricePerNight ?? null;
+          if (pricePerNight === null) {
+            throw new BadRequestException(
+              'Room has no price configured and cannot be booked',
+            );
+          }
+
+          const occupied = await this.availability.findOccupiedRoomIds(
+            stay.checkIn,
+            stay.checkOut,
+            tx,
+          );
+          if (!this.availability.isRoomFree(room.id, occupied)) {
+            throw new ConflictException(ROOM_TAKEN_MESSAGE);
+          }
+
+          const totalAmount = calcTotalAmount(stay.nights, pricePerNight);
+          const depositAmount = calcDepositAmount(
+            totalAmount,
+            room.category.depositPercent,
+          );
+
+          let customer = await tx.customer.findFirst({ where: { phone } });
+          if (customer) {
+            customer = await tx.customer.update({
+              where: { id: customer.id },
+              data: {
+                firstName: dto.firstName.trim(),
+                lastName: dto.lastName.trim(),
+              },
+            });
+          } else {
+            customer = await tx.customer.create({
+              data: {
+                firstName: dto.firstName.trim(),
+                lastName: dto.lastName.trim(),
+                phone,
+              },
+            });
+          }
+
+          let created = null as Awaited<
+            ReturnType<typeof tx.booking.create>
+          > | null;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const publicCode = generatePublicCode();
+            try {
+              created = await tx.booking.create({
+                data: {
+                  publicCode,
+                  customerId: customer.id,
+                  checkIn: stay.checkIn,
+                  checkOut: stay.checkOut,
+                  bedsTotal: room.capacity,
+                  totalAmount,
+                  depositAmount,
+                  paidAmount: new Decimal(0),
+                  remainingAmount: totalAmount,
+                  paymentStatus: PaymentStatus.unpaid,
+                  status: BookingStatus.confirmed,
+                  source: BookingSource.manual,
+                  notes: dto.notes?.trim() || null,
+                  expiresAt: null,
+                  createdById: actor.id,
+                  bookingRooms: {
+                    create: {
+                      roomId: room.id,
+                      bedsBooked: room.capacity,
+                      checkIn: stay.checkIn,
+                      checkOut: stay.checkOut,
+                      isActive: true,
+                    },
+                  },
+                },
+              });
+              break;
+            } catch (e) {
+              if (
+                e instanceof Prisma.PrismaClientKnownRequestError &&
+                e.code === 'P2002'
+              ) {
+                const target =
+                  (e.meta?.target as string[] | string | undefined) ?? [];
+                const targetStr = Array.isArray(target)
+                  ? target.join(',')
+                  : String(target);
+                if (targetStr.includes('public_code')) {
+                  continue;
+                }
+              }
+              throw e;
+            }
+          }
+          if (!created) {
+            throw new ConflictException(
+              'Could not allocate a unique booking code, please retry',
+            );
+          }
+
+          await tx.auditLog.create({
+            data: {
+              actorType: actor.type,
+              actorId: actor.id,
+              entity: 'booking',
+              entityId: created.id,
+              action: 'create_manual',
+              diff: {
+                after: {
+                  publicCode: created.publicCode,
+                  roomId: room.id,
+                  roomNumber: room.number,
+                  checkIn: stay.checkInStr,
+                  checkOut: stay.checkOutStr,
+                  status: created.status,
+                  totalAmount: decimalToString(totalAmount),
+                  source: BookingSource.manual,
+                },
+              },
+            },
+          });
+
+          return tx.booking.findUniqueOrThrow({
+            where: { id: created.id },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: {
+                    include: { cottage: true, category: true },
+                  },
+                },
+              },
+            },
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 15000,
+        },
+      );
+
+      return this.toView(booking);
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        throw error;
+      }
+      if (isExclusionOrConflict(error)) {
+        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  async updateBooking(
+    id: string,
+    dto: UpdateBookingDto,
+    actor: { type: ActorType; id: string },
+  ) {
+    try {
+      const updated = await this.prisma.$transaction(
+        async (tx) => {
+          const booking = await tx.booking.findUnique({
+            where: { id },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+              },
+            },
+          });
+          if (!booking) {
+            throw new NotFoundException('Booking not found');
+          }
+          if (
+            booking.status === BookingStatus.cancelled ||
+            booking.status === BookingStatus.checked_out
+          ) {
+            throw new UnprocessableEntityException(
+              `Cannot edit booking in status ${booking.status}`,
+            );
+          }
+
+          const currentRoom = booking.bookingRooms[0];
+          if (!currentRoom) {
+            throw new BadRequestException('Booking has no rooms');
+          }
+
+          const before = {
+            firstName: booking.customer.firstName,
+            lastName: booking.customer.lastName,
+            phone: booking.customer.phone,
+            roomId: currentRoom.roomId,
+            checkIn: formatIsoDate(booking.checkIn),
+            checkOut: formatIsoDate(booking.checkOut),
+            notes: booking.notes,
+            totalAmount: decimalToString(booking.totalAmount),
+            depositAmount: decimalToString(booking.depositAmount),
+          };
+
+          let phone = booking.customer.phone;
+          if (dto.phone !== undefined) {
+            try {
+              phone = normalizePhoneE164(dto.phone);
+            } catch {
+              throw new BadRequestException(
+                'phone must be a valid Uzbekistan number (+998…)',
+              );
+            }
+          }
+
+          const checkInStr = dto.checkIn ?? formatIsoDate(booking.checkIn);
+          const checkOutStr = dto.checkOut ?? formatIsoDate(booking.checkOut);
+          const stay = validateStayDates(checkInStr, checkOutStr, {
+            minNights: Number(this.config.get('MIN_STAY_NIGHTS') ?? 1),
+            maxNights: Number(this.config.get('MAX_STAY_NIGHTS') ?? 30),
+            allowPast: true,
+          });
+
+          const roomId = dto.roomId ?? currentRoom.roomId;
+          const guests = dto.guests ?? currentRoom.bedsBooked;
+
+          const locked = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM rooms WHERE id = ${roomId}::uuid FOR UPDATE
+          `;
+          if (locked.length === 0) {
+            throw new NotFoundException('Room not found');
+          }
+
+          const room = await tx.room.findUnique({
+            where: { id: roomId },
+            include: { category: true, cottage: true },
+          });
+          if (!room || !room.isActive || !room.cottage.isActive) {
+            throw new BadRequestException('Room is not available for booking');
+          }
+          if (room.capacity < guests) {
+            throw new BadRequestException(
+              `Room capacity (${room.capacity}) is less than guests (${guests})`,
+            );
+          }
+
+          const datesOrRoomChanged =
+            roomId !== currentRoom.roomId ||
+            stay.checkInStr !== before.checkIn ||
+            stay.checkOutStr !== before.checkOut;
+
+          if (
+            datesOrRoomChanged &&
+            OCCUPYING_STATUSES.includes(booking.status)
+          ) {
+            const occupied = await this.availability.findOccupiedRoomIds(
+              stay.checkIn,
+              stay.checkOut,
+              tx,
+              { excludeBookingId: id },
+            );
+            if (!this.availability.isRoomFree(room.id, occupied)) {
+              throw new ConflictException(ROOM_TAKEN_MESSAGE);
+            }
+          }
+
+          let totalAmount = booking.totalAmount;
+          let depositAmount = booking.depositAmount;
+          if (datesOrRoomChanged) {
+            const tier = await tx.priceTier.findUnique({
+              where: {
+                categoryId_capacity: {
+                  categoryId: room.categoryId,
+                  capacity: room.capacity,
+                },
+              },
+            });
+            const pricePerNight =
+              room.priceOverride ?? tier?.pricePerNight ?? null;
+            if (pricePerNight === null) {
+              throw new BadRequestException(
+                'Room has no price configured and cannot be booked',
+              );
+            }
+            totalAmount = calcTotalAmount(stay.nights, pricePerNight);
+            depositAmount = calcDepositAmount(
+              totalAmount,
+              room.category.depositPercent,
+            );
+          }
+
+          const paidAmount = booking.paidAmount;
+          let remainingAmount = totalAmount.sub(paidAmount);
+          if (remainingAmount.lt(0)) {
+            remainingAmount = new Decimal(0);
+          }
+
+          let paymentStatus = booking.paymentStatus;
+          if (paidAmount.gte(totalAmount) && totalAmount.gt(0)) {
+            paymentStatus = PaymentStatus.paid_full;
+          } else if (paidAmount.gte(depositAmount) && paidAmount.gt(0)) {
+            paymentStatus = PaymentStatus.deposit_paid;
+          } else if (paidAmount.lte(0)) {
+            paymentStatus = PaymentStatus.unpaid;
+          }
+
+          await tx.customer.update({
+            where: { id: booking.customerId },
+            data: {
+              firstName: (dto.firstName ?? booking.customer.firstName).trim(),
+              lastName: (dto.lastName ?? booking.customer.lastName).trim(),
+              phone,
+            },
+          });
+
+          if (datesOrRoomChanged) {
+            // Replace room assignment in-place to keep one active row
+            await tx.bookingRoom.updateMany({
+              where: { bookingId: id },
+              data: { isActive: false },
+            });
+            await tx.bookingRoom.deleteMany({ where: { bookingId: id } });
+            await tx.bookingRoom.create({
+              data: {
+                bookingId: id,
+                roomId: room.id,
+                bedsBooked: room.capacity,
+                checkIn: stay.checkIn,
+                checkOut: stay.checkOut,
+                isActive: OCCUPYING_STATUSES.includes(booking.status),
+              },
+            });
+          }
+
+          const after = await tx.booking.update({
+            where: { id },
+            data: {
+              checkIn: stay.checkIn,
+              checkOut: stay.checkOut,
+              bedsTotal: room.capacity,
+              totalAmount,
+              depositAmount,
+              remainingAmount,
+              paymentStatus,
+              ...(dto.notes !== undefined
+                ? { notes: dto.notes.trim() || null }
+                : {}),
+            },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+              },
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorType: actor.type,
+              actorId: actor.id,
+              entity: 'booking',
+              entityId: id,
+              action: 'update',
+              diff: {
+                before,
+                after: {
+                  firstName: after.customer.firstName,
+                  lastName: after.customer.lastName,
+                  phone: after.customer.phone,
+                  roomId: room.id,
+                  checkIn: stay.checkInStr,
+                  checkOut: stay.checkOutStr,
+                  notes: after.notes,
+                  totalAmount: decimalToString(totalAmount),
+                  depositAmount: decimalToString(depositAmount),
+                },
+              },
+            },
+          });
+
+          return after;
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 15000,
+        },
+      );
+
+      return this.toView(updated);
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        throw error;
+      }
+      if (isExclusionOrConflict(error)) {
+        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  async getCalendar(fromStr: string, toStr: string) {
+    const from = parseIsoDate(fromStr, 'from');
+    const to = parseIsoDate(toStr, 'to');
+    if (!(from.getTime() < to.getTime())) {
+      throw new BadRequestException('from must be before to');
+    }
+    const maxDays = 62;
+    const days = Math.round(
+      (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000),
+    );
+    if (days > maxDays) {
+      throw new BadRequestException(`Calendar range must be ≤ ${maxDays} days`);
+    }
+
+    const rooms = await this.prisma.room.findMany({
+      where: { isActive: true },
+      include: { cottage: true, category: true },
+      orderBy: [{ cottage: { sortOrder: 'asc' } }, { number: 'asc' }],
+    });
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        checkIn: { lt: to },
+        checkOut: { gt: from },
+        status: { not: BookingStatus.cancelled },
+      },
+      include: {
+        customer: true,
+        bookingRooms: {
+          include: { room: true },
+        },
+      },
+    });
+
+    const bars: Array<{
+      bookingId: string;
+      publicCode: string;
+      status: BookingStatus;
+      paymentStatus: PaymentStatus;
+      checkIn: string;
+      checkOut: string;
+      customerName: string;
+      roomId: string;
+      roomNumber: string;
+    }> = [];
+
+    for (const b of bookings) {
+      for (const br of b.bookingRooms) {
+        bars.push({
+          bookingId: b.id,
+          publicCode: b.publicCode,
+          status: b.status,
+          paymentStatus: b.paymentStatus,
+          checkIn: formatIsoDate(br.checkIn),
+          checkOut: formatIsoDate(br.checkOut),
+          customerName: `${b.customer.firstName} ${b.customer.lastName}`,
+          roomId: br.roomId,
+          roomNumber: br.room.number,
+        });
+      }
+    }
+
+    return {
+      from: formatIsoDate(from),
+      to: formatIsoDate(to),
+      rooms: rooms.map((r) => ({
+        id: r.id,
+        number: r.number,
+        capacity: r.capacity,
+        cottageId: r.cottageId,
+        cottageName: r.cottage.name,
+        categoryCode: r.category.code,
+      })),
+      bookings: bars,
+    };
   }
 
   async transitionStatus(
@@ -551,6 +1133,7 @@ export class BookingsService {
       expiresAt: booking.expiresAt,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
+      allowedTransitions: listAllowedTransitions(booking.status),
       customer: {
         id: booking.customer.id,
         firstName: booking.customer.firstName,
@@ -563,6 +1146,7 @@ export class BookingsService {
         number: br.room.number,
         capacity: br.room.capacity,
         bedsBooked: br.bedsBooked,
+        cottageId: br.room.cottage.id,
         cottageName: br.room.cottage.name,
         categoryCode: br.room.category.code,
         isActive: br.isActive,

@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ActorType } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { CottagesRepository } from './cottages.repository';
 import { CreateCottageDto } from './dto/create-cottage.dto';
 import { UpdateCottageDto } from './dto/update-cottage.dto';
 
 @Injectable()
 export class CottagesService {
-  constructor(private readonly cottagesRepository: CottagesRepository) {}
+  constructor(
+    private readonly cottagesRepository: CottagesRepository,
+    private readonly audit: AuditService,
+  ) {}
 
   async list() {
     const rows = await this.cottagesRepository.findMany();
@@ -44,22 +49,45 @@ export class CottagesService {
     };
   }
 
-  async create(dto: CreateCottageDto) {
+  async create(
+    dto: CreateCottageDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
     const created = await this.cottagesRepository.create({
       name: dto.name.trim(),
       sortOrder: dto.sortOrder ?? 0,
       isActive: dto.isActive ?? true,
     });
-    return this.getById(created.id);
+    const view = await this.getById(created.id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'cottage',
+      entityId: created.id,
+      action: 'create',
+      diff: { after: view },
+    });
+    return view;
   }
 
-  async update(id: string, dto: UpdateCottageDto) {
-    await this.getById(id);
+  async update(
+    id: string,
+    dto: UpdateCottageDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
+    const before = await this.getById(id);
     await this.cottagesRepository.update(id, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
       ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
     });
-    return this.getById(id);
+    const after = await this.getById(id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'cottage',
+      entityId: id,
+      action: 'update',
+      diff: { before, after },
+    });
+    return after;
   }
 }

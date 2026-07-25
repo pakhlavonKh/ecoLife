@@ -3,7 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ActorType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { AuditService } from '../audit/audit.service';
 import { CategoriesRepository } from '../categories/categories.repository';
 import { decimalToString } from '../common/utils/money';
 import { CreatePriceTierDto } from './dto/create-price-tier.dto';
@@ -16,6 +18,7 @@ export class PriceTiersService {
   constructor(
     private readonly priceTiersRepository: PriceTiersRepository,
     private readonly categoriesRepository: CategoriesRepository,
+    private readonly audit: AuditService,
   ) {}
 
   async listMatrix() {
@@ -66,32 +69,79 @@ export class PriceTiersService {
     return this.toView(row);
   }
 
-  async create(dto: CreatePriceTierDto) {
+  async create(
+    dto: CreatePriceTierDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
     await this.assertCategory(dto.categoryId);
     const created = await this.priceTiersRepository.create({
       capacity: dto.capacity,
       pricePerNight: new Decimal(dto.pricePerNight),
       category: { connect: { id: dto.categoryId } },
     });
-    return this.getById(created.id);
+    const view = await this.getById(created.id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'price_tier',
+      entityId: created.id,
+      action: 'create',
+      diff: { after: view },
+    });
+    return view;
   }
 
-  async update(id: string, dto: UpdatePriceTierDto) {
-    await this.getById(id);
+  async update(
+    id: string,
+    dto: UpdatePriceTierDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
+    const before = await this.getById(id);
     await this.priceTiersRepository.update(id, {
       pricePerNight: new Decimal(dto.pricePerNight),
     });
-    return this.getById(id);
+    const after = await this.getById(id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'price_tier',
+      entityId: id,
+      action: 'update',
+      diff: { before, after },
+    });
+    return after;
   }
 
-  async upsert(dto: UpsertPriceTierDto) {
+  async upsert(
+    dto: UpsertPriceTierDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
     await this.assertCategory(dto.categoryId);
+    const existing = await this.priceTiersRepository.findMany();
+    const before = existing.find(
+      (t) =>
+        t.categoryId === dto.categoryId && t.capacity === dto.capacity,
+    );
     const row = await this.priceTiersRepository.upsert({
       categoryId: dto.categoryId,
       capacity: dto.capacity,
       pricePerNight: new Decimal(dto.pricePerNight),
     });
-    return this.toView(row);
+    const view = this.toView(row);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'price_tier',
+      entityId: row.id,
+      action: before ? 'upsert_update' : 'upsert_create',
+      diff: {
+        before: before
+          ? {
+              capacity: before.capacity,
+              pricePerNight: decimalToString(before.pricePerNight),
+            }
+          : null,
+        after: view,
+      },
+    });
+    return view;
   }
 
   private async assertCategory(id: string) {

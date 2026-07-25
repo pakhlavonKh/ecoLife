@@ -9,10 +9,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ActorType, UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import type { RequestUser } from '../common/types/request-user';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -40,8 +42,14 @@ export class CategoriesAdminController {
   @Post()
   @Roles(UserRole.admin)
   @ApiOperation({ summary: 'Create category (admin only)' })
-  create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.create(dto);
+  create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.categoriesService.create(dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 
   @Patch(':id')
@@ -49,7 +57,11 @@ export class CategoriesAdminController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCategoryDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.categoriesService.update(id, dto);
+    return this.categoriesService.update(id, dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 }

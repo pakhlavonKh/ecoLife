@@ -9,10 +9,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ActorType, UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import type { RequestUser } from '../common/types/request-user';
 import { CottagesService } from './cottages.service';
 import { CreateCottageDto } from './dto/create-cottage.dto';
 import { UpdateCottageDto } from './dto/update-cottage.dto';
@@ -40,8 +42,11 @@ export class CottagesAdminController {
   @Post()
   @Roles(UserRole.admin)
   @ApiOperation({ summary: 'Create cottage (admin only)' })
-  create(@Body() dto: CreateCottageDto) {
-    return this.cottagesService.create(dto);
+  create(@Body() dto: CreateCottageDto, @CurrentUser() user: RequestUser) {
+    return this.cottagesService.create(dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 
   @Patch(':id')
@@ -49,7 +54,11 @@ export class CottagesAdminController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCottageDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.cottagesService.update(id, dto);
+    return this.cottagesService.update(id, dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 }

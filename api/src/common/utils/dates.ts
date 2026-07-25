@@ -48,7 +48,9 @@ export type StayValidationOptions = {
   maxNights?: number;
   /** Calendar "today" in UTC (YYYY-MM-DD as Date). Defaults to UTC today. */
   today?: Date;
-};
+  /** Admin edits of existing stays may keep a past check-in. */
+  allowPast?: boolean;
+}
 
 export type ValidatedStay = {
   checkIn: Date;
@@ -72,7 +74,7 @@ export function validateStayDates(
   const checkIn = parseIsoDate(checkInStr, 'check_in');
   const checkOut = parseIsoDate(checkOutStr, 'check_out');
 
-  if (checkIn.getTime() < today.getTime()) {
+  if (!options.allowPast && checkIn.getTime() < today.getTime()) {
     throw new BadRequestException('check_in must not be in the past');
   }
 

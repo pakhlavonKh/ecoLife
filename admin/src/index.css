@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --ink: #1a2e1c;
+  --muted: #5c6b5e;
+  --line: #d8e0d9;
+  --accent: #2f6b3a;
+  --accent-soft: #e8f2ea;
+  --danger: #b42318;
+  --warn: #b54708;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, #dceee0 0%, transparent 55%),
+    var(--bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}

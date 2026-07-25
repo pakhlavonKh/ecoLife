@@ -15,11 +15,13 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ActorType, UserRole } from '@prisma/client';
 import { IsOptional, IsUUID } from 'class-validator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import type { RequestUser } from '../common/types/request-user';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { RoomsService } from './rooms.service';
@@ -62,8 +64,11 @@ export class RoomsAdminController {
   @Post()
   @Roles(UserRole.admin)
   @ApiOperation({ summary: 'Create room (admin only)' })
-  create(@Body() dto: CreateRoomDto) {
-    return this.roomsService.create(dto);
+  create(@Body() dto: CreateRoomDto, @CurrentUser() user: RequestUser) {
+    return this.roomsService.create(dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 
   @Patch(':id')
@@ -71,7 +76,11 @@ export class RoomsAdminController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRoomDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.roomsService.update(id, dto);
+    return this.roomsService.update(id, dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
   }
 }

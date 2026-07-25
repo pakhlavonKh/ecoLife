@@ -3,11 +3,14 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CottagesModule } from './cottages/cottages.module';
+import { CustomersModule } from './customers/customers.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { AppController } from './app.controller';
 import { PaymentsModule } from './payments/payments.module';
 import { PriceTiersModule } from './price-tiers/price-tiers.module';
@@ -39,6 +42,7 @@ import { UsersModule } from './users/users.module';
       },
     }),
     PrismaModule,
+    AuditModule,
     AuthModule,
     UsersModule,
     CategoriesModule,
@@ -48,6 +52,8 @@ import { UsersModule } from './users/users.module';
     AvailabilityModule,
     PaymentsModule,
     BookingsModule,
+    CustomersModule,
+    DashboardModule,
   ],
   controllers: [AppController],
 })

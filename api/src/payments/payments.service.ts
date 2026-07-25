@@ -14,8 +14,10 @@ import {
   PaymentStatus,
   Prisma,
 } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
-import { decimalToString } from '../common/utils/money';
+import { decimalToString, toDecimal } from '../common/utils/money';
+import { randomUUID } from 'crypto';
 import {
   PAYMENT_FAILED_EVENT,
   PAYMENT_LATE_MANUAL_REVIEW_EVENT,
@@ -175,6 +177,170 @@ export class PaymentsService {
       provider: name,
       invoiceId: invoice.invoiceId,
       amount: decimalToString(booking.depositAmount),
+    };
+  }
+
+  /**
+   * Admin offline cash payment. Adds to paid_amount; sets paid_full when complete.
+   * If booking is still pending_payment and cash covers deposit → deposit_paid.
+   */
+  async recordCashPayment(
+    bookingId: string,
+    amountStr: string | undefined,
+    actor: { type: ActorType; id: string; note?: string },
+  ) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        customer: true,
+        bookingRooms: {
+          include: {
+            room: { include: { cottage: true, category: true } },
+          },
+        },
+      },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    if (
+      booking.status === BookingStatus.cancelled ||
+      booking.status === BookingStatus.checked_out
+    ) {
+      throw new BadRequestException(
+        `Cannot record payment for booking in status ${booking.status}`,
+      );
+    }
+
+    const remaining = booking.remainingAmount;
+    if (remaining.lte(0)) {
+      throw new BadRequestException('Booking is already fully paid');
+    }
+
+    const amount = amountStr ? toDecimal(amountStr) : remaining;
+    if (amount.lte(0)) {
+      throw new BadRequestException('amount must be positive');
+    }
+    if (amount.gt(remaining)) {
+      throw new BadRequestException(
+        `amount exceeds remaining balance (${decimalToString(remaining)})`,
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const paidAmount = booking.paidAmount.add(amount);
+      const remainingAmount = booking.totalAmount.sub(paidAmount);
+
+      let paymentStatus: PaymentStatus;
+      if (paidAmount.gte(booking.totalAmount)) {
+        paymentStatus = PaymentStatus.paid_full;
+      } else if (paidAmount.gte(booking.depositAmount)) {
+        paymentStatus = PaymentStatus.deposit_paid;
+      } else {
+        paymentStatus = PaymentStatus.unpaid;
+      }
+
+      let status = booking.status;
+      if (
+        booking.status === BookingStatus.pending_payment &&
+        paidAmount.gte(booking.depositAmount)
+      ) {
+        status = BookingStatus.deposit_paid;
+      }
+
+      const payment = await tx.payment.create({
+        data: {
+          bookingId,
+          provider: PrismaPaymentProvider.cash,
+          providerTxnId: `cash-${randomUUID()}`,
+          amount,
+          currency: 'UZS',
+          status: PaymentRecordStatus.succeeded,
+          payload: {
+            purpose: 'admin_cash',
+            note: actor.note ?? null,
+            recordedBy: actor.id,
+          },
+        },
+      });
+
+      const updated = await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          paidAmount,
+          remainingAmount: remainingAmount.lt(0)
+            ? new Decimal(0)
+            : remainingAmount,
+          paymentStatus,
+          status,
+          ...(status !== BookingStatus.pending_payment
+            ? { expiresAt: null }
+            : {}),
+        },
+        include: {
+          customer: true,
+          bookingRooms: {
+            include: {
+              room: { include: { cottage: true, category: true } },
+            },
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: actor.type,
+          actorId: actor.id,
+          entity: 'payment',
+          entityId: payment.id,
+          action: 'cash_received',
+          diff: {
+            before: {
+              paidAmount: decimalToString(booking.paidAmount),
+              paymentStatus: booking.paymentStatus,
+              status: booking.status,
+            },
+            after: {
+              paidAmount: decimalToString(paidAmount),
+              paymentStatus,
+              status,
+              amount: decimalToString(amount),
+              note: actor.note ?? null,
+            },
+          },
+        },
+      });
+
+      return { payment, booking: updated };
+    });
+
+    const received: PaymentReceivedPayload = {
+      bookingId,
+      paymentId: result.payment.id,
+      publicCode: booking.publicCode,
+      provider: 'cash',
+      amount: decimalToString(amount),
+      providerTxnId: result.payment.providerTxnId ?? '',
+    };
+    this.events.emit(PAYMENT_RECEIVED_EVENT, received);
+
+    return {
+      payment: {
+        id: result.payment.id,
+        provider: result.payment.provider,
+        amount: decimalToString(result.payment.amount),
+        status: result.payment.status,
+      },
+      booking: {
+        id: result.booking.id,
+        publicCode: result.booking.publicCode,
+        paymentStatus: result.booking.paymentStatus,
+        status: result.booking.status,
+        paidAmount: decimalToString(result.booking.paidAmount),
+        remainingAmount: decimalToString(result.booking.remainingAmount),
+        totalAmount: decimalToString(result.booking.totalAmount),
+        depositAmount: decimalToString(result.booking.depositAmount),
+      },
     };
   }
 

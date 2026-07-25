@@ -12,6 +12,15 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
+  const corsOrigins = [
+    process.env.PUBLIC_SITE_URL,
+    process.env.ADMIN_PANEL_URL,
+  ].filter((v): v is string => Boolean(v));
+  app.enableCors({
+    origin: corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,8 +34,8 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('EcoLife Booking API')
-    .setDescription('Cottage resort booking platform — Phase 4')
-    .setVersion('0.4.0')
+    .setDescription('Cottage resort booking platform — Phase 6')
+    .setVersion('0.6.0')
     .addBearerAuth()
     .build();
 

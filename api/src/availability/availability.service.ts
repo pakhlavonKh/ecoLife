@@ -63,7 +63,9 @@ export class AvailabilityService {
     checkIn: Date,
     checkOut: Date,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    options?: { excludeBookingId?: string },
   ): Promise<Set<string>> {
+    const excludeId = options?.excludeBookingId ?? null;
     const rows = await tx.$queryRaw<{ room_id: string }[]>`
       SELECT DISTINCT br.room_id
       FROM booking_rooms br
@@ -76,6 +78,7 @@ export class AvailabilityService {
           OR b.expires_at IS NULL
           OR b.expires_at > NOW()
         )
+        AND (${excludeId}::uuid IS NULL OR b.id <> ${excludeId}::uuid)
     `;
     return new Set(rows.map((r) => r.room_id));
   }

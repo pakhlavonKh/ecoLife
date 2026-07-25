@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ActorType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { AuditService } from '../audit/audit.service';
 import { decimalToString } from '../common/utils/money';
 import { CategoriesRepository } from '../categories/categories.repository';
 import { CottagesRepository } from '../cottages/cottages.repository';
@@ -18,6 +20,7 @@ export class RoomsService {
     private readonly roomsRepository: RoomsRepository,
     private readonly cottagesRepository: CottagesRepository,
     private readonly categoriesRepository: CategoriesRepository,
+    private readonly audit: AuditService,
   ) {}
 
   async list(filters?: { cottageId?: string; categoryId?: string }) {
@@ -37,7 +40,10 @@ export class RoomsService {
     return this.toView(room);
   }
 
-  async create(dto: CreateRoomDto) {
+  async create(
+    dto: CreateRoomDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
     const number = dto.number.trim();
     const existing = await this.roomsRepository.findByNumber(number);
     if (existing) {
@@ -57,14 +63,27 @@ export class RoomsService {
       category: { connect: { id: dto.categoryId } },
     });
 
-    return this.getById(created.id);
+    const view = await this.getById(created.id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'room',
+      entityId: created.id,
+      action: 'create',
+      diff: { after: view },
+    });
+    return view;
   }
 
-  async update(id: string, dto: UpdateRoomDto) {
+  async update(
+    id: string,
+    dto: UpdateRoomDto,
+    actor?: { type: ActorType; id?: string },
+  ) {
     const current = await this.roomsRepository.findById(id);
     if (!current) {
       throw new NotFoundException('Room not found');
     }
+    const before = await this.getById(id);
 
     if (dto.number !== undefined) {
       const number = dto.number.trim();
@@ -101,7 +120,15 @@ export class RoomsService {
         : {}),
     });
 
-    return this.getById(id);
+    const after = await this.getById(id);
+    await this.audit.write({
+      actor: actor ?? { type: ActorType.admin },
+      entity: 'room',
+      entityId: id,
+      action: 'update',
+      diff: { before, after },
+    });
+    return after;
   }
 
   private async assertCottage(id: string) {
