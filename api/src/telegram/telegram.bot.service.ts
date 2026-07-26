@@ -6,8 +6,17 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Bot, GrammyError, HttpError } from 'grammy';
+import { TelegramLanguage } from '@prisma/client';
+import { Bot, GrammyError, HttpError, InlineKeyboard } from 'grammy';
 import { DashboardService } from '../dashboard/dashboard.service';
+import {
+  DEFAULT_TELEGRAM_LANG,
+  dict,
+  parseTelegramLang,
+  toTelegramLang,
+  tt,
+  type TelegramLang,
+} from './i18n';
 import { setTelegramBotUsername } from './telegram.bot-username';
 import { formatToday } from './telegram.messages';
 import { TelegramInvitesService } from './telegram-invites.service';
@@ -15,7 +24,7 @@ import { TelegramQueueService } from './telegram.queue.service';
 import { TelegramRecipientsService } from './telegram-recipients.service';
 import { telegramRoleLabel } from './telegram.roles';
 
-function inviteErrorMessage(error: unknown): string {
+function inviteErrorMessage(error: unknown, lang: TelegramLang): string {
   if (error instanceof BadRequestException) {
     const res = error.getResponse();
     if (typeof res === 'string') {
@@ -26,7 +35,13 @@ function inviteErrorMessage(error: unknown): string {
       return Array.isArray(message) ? message.join('; ') : message;
     }
   }
-  return 'Не удалось активировать код. Попробуйте позже или попросите новый у администратора.';
+  return tt(lang, 'commands.inviteFailed');
+}
+
+function langKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(tt('ru', 'commands.langButtonRu'), 'lang:ru')
+    .text(tt('uz', 'commands.langButtonUz'), 'lang:uz');
 }
 
 @Injectable()
@@ -81,7 +96,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         'TELEGRAM_BOT_TOKEN is empty — Telegram bot disabled',
       );
-      this.queue.configure({ sendFn: null, adminChatIds: [] });
+      this.queue.configure({ sendFn: null, onForbidden: null });
       return;
     }
 
@@ -98,13 +113,6 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       .toLowerCase();
     const enableOutbound = role === 'all' || role === 'api';
     const enablePolling = role === 'all' || role === 'worker';
-
-    const outboundIds = await this.resolveOutboundChatIds(ids);
-    if (outboundIds.length === 0) {
-      this.logger.warn(
-        'TELEGRAM_BOT_TOKEN set but no recipients / TELEGRAM_ADMIN_CHAT_IDS — outbound notifications disabled',
-      );
-    }
 
     const bot = new Bot(token);
     this.bot = bot;
@@ -129,11 +137,20 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         sendFn: async (chatId, text) => {
           await bot.api.sendMessage(chatId, text, { parse_mode: 'HTML' });
         },
-        adminChatIds: outboundIds,
+        onForbidden: async (chatId) => {
+          const deactivated =
+            await this.recipients.deactivateBlockedChat(chatId);
+          if (deactivated) {
+            this.logger.warn(
+              { chatId },
+              'Recipient auto-deactivated after Telegram 403',
+            );
+          }
+        },
       });
       this.logger.log(`Telegram outbound enabled (role=${role})`);
     } else {
-      this.queue.configure({ sendFn: null, adminChatIds: [] });
+      this.queue.configure({ sendFn: null, onForbidden: null });
       this.logger.log(`Telegram outbound skipped (role=${role})`);
     }
 
@@ -152,24 +169,24 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
 
       const payload =
         typeof ctx.match === 'string' ? ctx.match.trim() : '';
+      const lang = await this.langForChat(chatId);
 
       if (!payload) {
-        await ctx.reply(
-          'Этот бот для сотрудников EcoLife. Попросите код приглашения у администратора.',
-        );
+        await ctx.reply(tt(lang, 'commands.startStaffOnly'));
         return;
       }
 
       try {
         const result = await this.invites.redeem(payload, BigInt(chatId));
-        const greeting = this.invites.roleGreeting(result.role);
+        const greetingLang = await this.langForChat(chatId);
+        const greeting = this.invites.roleGreeting(result.role, greetingLang);
         await ctx.reply(
           result.rebound
-            ? `${greeting}\nРоль обновлена.`
+            ? `${greeting}\n${tt(greetingLang, 'commands.roleUpdated')}`
             : greeting,
         );
       } catch (error) {
-        const msg = inviteErrorMessage(error);
+        const msg = inviteErrorMessage(error, lang);
         this.logger.warn(
           {
             chatId,
@@ -192,26 +209,26 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       }
 
       const recipient = await this.recipients.findByChatId(BigInt(chatId));
+      const lang = toTelegramLang(recipient?.language);
       if (!recipient) {
-        await ctx.reply(
-          'Вы не подключены. Откройте ссылку-приглашение или отправьте /start КОД.',
-        );
+        await ctx.reply(tt(lang, 'commands.whoamiNotLinked'));
         return;
       }
       if (!recipient.isActive) {
-        await ctx.reply('Доступ отключён. Обратитесь к администратору.');
+        await ctx.reply(tt(lang, 'commands.accessDisabled'));
         return;
       }
 
       const muted =
         recipient.mutedUntil && recipient.mutedUntil.getTime() > Date.now()
-          ? `\nПауза уведомлений до: ${recipient.mutedUntil.toISOString()}`
+          ? `\n${tt(lang, 'common.mutedUntil')}: ${recipient.mutedUntil.toISOString()}`
           : '';
       await ctx.reply(
         [
-          `Имя: ${recipient.name}`,
-          `Роль: ${telegramRoleLabel(recipient.role)} (${recipient.role})`,
-          `Статус: активен`,
+          `${tt(lang, 'common.name')}: ${recipient.name}`,
+          `${tt(lang, 'common.role')}: ${telegramRoleLabel(recipient.role, lang)} (${recipient.role})`,
+          `${tt(lang, 'common.status')}: ${tt(lang, 'common.active')}`,
+          `${tt(lang, 'common.language')}: ${dict(lang).langNames[lang]}`,
           `chat_id: ${recipient.chatId.toString()}`,
           muted,
         ]
@@ -220,8 +237,70 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
+    bot.command('lang', async (ctx) => {
+      const chatId = ctx.chat?.id;
+      if (chatId === undefined) {
+        return;
+      }
+
+      const access = await this.resolveCommandAccess(chatId);
+      if (access === 'denied') {
+        this.logger.warn(
+          { chatId },
+          'Ignored /lang from unauthorized chat',
+        );
+        return;
+      }
+      if (access === 'inactive') {
+        const lang = await this.langForChat(chatId);
+        await ctx.reply(tt(lang, 'commands.accessDisabled'));
+        return;
+      }
+
+      const lang = await this.langForChat(chatId);
+      const arg =
+        typeof ctx.match === 'string' ? ctx.match.trim().toLowerCase() : '';
+      const parsed = parseTelegramLang(arg);
+      if (parsed) {
+        await this.applyLanguage(chatId, parsed, ctx);
+        return;
+      }
+
+      await ctx.reply(
+        `${tt(lang, 'commands.langCurrent', {
+          language: dict(lang).langNames[lang],
+        })}\n${tt(lang, 'commands.langPrompt')}`,
+        { reply_markup: langKeyboard() },
+      );
+    });
+
+    bot.callbackQuery(/^lang:(ru|uz)$/, async (ctx) => {
+      const chatId = ctx.chat?.id;
+      if (chatId === undefined) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      const access = await this.resolveCommandAccess(chatId);
+      if (access !== 'ok') {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      const next = parseTelegramLang(ctx.match?.[1]);
+      if (!next) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      await this.applyLanguage(chatId, next, ctx);
+      try {
+        await ctx.answerCallbackQuery();
+      } catch {
+        /* ignore */
+      }
+    });
+
     bot.command('today', async (ctx) => {
       const access = await this.resolveCommandAccess(ctx.chat?.id);
+      const lang = await this.langForChat(ctx.chat?.id);
       if (access === 'denied') {
         this.logger.warn(
           { chatId: ctx.chat?.id },
@@ -230,7 +309,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         return;
       }
       if (access === 'inactive') {
-        await ctx.reply('Доступ отключён. Обратитесь к администратору.');
+        await ctx.reply(tt(lang, 'commands.accessDisabled'));
         return;
       }
       try {
@@ -239,6 +318,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
           stats.today,
           stats.arrivalsList,
           stats.departuresList,
+          lang,
         );
         await ctx.reply(text, { parse_mode: 'HTML' });
       } catch (error) {
@@ -246,7 +326,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
           error instanceof Error ? error.message : String(error);
         this.logger.error({ err: msg }, 'Failed to handle /today');
         try {
-          await ctx.reply('Не удалось получить данные. Попробуйте позже.');
+          await ctx.reply(tt(lang, 'commands.todayFailed'));
         } catch {
           /* ignore */
         }
@@ -287,7 +367,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         );
         this.enabled = false;
         if (enableOutbound) {
-          this.queue.configure({ sendFn: null, adminChatIds: [] });
+          this.queue.configure({ sendFn: null, onForbidden: null });
         }
       });
   }
@@ -306,25 +386,49 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     this.enabled = false;
   }
 
-  /**
-   * Prefer DB recipients; fall back to env only when the table is empty (§8).
-   */
-  private async resolveOutboundChatIds(envIds: string[]): Promise<string[]> {
-    try {
-      const rows = await this.recipients.list();
-      const active = rows.filter((r) => r.isActive).map((r) => r.chatId);
-      if (active.length > 0) {
-        return active;
-      }
-      if (envIds.length > 0) {
-        this.logger.warn(
-          'telegram_recipients is empty — falling back to TELEGRAM_ADMIN_CHAT_IDS (deprecated)',
-        );
-      }
-      return envIds;
-    } catch {
-      return envIds;
+  private async langForChat(
+    chatId: number | undefined,
+  ): Promise<TelegramLang> {
+    if (chatId === undefined) {
+      return DEFAULT_TELEGRAM_LANG;
     }
+    try {
+      const recipient = await this.recipients.findByChatId(BigInt(chatId));
+      return toTelegramLang(recipient?.language);
+    } catch {
+      return DEFAULT_TELEGRAM_LANG;
+    }
+  }
+
+  private async applyLanguage(
+    chatId: number,
+    language: TelegramLang,
+    ctx: {
+      reply: (text: string) => Promise<unknown>;
+      editMessageText?: (text: string) => Promise<unknown>;
+    },
+  ): Promise<void> {
+    const updated = await this.recipients.setLanguageByChatId(
+      BigInt(chatId),
+      language as TelegramLanguage,
+    );
+    if (!updated) {
+      await ctx.reply(tt(language, 'commands.whoamiNotLinked'));
+      return;
+    }
+    const text = tt(language, 'commands.langSaved', {
+      language: dict(language).langNames[language],
+    });
+
+    if (ctx.editMessageText) {
+      try {
+        await ctx.editMessageText(text);
+        return;
+      } catch {
+        /* fall through to reply */
+      }
+    }
+    await ctx.reply(text);
   }
 
   private async resolveCommandAccess(

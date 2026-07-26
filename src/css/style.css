@@ -1793,6 +1793,61 @@ p {
   padding: 0.75rem 1rem;
 }
 
+.booking-modal__request-ok {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.25rem 0 0.5rem;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.booking-modal__request-ok > p {
+  margin: 0;
+}
+
+.booking-modal__request-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: rgba(45, 90, 61, 0.08);
+  border: 1px solid rgba(45, 90, 61, 0.22);
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.booking-modal__request-code span {
+  color: var(--stone);
+  font-size: 0.9rem;
+}
+
+.booking-modal__request-code strong {
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.booking-modal__operator-phones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.booking-modal__operator-phones a {
+  color: var(--accent, #2d5a3d);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.booking-modal__operator-phones a:hover {
+  text-decoration: underline;
+}
+
 .booking-page__hint {
   color: var(--stone);
   margin-bottom: 1.5rem;

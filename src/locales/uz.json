@@ -124,6 +124,7 @@
     "depositPaid": "To‘langan depozit",
     "remaining": "Joyida to‘lanadigan qoldiq",
     "depositNote": "Onlayn faqat depozit to‘lanadi. Qoldiq — kelganda.",
+    "depositNoteRequest": "Ariza xonani band qiladi. Operator to‘lovni tasdiqlash uchun siz bilan bog‘lanadi.",
     "payWith": "To‘lov usuli",
     "providers": {
       "mock": "Mock (dev)",
@@ -131,6 +132,11 @@
       "click": "Click"
     },
     "confirmPay": "Tasdiqlash va to‘lash",
+    "confirmRequest": "Ariza yuborish",
+    "requestSubmittedTitle": "Ariza qabul qilindi",
+    "requestSubmitted": "Onlayn to‘lov vaqtincha mavjud emas. Bandlovni tasdiqlash uchun siz bilan bog‘lanamiz. Operator: {{phones}}.",
+    "requestCode": "Ariza kodi",
+    "close": "Yopish",
     "roomTaken": "Bu xona hozirgina band qilindi. Boshqa xona yoki sanalarni tanlang.",
     "invalidDates": "Chiqish sanasi kelish sanasidan keyin bo‘lishi kerak."
   },

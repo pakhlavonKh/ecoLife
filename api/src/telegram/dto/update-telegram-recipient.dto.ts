@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TelegramStaffRole } from '@prisma/client';
+import { TelegramLanguage, TelegramStaffRole } from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
@@ -19,6 +19,11 @@ export class UpdateTelegramRecipientDto {
   @IsOptional()
   @IsEnum(TelegramStaffRole)
   role?: TelegramStaffRole;
+
+  @ApiPropertyOptional({ enum: TelegramLanguage })
+  @IsOptional()
+  @IsEnum(TelegramLanguage)
+  language?: TelegramLanguage;
 
   @ApiPropertyOptional()
   @IsOptional()

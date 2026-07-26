@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { dashboardApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -8,6 +9,7 @@ import { Card, ErrorBox, Field, PageHeader, StatusBadge } from '../components/ui
 import { formatDate, formatMoney, todayIso } from '../lib/format';
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const [from, setFrom] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -36,32 +38,54 @@ export function DashboardPage() {
 
   const cards = data
     ? [
-        { label: 'Заезды сегодня', value: String(data.arrivalsToday) },
-        { label: 'Выезды сегодня', value: String(data.departuresToday) },
-        { label: 'В доме', value: String(data.activeGuests) },
-        { label: 'Будущие брони', value: String(data.upcomingBookings) },
-        { label: 'Всего броней', value: String(data.totalBookings) },
+        { label: t('dashboard.arrivalsToday'), value: String(data.arrivalsToday) },
         {
-          label: 'Загрузка сегодня',
-          value: `${data.occupancyPercent}%`,
-          hint: `${data.occupiedBeds} / ${data.totalBeds} мест`,
+          label: t('dashboard.departuresToday'),
+          value: String(data.departuresToday),
         },
-        { label: 'Выручка за период', value: formatMoney(data.revenue) },
-        { label: 'Ожидают оплаты', value: String(data.pendingPayments) },
+        { label: t('dashboard.activeGuests'), value: String(data.activeGuests) },
+        {
+          label: t('dashboard.upcomingBookings'),
+          value: String(data.upcomingBookings),
+        },
+        {
+          label: t('dashboard.totalBookings'),
+          value: String(data.totalBookings),
+        },
+        {
+          label: t('dashboard.occupancyToday'),
+          value: `${data.occupancyPercent}%`,
+          hint: t('dashboard.bedsHint', {
+            occupied: data.occupiedBeds,
+            total: data.totalBeds,
+          }),
+        },
+        {
+          label: t('dashboard.revenuePeriod'),
+          value: formatMoney(data.revenue),
+        },
+        {
+          label: t('dashboard.pendingPayments'),
+          value: String(data.pendingPayments),
+        },
       ]
     : [];
 
   return (
     <div>
       <PageHeader
-        title="Дашборд"
-        subtitle={data ? `Сегодня: ${formatDate(data.today)}` : undefined}
+        title={t('dashboard.title')}
+        subtitle={
+          data
+            ? t('dashboard.todaySubtitle', { date: formatDate(data.today) })
+            : undefined
+        }
         actions={
           <div className="flex flex-wrap gap-2">
-            <Field label="С">
+            <Field label={t('common.from')}>
               <DateField value={from} onChange={setFrom} />
             </Field>
-            <Field label="По">
+            <Field label={t('common.to')}>
               <DateField value={to} onChange={setTo} />
             </Field>
           </div>
@@ -85,13 +109,13 @@ export function DashboardPage() {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-            Заезды сегодня
+            {t('dashboard.arrivalsToday')}
           </div>
           <List items={data?.arrivalsList ?? []} />
         </Card>
         <Card>
           <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-            Выезды сегодня
+            {t('dashboard.departuresToday')}
           </div>
           <List items={data?.departuresList ?? []} />
         </Card>
@@ -105,9 +129,12 @@ function List({
 }: {
   items: DashboardStats['arrivalsList'];
 }) {
+  const { t } = useTranslation();
   if (items.length === 0) {
     return (
-      <div className="px-4 py-8 text-sm text-[var(--muted)]">Нет записей</div>
+      <div className="px-4 py-8 text-sm text-[var(--muted)]">
+        {t('dashboard.emptyList')}
+      </div>
     );
   }
   return (

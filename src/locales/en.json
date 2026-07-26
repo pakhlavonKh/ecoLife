@@ -128,6 +128,7 @@
     "depositPaid": "Deposit paid",
     "remaining": "Balance on arrival",
     "depositNote": "Only the deposit is paid online. The balance is due at check-in.",
+    "depositNoteRequest": "Your request reserves the room. An operator will contact you to confirm payment.",
     "payWith": "Payment method",
     "providers": {
       "mock": "Mock (dev)",
@@ -135,6 +136,11 @@
       "click": "Click"
     },
     "confirmPay": "Confirm and pay",
+    "confirmRequest": "Submit request",
+    "requestSubmittedTitle": "Request received",
+    "requestSubmitted": "Online payment is temporarily unavailable. We will contact you to confirm the booking. Operator: {{phones}}.",
+    "requestCode": "Request code",
+    "close": "Close",
     "roomTaken": "This room was just booked. Please pick another room or dates.",
     "invalidDates": "Check-out must be after check-in."
   },

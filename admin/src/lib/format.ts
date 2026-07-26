@@ -1,18 +1,20 @@
 import dayjs from 'dayjs';
+import i18n, { numberLocale } from '../i18n';
 
 export function formatMoney(value: string | number | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return i18n.t('common.emDash');
   const n = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(n)) return String(value);
-  return new Intl.NumberFormat('ru-RU', {
+  const amount = new Intl.NumberFormat(numberLocale(), {
     style: 'decimal',
     maximumFractionDigits: 0,
-  }).format(n) + ' UZS';
+  }).format(n);
+  return i18n.t('common.money', { amount });
 }
 
 /** Display dates as DD/MM/YYYY everywhere in the admin UI. */
 export function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return i18n.t('common.emDash');
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
     const iso = value.slice(0, 10);
     const [y, m, d] = iso.split('-');
@@ -22,7 +24,7 @@ export function formatDate(value: string | Date | null | undefined): string {
 }
 
 export function formatDateTime(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return i18n.t('common.emDash');
   return dayjs(value).format('DD/MM/YYYY HH:mm');
 }
 

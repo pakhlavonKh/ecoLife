@@ -2,7 +2,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActorType, TelegramRecipient } from '@prisma/client';
+import {
+  ActorType,
+  TelegramLanguage,
+  TelegramRecipient,
+} from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateTelegramRecipientDto } from './dto/update-telegram-recipient.dto';
@@ -12,6 +16,7 @@ export type TelegramRecipientView = {
   chatId: string;
   name: string;
   role: TelegramRecipient['role'];
+  language: TelegramLanguage;
   isActive: boolean;
   mutedUntil: Date | null;
   createdAt: Date;
@@ -31,6 +36,7 @@ export class TelegramRecipientsService {
       chatId: row.chatId.toString(),
       name: row.name,
       role: row.role,
+      language: row.language,
       isActive: row.isActive,
       mutedUntil: row.mutedUntil,
       createdAt: row.createdAt,
@@ -59,6 +65,20 @@ export class TelegramRecipientsService {
     return this.prisma.telegramRecipient.findUnique({ where: { chatId } });
   }
 
+  async setLanguageByChatId(
+    chatId: bigint,
+    language: TelegramLanguage,
+  ): Promise<TelegramRecipient | null> {
+    const existing = await this.findByChatId(chatId);
+    if (!existing) {
+      return null;
+    }
+    return this.prisma.telegramRecipient.update({
+      where: { chatId },
+      data: { language },
+    });
+  }
+
   async update(
     id: string,
     dto: UpdateTelegramRecipientDto,
@@ -70,6 +90,7 @@ export class TelegramRecipientsService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.role !== undefined ? { role: dto.role } : {}),
+        ...(dto.language !== undefined ? { language: dto.language } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
     });
@@ -148,5 +169,40 @@ export class TelegramRecipientsService {
 
   async countActive(): Promise<number> {
     return this.prisma.telegramRecipient.count({ where: { isActive: true } });
+  }
+
+  /**
+   * Auto-deactivate after Telegram 403 (bot blocked / chat forbidden).
+   * Idempotent; writes audit_log.
+   */
+  async deactivateBlockedChat(chatId: string): Promise<boolean> {
+    let id: bigint;
+    try {
+      id = BigInt(chatId);
+    } catch {
+      return false;
+    }
+
+    const row = await this.prisma.telegramRecipient.findUnique({
+      where: { chatId: id },
+    });
+    if (!row || !row.isActive) {
+      return false;
+    }
+
+    const before = this.toView(row);
+    const updated = await this.prisma.telegramRecipient.update({
+      where: { id: row.id },
+      data: { isActive: false },
+    });
+    const after = this.toView(updated);
+    await this.audit.write({
+      actor: { type: ActorType.system },
+      entity: 'telegram_recipient',
+      entityId: row.id,
+      action: 'auto_deactivate_blocked',
+      diff: { before, after, reason: 'telegram_403' },
+    });
+    return true;
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { availabilityApi, bookingsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -17,9 +18,11 @@ import {
   TextArea,
 } from '../components/ui';
 import { formatDateTime, formatMoney } from '../lib/format';
-import { STATUS_ACTIONS } from '../lib/labels';
+import { formatGuestName, splitGuestName } from '../lib/guest-name';
+import { sourceLabel, statusActionLabel } from '../lib/labels';
 
 export function BookingDetailPage() {
+  const { t } = useTranslation();
   const { id = '' } = useParams();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState('');
@@ -29,8 +32,7 @@ export function BookingDetailPage() {
   const [cashAmount, setCashAmount] = useState('');
 
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    guestName: '',
     phone: '',
     checkIn: '',
     checkOut: '',
@@ -43,8 +45,10 @@ export function BookingDetailPage() {
     const { data } = await bookingsApi.get(id);
     setBooking(data);
     setForm({
-      firstName: data.customer.firstName,
-      lastName: data.customer.lastName,
+      guestName: formatGuestName(
+        data.customer.firstName,
+        data.customer.lastName,
+      ),
       phone: data.customer.phone,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
@@ -115,9 +119,10 @@ export function BookingDetailPage() {
     setMessage('');
     setError('');
     try {
+      const { firstName, lastName } = splitGuestName(form.guestName);
       const { data } = await bookingsApi.update(id, {
-        firstName: form.firstName,
-        lastName: form.lastName,
+        firstName,
+        lastName,
         phone: form.phone,
         checkIn: form.checkIn,
         checkOut: form.checkOut,
@@ -126,7 +131,7 @@ export function BookingDetailPage() {
         notes: form.notes,
       });
       setBooking(data);
-      setMessage('Сохранено');
+      setMessage(t('common.saved'));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -135,14 +140,20 @@ export function BookingDetailPage() {
   }
 
   async function onTransition(status: string) {
-    if (status === 'cancelled' && !confirm('Отменить бронь?')) return;
+    if (status === 'cancelled' && !confirm(t('bookingDetail.confirmCancel'))) {
+      return;
+    }
     setBusy(true);
     setError('');
     setMessage('');
     try {
       const { data } = await bookingsApi.transition(id, status);
       setBooking(data);
-      setMessage(`Статус: ${STATUS_ACTIONS[status] ?? status}`);
+      setMessage(
+        t('bookingDetail.statusChanged', {
+          action: statusActionLabel(status),
+        }),
+      );
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -157,7 +168,7 @@ export function BookingDetailPage() {
     try {
       await bookingsApi.cash(id, cashAmount || undefined);
       await load();
-      setMessage('Оплата наличными записана');
+      setMessage(t('bookingDetail.cashRecorded'));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -166,21 +177,24 @@ export function BookingDetailPage() {
   }
 
   if (!booking && !error) {
-    return <div className="text-[var(--muted)]">Загрузка…</div>;
+    return <div className="text-[var(--muted)]">{t('common.loading')}</div>;
   }
 
   return (
     <div>
       <PageHeader
-        title={booking?.publicCode ?? 'Бронь'}
+        title={booking?.publicCode ?? t('bookingDetail.fallbackTitle')}
         subtitle={
           booking
-            ? `Создана ${formatDateTime(booking.createdAt)} · ${booking.source}`
+            ? t('bookingDetail.createdSubtitle', {
+                datetime: formatDateTime(booking.createdAt),
+                source: sourceLabel(booking.source),
+              })
             : undefined
         }
         actions={
           <Link to="/bookings">
-            <Button variant="secondary">К списку</Button>
+            <Button variant="secondary">{t('common.backToList')}</Button>
           </Link>
         }
       />
@@ -195,37 +209,58 @@ export function BookingDetailPage() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <StatusBadge status={booking.status} />
           <PaymentBadge status={booking.paymentStatus} />
-          <span className="text-sm text-[var(--muted)]">
-            Итого {formatMoney(booking.totalAmount)} · депозит{' '}
-            {formatMoney(booking.depositAmount)} · оплачено{' '}
-            {formatMoney(booking.paidAmount)} · остаток{' '}
-            {formatMoney(booking.remainingAmount)}
+          <span
+            className={
+              booking.source === 'online_request'
+                ? 'rounded-md bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-800 ring-1 ring-amber-200'
+                : 'text-sm text-[var(--muted)]'
+            }
+          >
+            {sourceLabel(booking.source)}
           </span>
+          <span className="text-sm text-[var(--muted)]">
+            {t('bookingDetail.amountsSummary', {
+              total: formatMoney(booking.totalAmount),
+              deposit: formatMoney(booking.depositAmount),
+              paid: formatMoney(booking.paidAmount),
+              remaining: formatMoney(booking.remainingAmount),
+            })}
+          </span>
+        </div>
+      ) : null}
+
+      {booking?.source === 'online_request' &&
+      booking.status === 'pending_payment' ? (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Trans
+            i18nKey="bookingDetail.onlineRequestWarning"
+            values={{ phone: booking.customer.phone }}
+            components={{
+              phoneLink: (
+                <a
+                  className="font-medium underline"
+                  href={`tel:${booking.customer.phone}`}
+                />
+              ),
+            }}
+          />
         </div>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
         <Card className="p-4">
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSave}>
-            <Field label="Имя">
+            <Field label={t('common.guest')}>
               <Input
-                value={form.firstName}
+                value={form.guestName}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, firstName: e.target.value }))
+                  setForm((f) => ({ ...f, guestName: e.target.value }))
                 }
+                placeholder={t('common.guestNamePlaceholder')}
                 required
               />
             </Field>
-            <Field label="Фамилия">
-              <Input
-                value={form.lastName}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, lastName: e.target.value }))
-                }
-                required
-              />
-            </Field>
-            <Field label="Телефон">
+            <Field label={t('common.phone')}>
               <Input
                 value={form.phone}
                 onChange={(e) =>
@@ -234,7 +269,7 @@ export function BookingDetailPage() {
                 required
               />
             </Field>
-            <Field label="Гостей">
+            <Field label={t('common.guestsCount')}>
               <Input
                 type="number"
                 min={1}
@@ -244,14 +279,14 @@ export function BookingDetailPage() {
                 }
               />
             </Field>
-            <Field label="Заезд">
+            <Field label={t('common.checkIn')}>
               <DateField
                 value={form.checkIn}
                 onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
                 required
               />
             </Field>
-            <Field label="Выезд">
+            <Field label={t('common.checkOut')}>
               <DateField
                 value={form.checkOut}
                 min={form.checkIn || undefined}
@@ -259,7 +294,7 @@ export function BookingDetailPage() {
                 required
               />
             </Field>
-            <Field label="Номер">
+            <Field label={t('common.room')}>
               <Select
                 value={form.roomId}
                 onChange={(e) =>
@@ -269,14 +304,18 @@ export function BookingDetailPage() {
               >
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.number} · {r.cottageName} · {r.capacity} мест ·{' '}
-                    {r.categoryCode}
+                    {t('bookingDetail.roomOption', {
+                      number: r.number,
+                      cottage: r.cottageName,
+                      capacity: r.capacity,
+                      category: r.categoryCode,
+                    })}
                   </option>
                 ))}
               </Select>
             </Field>
             <div className="sm:col-span-2">
-              <Field label="Заметки">
+              <Field label={t('common.notes')}>
                 <TextArea
                   value={form.notes}
                   onChange={(e) =>
@@ -287,7 +326,7 @@ export function BookingDetailPage() {
             </div>
             <div className="sm:col-span-2">
               <Button type="submit" disabled={busy}>
-                Сохранить изменения
+                {t('bookingDetail.saveChanges')}
               </Button>
             </div>
           </form>
@@ -295,7 +334,9 @@ export function BookingDetailPage() {
 
         <div className="space-y-4">
           <Card className="p-4">
-            <div className="mb-3 text-sm font-medium">Действия</div>
+            <div className="mb-3 text-sm font-medium">
+              {t('bookingDetail.actionsTitle')}
+            </div>
             <div className="flex flex-col gap-2">
               {(booking?.allowedTransitions ?? []).map((s) => (
                 <Button
@@ -304,20 +345,22 @@ export function BookingDetailPage() {
                   disabled={busy}
                   onClick={() => void onTransition(s)}
                 >
-                  {STATUS_ACTIONS[s] ?? s}
+                  {statusActionLabel(s)}
                 </Button>
               ))}
               {(booking?.allowedTransitions ?? []).length === 0 ? (
                 <div className="text-sm text-[var(--muted)]">
-                  Нет доступных переходов
+                  {t('bookingDetail.noTransitions')}
                 </div>
               ) : null}
             </div>
           </Card>
 
           <Card className="p-4">
-            <div className="mb-3 text-sm font-medium">Оплата наличными</div>
-            <Field label="Сумма (пусто = весь остаток)">
+            <div className="mb-3 text-sm font-medium">
+              {t('bookingDetail.cashTitle')}
+            </div>
+            <Field label={t('bookingDetail.cashAmountLabel')}>
               <Input
                 value={cashAmount}
                 onChange={(e) => setCashAmount(e.target.value)}
@@ -329,7 +372,7 @@ export function BookingDetailPage() {
               disabled={busy || booking?.paymentStatus === 'paid_full'}
               onClick={() => void onCash()}
             >
-              Отметить оплату
+              {t('bookingDetail.markCashPaid')}
             </Button>
           </Card>
         </div>

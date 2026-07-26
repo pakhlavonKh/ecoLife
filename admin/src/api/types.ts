@@ -218,6 +218,7 @@ export type TelegramRecipient = {
   chatId: string;
   name: string;
   role: TelegramStaffRole;
+  language?: 'ru' | 'uz';
   isActive: boolean;
   mutedUntil: string | null;
   createdAt: string;

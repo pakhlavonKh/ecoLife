@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   displayToIsoDate,
   isoToDisplayDate,
@@ -25,6 +26,7 @@ export function DateField({
   id: idProp,
   className = '',
 }: Props) {
+  const { t } = useTranslation();
   const autoId = useId();
   const id = idProp || autoId;
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -69,7 +71,7 @@ export function DateField({
         type="text"
         inputMode="numeric"
         autoComplete="off"
-        placeholder="дд/мм/гггг"
+        placeholder={t('dateField.placeholder')}
         value={text}
         required={required}
         onChange={(e) => commit(e.target.value)}
@@ -91,7 +93,7 @@ export function DateField({
         type="button"
         className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--accent)]"
         onClick={openPicker}
-        aria-label="Открыть календарь"
+        aria-label={t('dateField.openCalendarAria')}
         tabIndex={-1}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">

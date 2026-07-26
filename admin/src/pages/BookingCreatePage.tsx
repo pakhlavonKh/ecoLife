@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { availabilityApi, bookingsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -15,12 +16,13 @@ import {
   TextArea,
 } from '../components/ui';
 import { addDaysIso, formatMoney, todayIso } from '../lib/format';
+import { splitGuestName } from '../lib/guest-name';
 
 export function BookingCreatePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    guestName: '',
     phone: '+998',
     checkIn: todayIso(),
     checkOut: addDaysIso(2),
@@ -73,9 +75,10 @@ export function BookingCreatePage() {
     setBusy(true);
     setError('');
     try {
+      const { firstName, lastName } = splitGuestName(form.guestName);
       const { data } = await bookingsApi.createManual({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
+        firstName,
+        lastName,
         phone: form.phone.trim(),
         roomId: form.roomId,
         checkIn: form.checkIn,
@@ -94,35 +97,27 @@ export function BookingCreatePage() {
   return (
     <div>
       <PageHeader
-        title="Ручная бронь"
-        subtitle="Тот же availability-движок, статус confirmed, без онлайн-оплаты"
+        title={t('bookingCreate.title')}
+        subtitle={t('bookingCreate.subtitle')}
         actions={
           <Link to="/bookings">
-            <Button variant="secondary">Отмена</Button>
+            <Button variant="secondary">{t('common.cancel')}</Button>
           </Link>
         }
       />
       <Card className="max-w-3xl p-4 sm:p-6">
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
-          <Field label="Имя">
+          <Field label={t('common.guest')}>
             <Input
-              value={form.firstName}
+              value={form.guestName}
               onChange={(e) =>
-                setForm((f) => ({ ...f, firstName: e.target.value }))
+                setForm((f) => ({ ...f, guestName: e.target.value }))
               }
+              placeholder={t('common.guestNamePlaceholder')}
               required
             />
           </Field>
-          <Field label="Фамилия">
-            <Input
-              value={form.lastName}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, lastName: e.target.value }))
-              }
-              required
-            />
-          </Field>
-          <Field label="Телефон">
+          <Field label={t('common.phone')}>
             <Input
               value={form.phone}
               onChange={(e) =>
@@ -131,7 +126,7 @@ export function BookingCreatePage() {
               required
             />
           </Field>
-          <Field label="Гостей">
+          <Field label={t('common.guestsCount')}>
             <Input
               type="number"
               min={1}
@@ -141,14 +136,14 @@ export function BookingCreatePage() {
               }
             />
           </Field>
-          <Field label="Заезд">
+          <Field label={t('common.checkIn')}>
             <DateField
               value={form.checkIn}
               onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
               required
             />
           </Field>
-          <Field label="Выезд">
+          <Field label={t('common.checkOut')}>
             <DateField
               value={form.checkOut}
               min={form.checkIn || undefined}
@@ -157,7 +152,7 @@ export function BookingCreatePage() {
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Свободный номер">
+            <Field label={t('bookingCreate.freeRoom')}>
               <Select
                 value={form.roomId}
                 onChange={(e) =>
@@ -166,26 +161,36 @@ export function BookingCreatePage() {
                 required
               >
                 <option value="" disabled>
-                  {rooms.length ? 'Выберите номер' : 'Нет свободных номеров'}
+                  {rooms.length
+                    ? t('bookingCreate.selectRoom')
+                    : t('bookingCreate.noFreeRooms')}
                 </option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.number} · {r.cottageName} · {r.capacity} мест ·{' '}
-                    {r.categoryCode} · {formatMoney(r.pricePerNight)}/ночь
+                    {t('bookingCreate.roomOption', {
+                      number: r.number,
+                      cottage: r.cottageName,
+                      capacity: r.capacity,
+                      category: r.categoryCode,
+                      price: formatMoney(r.pricePerNight),
+                    })}
                   </option>
                 ))}
               </Select>
             </Field>
             {selected ? (
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Выбрано: {selected.number} ({selected.cottageName}),{' '}
-                {selected.capacity} мест, {formatMoney(selected.pricePerNight)}{' '}
-                / ночь
+                {t('bookingCreate.selectedSummary', {
+                  number: selected.number,
+                  cottage: selected.cottageName,
+                  capacity: selected.capacity,
+                  price: formatMoney(selected.pricePerNight),
+                })}
               </p>
             ) : null}
           </div>
           <div className="sm:col-span-2">
-            <Field label="Заметки">
+            <Field label={t('common.notes')}>
               <TextArea
                 value={form.notes}
                 onChange={(e) =>
@@ -197,7 +202,7 @@ export function BookingCreatePage() {
           <div className="sm:col-span-2 space-y-3">
             <ErrorBox message={error} />
             <Button type="submit" disabled={busy || !form.roomId}>
-              {busy ? 'Создание…' : 'Создать бронь'}
+              {busy ? t('bookingCreate.creating') : t('bookingCreate.create')}
             </Button>
           </div>
         </form>

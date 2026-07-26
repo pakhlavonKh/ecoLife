@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 import { paymentLabel, statusLabel } from '../lib/labels';
 
 export function PageHeader({
@@ -107,6 +108,7 @@ export function TextArea({
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  useTranslation();
   const tone =
     status === 'cancelled'
       ? 'bg-red-50 text-red-700'
@@ -123,6 +125,7 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function PaymentBadge({ status }: { status: string }) {
+  useTranslation();
   return (
     <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
       {paymentLabel(status)}

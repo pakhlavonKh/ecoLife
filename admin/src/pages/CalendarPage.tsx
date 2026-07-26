@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { calendarApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -25,6 +26,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function CalendarPage() {
+  const { t } = useTranslation();
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(addDaysIso(14));
   const [data, setData] = useState<CalendarData | null>(null);
@@ -65,19 +67,19 @@ export function CalendarPage() {
   return (
     <div>
       <PageHeader
-        title="Шахматка"
-        subtitle="Сетка номера × дни с полосами броней"
+        title={t('calendar.title')}
+        subtitle={t('calendar.subtitle')}
         actions={
           <Link to="/bookings/new">
-            <Button>Новая бронь</Button>
+            <Button>{t('calendar.newBooking')}</Button>
           </Link>
         }
       />
       <Card className="mb-4 flex flex-wrap gap-3 p-4">
-        <Field label="С">
+        <Field label={t('common.from')}>
           <DateField value={from} onChange={setFrom} />
         </Field>
-        <Field label="По (не включительно)">
+        <Field label={t('calendar.toExclusive')}>
           <DateField value={to} onChange={setTo} min={from || undefined} />
         </Field>
       </Card>
@@ -97,7 +99,7 @@ export function CalendarPage() {
             }}
           >
             <div className="px-3 py-2 text-xs font-medium text-[var(--muted)]">
-              Номер
+              {t('calendar.colRoom')}
             </div>
             {days.map((d) => (
               <div
@@ -126,7 +128,10 @@ export function CalendarPage() {
                 <div className="flex flex-col justify-center px-3 py-2 text-sm">
                   <div className="font-medium">{room.number}</div>
                   <div className="text-[10px] text-[var(--muted)]">
-                    {room.cottageName} · {room.categoryCode}
+                    {t('calendar.roomMeta', {
+                      cottage: room.cottageName,
+                      category: room.categoryCode,
+                    })}
                   </div>
                 </div>
                 {days.map((d) => (
@@ -161,10 +166,19 @@ export function CalendarPage() {
                           background:
                             STATUS_COLOR[bar.status] ?? STATUS_COLOR.confirmed,
                         }}
-                        title={`${bar.publicCode} · ${bar.customerName} · ${formatDate(bar.checkIn)}–${formatDate(bar.checkOut)} · ${statusLabel(bar.status)}`}
+                        title={t('calendar.barTitle', {
+                          code: bar.publicCode,
+                          customerName: bar.customerName,
+                          checkIn: formatDate(bar.checkIn),
+                          checkOut: formatDate(bar.checkOut),
+                          status: statusLabel(bar.status),
+                        })}
                       >
                         <span className="truncate">
-                          {bar.publicCode} {bar.customerName}
+                          {t('calendar.barLabel', {
+                            code: bar.publicCode,
+                            customerName: bar.customerName,
+                          })}
                         </span>
                       </Link>
                     );

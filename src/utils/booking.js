@@ -156,3 +156,13 @@ export function paymentProviders() {
   }
   return ['payme', 'click'];
 }
+
+/** Site operator phones shown when online payment is off (same as Footer / BookingPage). */
+export const OPERATOR_PHONES = [
+  { display: '+998 55 900 01 10', tel: '+998559000110' },
+  { display: '+998 98 150 50 80', tel: '+998981505080' },
+];
+
+export function operatorPhonesDisplay() {
+  return OPERATOR_PHONES.map((p) => p.display).join(', ');
+}

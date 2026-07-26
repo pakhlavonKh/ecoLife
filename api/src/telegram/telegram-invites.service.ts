@@ -15,6 +15,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTelegramInviteDto } from './dto/create-telegram-invite.dto';
 import { getTelegramBotUsername } from './telegram.bot-username';
+import { tt, type TelegramLang } from './i18n';
 import { telegramRoleLabel } from './telegram.roles';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -276,7 +277,12 @@ export class TelegramInvitesService {
     });
   }
 
-  roleGreeting(role: TelegramStaffRole): string {
-    return `Вы подключены как ${telegramRoleLabel(role)}.`;
+  roleGreeting(
+    role: TelegramStaffRole,
+    lang: TelegramLang = 'ru',
+  ): string {
+    return tt(lang, 'commands.connectedAs', {
+      role: telegramRoleLabel(role, lang),
+    });
   }
 }

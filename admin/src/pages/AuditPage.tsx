@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { auditApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { AuditEntry } from '../api/types';
@@ -15,6 +16,7 @@ import {
 import { formatDateTime } from '../lib/format';
 
 export function AuditPage() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [entity, setEntity] = useState('');
   const [actorType, setActorType] = useState('');
@@ -51,14 +53,11 @@ export function AuditPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Журнал изменений"
-        subtitle="Кто · что · когда · до → после"
-      />
+      <PageHeader title={t('audit.title')} subtitle={t('audit.subtitle')} />
       <Card className="mb-4 grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-        <Field label="Сущность">
+        <Field label={t('audit.entity')}>
           <Select value={entity} onChange={(e) => setEntity(e.target.value)}>
-            <option value="">Все</option>
+            <option value="">{t('common.all')}</option>
             <option value="booking">booking</option>
             <option value="payment">payment</option>
             <option value="customer">customer</option>
@@ -68,28 +67,28 @@ export function AuditPage() {
             <option value="price_tier">price_tier</option>
           </Select>
         </Field>
-        <Field label="Актор">
+        <Field label={t('audit.actor')}>
           <Select
             value={actorType}
             onChange={(e) => setActorType(e.target.value)}
           >
-            <option value="">Все</option>
+            <option value="">{t('common.all')}</option>
             <option value="admin">admin</option>
             <option value="system">system</option>
             <option value="customer">customer</option>
           </Select>
         </Field>
-        <Field label="Действие">
+        <Field label={t('audit.action')}>
           <Input
             value={action}
             onChange={(e) => setAction(e.target.value)}
-            placeholder="update / create…"
+            placeholder={t('audit.actionPlaceholder')}
           />
         </Field>
-        <Field label="С">
+        <Field label={t('common.from')}>
           <DateField value={from} onChange={setFrom} />
         </Field>
-        <Field label="По">
+        <Field label={t('common.to')}>
           <DateField value={to} onChange={setTo} />
         </Field>
       </Card>
@@ -98,11 +97,11 @@ export function AuditPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-[var(--line)] bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-3 py-3">Когда</th>
-              <th className="px-3 py-3">Актор</th>
-              <th className="px-3 py-3">Сущность</th>
-              <th className="px-3 py-3">Действие</th>
-              <th className="px-3 py-3">Diff</th>
+              <th className="px-3 py-3">{t('audit.colWhen')}</th>
+              <th className="px-3 py-3">{t('audit.colActor')}</th>
+              <th className="px-3 py-3">{t('audit.colEntity')}</th>
+              <th className="px-3 py-3">{t('audit.colAction')}</th>
+              <th className="px-3 py-3">{t('audit.colDiff')}</th>
             </tr>
           </thead>
           <tbody>
@@ -117,7 +116,7 @@ export function AuditPage() {
                 <td className="px-3 py-3">
                   <div>{row.actorType}</div>
                   <div className="text-xs text-[var(--muted)]">
-                    {row.actorId?.slice(0, 8) ?? '—'}
+                    {row.actorId?.slice(0, 8) ?? t('common.emDash')}
                   </div>
                 </td>
                 <td className="px-3 py-3">
@@ -135,7 +134,7 @@ export function AuditPage() {
                       setExpanded((id) => (id === row.id ? null : row.id))
                     }
                   >
-                    {expanded === row.id ? 'Скрыть' : 'Показать'}
+                    {expanded === row.id ? t('common.hide') : t('common.show')}
                   </button>
                   {expanded === row.id ? (
                     <pre className="mt-2 max-w-xl overflow-auto rounded bg-[var(--bg)] p-2 text-xs">
@@ -147,7 +146,7 @@ export function AuditPage() {
             ))}
           </tbody>
         </table>
-        {rows.length === 0 ? <Empty>Записей нет</Empty> : null}
+        {rows.length === 0 ? <Empty>{t('audit.empty')}</Empty> : null}
       </Card>
     </div>
   );

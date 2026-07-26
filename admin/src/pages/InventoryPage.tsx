@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { inventoryApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { Category, PriceMatrix, Room } from '../api/types';
@@ -14,6 +15,7 @@ import {
 import { formatMoney } from '../lib/format';
 
 export function InventoryPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'categories' | 'prices' | 'rooms'>('categories');
   const [categories, setCategories] = useState<Category[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -42,7 +44,7 @@ export function InventoryPage() {
     try {
       await inventoryApi.updateCategory(cat.id, patch);
       await reload();
-      setMessage('Категория обновлена');
+      setMessage(t('inventory.categoryUpdated'));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -54,7 +56,7 @@ export function InventoryPage() {
     try {
       await inventoryApi.updateRoom(room.id, patch);
       await reload();
-      setMessage(`Номер ${room.number} обновлён`);
+      setMessage(t('inventory.roomUpdated', { number: room.number }));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -70,7 +72,7 @@ export function InventoryPage() {
     try {
       await inventoryApi.upsertTier({ categoryId, capacity, pricePerNight });
       await reload();
-      setMessage('Цена сохранена (для новых броней)');
+      setMessage(t('inventory.priceSaved'));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -79,23 +81,23 @@ export function InventoryPage() {
   return (
     <div>
       <PageHeader
-        title="Номера и категории"
-        subtitle="Категории, матрица цен, price override, вкл/выкл"
+        title={t('inventory.title')}
+        subtitle={t('inventory.subtitle')}
       />
       <div className="mb-4 flex flex-wrap gap-2">
         {(
           [
-            ['categories', 'Категории'],
-            ['prices', 'Матрица цен'],
-            ['rooms', 'Номера'],
+            ['categories', 'inventory.tabCategories'],
+            ['prices', 'inventory.tabPrices'],
+            ['rooms', 'inventory.tabRooms'],
           ] as const
-        ).map(([key, label]) => (
+        ).map(([key, labelKey]) => (
           <Button
             key={key}
             variant={tab === key ? 'primary' : 'secondary'}
             onClick={() => setTab(key)}
           >
-            {label}
+            {t(labelKey)}
           </Button>
         ))}
       </div>
@@ -123,13 +125,20 @@ export function InventoryPage() {
           {matrix?.matrix.map((group) => (
             <Card key={group.categoryId} className="overflow-x-auto">
               <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-                {group.categoryName} ({group.categoryCode})
+                {t('inventory.categoryHeading', {
+                  name: group.categoryName,
+                  code: group.categoryCode,
+                })}
               </div>
               <table className="min-w-full text-sm">
                 <thead className="bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
                   <tr>
-                    <th className="px-3 py-2 text-left">Вместимость</th>
-                    <th className="px-3 py-2 text-left">Цена / ночь</th>
+                    <th className="px-3 py-2 text-left">
+                      {t('inventory.colCapacity')}
+                    </th>
+                    <th className="px-3 py-2 text-left">
+                      {t('inventory.colPricePerNight')}
+                    </th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -160,13 +169,13 @@ export function InventoryPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-[var(--line)] bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
               <tr>
-                <th className="px-3 py-3">Номер</th>
-                <th className="px-3 py-3">Коттедж</th>
-                <th className="px-3 py-3">Кат.</th>
-                <th className="px-3 py-3">Мест</th>
-                <th className="px-3 py-3">Тир</th>
-                <th className="px-3 py-3">Override</th>
-                <th className="px-3 py-3">Активен</th>
+                <th className="px-3 py-3">{t('inventory.colRoom')}</th>
+                <th className="px-3 py-3">{t('inventory.colCottage')}</th>
+                <th className="px-3 py-3">{t('inventory.colCategoryShort')}</th>
+                <th className="px-3 py-3">{t('inventory.colBeds')}</th>
+                <th className="px-3 py-3">{t('inventory.colTier')}</th>
+                <th className="px-3 py-3">{t('inventory.colOverride')}</th>
+                <th className="px-3 py-3">{t('inventory.colActive')}</th>
               </tr>
             </thead>
             <tbody>
@@ -199,7 +208,7 @@ export function InventoryPage() {
                           void saveRoom(room, { isActive: e.target.checked })
                         }
                       />
-                      {room.isActive ? 'да' : 'нет'}
+                      {room.isActive ? t('common.yes') : t('common.no')}
                     </label>
                   </td>
                 </tr>
@@ -219,6 +228,7 @@ function CategoryCard({
   category: Category;
   onSave: (patch: Partial<Category>) => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(category.name);
   const [description, setDescription] = useState(category.description);
   const [depositPercent, setDepositPercent] = useState(
@@ -241,16 +251,16 @@ function CategoryCard({
         {category.code}
       </div>
       <div className="space-y-3">
-        <Field label="Название">
+        <Field label={t('inventory.fieldName')}>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Описание">
+        <Field label={t('inventory.fieldDescription')}>
           <TextArea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
-        <Field label="Депозит %">
+        <Field label={t('inventory.fieldDepositPercent')}>
           <Input
             type="number"
             min={0}
@@ -259,7 +269,7 @@ function CategoryCard({
             onChange={(e) => setDepositPercent(e.target.value)}
           />
         </Field>
-        <Field label="Фото (URL, по одному на строку)">
+        <Field label={t('inventory.fieldImages')}>
           <TextArea
             value={images}
             onChange={(e) => setImages(e.target.value)}
@@ -271,7 +281,7 @@ function CategoryCard({
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
           />
-          Активна
+          {t('inventory.fieldActiveFemale')}
         </label>
         <Button
           onClick={() =>
@@ -287,7 +297,7 @@ function CategoryCard({
             })
           }
         >
-          Сохранить
+          {t('common.save')}
         </Button>
       </div>
     </Card>
@@ -303,6 +313,7 @@ function TierRow({
   price: string;
   onSave: (price: string) => void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(price);
   useEffect(() => setValue(price), [price]);
   return (
@@ -317,7 +328,7 @@ function TierRow({
       </td>
       <td className="px-3 py-2">
         <Button variant="secondary" onClick={() => onSave(value)}>
-          Сохранить
+          {t('common.save')}
         </Button>
       </td>
     </tr>
@@ -331,6 +342,7 @@ function OverrideCell({
   value: string | null;
   onSave: (v: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [local, setLocal] = useState(value ?? '');
   useEffect(() => setLocal(value ?? ''), [value]);
   return (
@@ -338,14 +350,14 @@ function OverrideCell({
       <Input
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        placeholder="—"
+        placeholder={t('common.emDash')}
         className="w-28"
       />
       <Button
         variant="ghost"
         onClick={() => onSave(local.trim() === '' ? null : local.trim())}
       >
-        OK
+        {t('common.ok')}
       </Button>
     </div>
   );

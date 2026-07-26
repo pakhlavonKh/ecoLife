@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import i18n from '../i18n';
 
 const baseURL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(
   /\/$/,
@@ -97,5 +98,5 @@ export function getErrorMessage(error: unknown): string {
     return error.message;
   }
   if (error instanceof Error) return error.message;
-  return 'Неизвестная ошибка';
+  return i18n.t('common.unknownError');
 }

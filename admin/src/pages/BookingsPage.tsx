@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { bookingsApi, inventoryApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -17,6 +18,8 @@ import {
   StatusBadge,
 } from '../components/ui';
 import { formatDate, formatMoney } from '../lib/format';
+import { formatGuestName } from '../lib/guest-name';
+import { sourceLabel } from '../lib/labels';
 
 const STATUSES = [
   '',
@@ -30,6 +33,7 @@ const STATUSES = [
 const PAYMENTS = ['', 'unpaid', 'deposit_paid', 'paid_full', 'refunded'];
 
 export function BookingsPage() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<Booking[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cottages, setCottages] = useState<Cottage[]>([]);
@@ -55,7 +59,7 @@ export function BookingsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       (async () => {
         setLoading(true);
         try {
@@ -81,58 +85,58 @@ export function BookingsPage() {
     }, 250);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [search, status, paymentStatus, categoryCode, cottageId, dateFrom, dateTo]);
 
   return (
     <div>
       <PageHeader
-        title="Бронирования"
-        subtitle="Поиск, фильтры, ручное создание"
+        title={t('bookings.title')}
+        subtitle={t('bookings.subtitle')}
         actions={
           <Link to="/bookings/new">
-            <Button>Новая бронь</Button>
+            <Button>{t('bookings.newBooking')}</Button>
           </Link>
         }
       />
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Поиск">
+          <Field label={t('common.search')}>
             <Input
-              placeholder="Код / имя / телефон"
+              placeholder={t('bookings.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </Field>
-          <Field label="Статус">
+          <Field label={t('common.status')}>
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
               {STATUSES.map((s) => (
                 <option key={s || 'all'} value={s}>
-                  {s || 'Все'}
+                  {s ? t(`labels.status.${s}`) : t('common.all')}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Оплата">
+          <Field label={t('common.payment')}>
             <Select
               value={paymentStatus}
               onChange={(e) => setPaymentStatus(e.target.value)}
             >
               {PAYMENTS.map((s) => (
                 <option key={s || 'all'} value={s}>
-                  {s || 'Все'}
+                  {s ? t(`labels.payment.${s}`) : t('common.all')}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Категория">
+          <Field label={t('common.category')}>
             <Select
               value={categoryCode}
               onChange={(e) => setCategoryCode(e.target.value)}
             >
-              <option value="">Все</option>
+              <option value="">{t('common.all')}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.code}>
                   {c.name}
@@ -140,12 +144,12 @@ export function BookingsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Коттедж">
+          <Field label={t('common.cottage')}>
             <Select
               value={cottageId}
               onChange={(e) => setCottageId(e.target.value)}
             >
-              <option value="">Все</option>
+              <option value="">{t('common.all')}</option>
               {cottages.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -153,10 +157,10 @@ export function BookingsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Дата с">
+          <Field label={t('bookings.dateFrom')}>
             <DateField value={dateFrom} onChange={setDateFrom} />
           </Field>
-          <Field label="Дата по">
+          <Field label={t('bookings.dateTo')}>
             <DateField value={dateTo} onChange={setDateTo} />
           </Field>
         </div>
@@ -168,13 +172,13 @@ export function BookingsPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-[var(--line)] bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-3 py-3">Код</th>
-              <th className="px-3 py-3">Гость</th>
-              <th className="px-3 py-3">Даты</th>
-              <th className="px-3 py-3">Номер</th>
-              <th className="px-3 py-3">Сумма</th>
-              <th className="px-3 py-3">Статус</th>
-              <th className="px-3 py-3">Оплата</th>
+              <th className="px-3 py-3">{t('bookings.colCode')}</th>
+              <th className="px-3 py-3">{t('bookings.colGuest')}</th>
+              <th className="px-3 py-3">{t('bookings.colDates')}</th>
+              <th className="px-3 py-3">{t('bookings.colRoom')}</th>
+              <th className="px-3 py-3">{t('bookings.colAmount')}</th>
+              <th className="px-3 py-3">{t('bookings.colStatus')}</th>
+              <th className="px-3 py-3">{t('bookings.colPayment')}</th>
             </tr>
           </thead>
           <tbody>
@@ -190,11 +194,22 @@ export function BookingsPage() {
                   >
                     {b.publicCode}
                   </Link>
-                  <div className="text-xs text-[var(--muted)]">{b.source}</div>
+                  <div
+                    className={
+                      b.source === 'online_request'
+                        ? 'text-xs font-medium text-amber-700'
+                        : 'text-xs text-[var(--muted)]'
+                    }
+                  >
+                    {sourceLabel(b.source)}
+                  </div>
                 </td>
                 <td className="px-3 py-3">
                   <div>
-                    {b.customer.firstName} {b.customer.lastName}
+                    {formatGuestName(
+                      b.customer.firstName,
+                      b.customer.lastName,
+                    )}
                   </div>
                   <div className="text-xs text-[var(--muted)]">
                     {b.customer.phone}
@@ -206,10 +221,10 @@ export function BookingsPage() {
                 <td className="px-3 py-3">
                   {b.rooms.map((r) => (
                     <div key={r.bookingRoomId}>
-                      {r.number}{' '}
-                      <span className="text-[var(--muted)]">
-                        ({r.categoryCode})
-                      </span>
+                      {t('bookings.roomWithCategory', {
+                        number: r.number,
+                        categoryCode: r.categoryCode,
+                      })}
                     </div>
                   ))}
                 </td>
@@ -226,9 +241,13 @@ export function BookingsPage() {
             ))}
           </tbody>
         </table>
-        {!loading && rows.length === 0 ? <Empty>Брони не найдены</Empty> : null}
+        {!loading && rows.length === 0 ? (
+          <Empty>{t('bookings.empty')}</Empty>
+        ) : null}
         {loading ? (
-          <div className="px-4 py-8 text-sm text-[var(--muted)]">Загрузка…</div>
+          <div className="px-4 py-8 text-sm text-[var(--muted)]">
+            {t('common.loading')}
+          </div>
         ) : null}
       </Card>
     </div>

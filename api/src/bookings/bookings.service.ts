@@ -27,6 +27,7 @@ import {
   calcTotalAmount,
   decimalToString,
 } from '../common/utils/money';
+import { isPaymentsEnabled } from '../common/utils/env-flag';
 import { normalizePhoneE164 } from '../common/utils/phone';
 import { generatePublicCode } from '../common/utils/public-code';
 import { PaymentsService } from '../payments/payments.service';
@@ -92,7 +93,14 @@ export class BookingsService {
     }
 
     const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
-    const holdMinutes = Number(this.config.get('HOLD_MINUTES') ?? 30);
+    const paymentsEnabled = isPaymentsEnabled(this.config);
+    // Pre-requests get a longer hold so the operator can call the guest.
+    const holdMs = paymentsEnabled
+      ? Number(this.config.get('HOLD_MINUTES') ?? 30) * 60 * 1000
+      : Number(this.config.get('REQUEST_HOLD_HOURS') ?? 6) * 60 * 60 * 1000;
+    const source = paymentsEnabled
+      ? BookingSource.online
+      : BookingSource.online_request;
 
     try {
       const booking = await this.prisma.$transaction(
@@ -174,9 +182,7 @@ export class BookingsService {
             });
           }
 
-          const expiresAt = new Date(
-            Date.now() + holdMinutes * 60 * 1000,
-          );
+          const expiresAt = new Date(Date.now() + holdMs);
 
           let created = null as Awaited<
             ReturnType<typeof tx.booking.create>
@@ -197,7 +203,7 @@ export class BookingsService {
                   remainingAmount,
                   paymentStatus: PaymentStatus.unpaid,
                   status: BookingStatus.pending_payment,
-                  source: BookingSource.online,
+                  source,
                   notes: dto.notes?.trim() || null,
                   expiresAt,
                   bookingRooms: {
@@ -279,6 +285,18 @@ export class BookingsService {
       this.events.emit(BOOKING_CREATED_EVENT, this.toSnapshot(booking));
 
       const view = this.toView(booking);
+
+      if (!paymentsEnabled) {
+        return {
+          ...view,
+          requiresOperator: true as const,
+          paymentUrl: null,
+          paymentId: null,
+          paymentProvider: null,
+          depositInvoiceAmount: null,
+        };
+      }
+
       const invoice = await this.payments.createInvoiceForBooking(
         booking.id,
         dto.provider,
@@ -286,6 +304,7 @@ export class BookingsService {
 
       return {
         ...view,
+        requiresOperator: false as const,
         paymentUrl: invoice.paymentUrl,
         paymentId: invoice.paymentId,
         paymentProvider: invoice.provider,

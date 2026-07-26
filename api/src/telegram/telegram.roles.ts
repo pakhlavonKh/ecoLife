@@ -1,12 +1,9 @@
 import { TelegramStaffRole } from '@prisma/client';
+import { DEFAULT_TELEGRAM_LANG, dict, type TelegramLang } from './i18n';
 
-export const TELEGRAM_ROLE_LABELS: Record<TelegramStaffRole, string> = {
-  owner: 'владелец',
-  admin: 'администратор',
-  manager: 'менеджер',
-  cleaner: 'уборщица',
-};
-
-export function telegramRoleLabel(role: TelegramStaffRole): string {
-  return TELEGRAM_ROLE_LABELS[role] ?? role;
+export function telegramRoleLabel(
+  role: TelegramStaffRole,
+  lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
+): string {
+  return dict(lang).roles[role] ?? role;
 }

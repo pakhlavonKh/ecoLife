@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { telegramApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { TelegramInvite, TelegramRecipient, TelegramStaffRole } from '../api/types';
@@ -16,6 +17,7 @@ import { formatDateTime } from '../lib/format';
 import { telegramRoleLabel } from '../lib/labels';
 
 const ROLES: TelegramStaffRole[] = ['owner', 'admin', 'manager', 'cleaner'];
+const LANGS = ['ru', 'uz'] as const;
 
 function roleBadgeClass(role: string): string {
   switch (role) {
@@ -33,6 +35,7 @@ function roleBadgeClass(role: string): string {
 }
 
 export function TelegramPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'recipients' | 'invites'>('recipients');
   const [recipients, setRecipients] = useState<TelegramRecipient[]>([]);
   const [invites, setInvites] = useState<TelegramInvite[]>([]);
@@ -65,7 +68,7 @@ export function TelegramPage() {
       const { data } = await telegramApi.createInvite(inviteRole);
       setCreatedInvite(data);
       await reload();
-      setMessage('Приглашение создано');
+      setMessage(t('telegram.inviteCreated'));
       setTab('invites');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -81,7 +84,7 @@ export function TelegramPage() {
       await telegramApi.revokeInvite(id);
       if (createdInvite?.id === id) setCreatedInvite(null);
       await reload();
-      setMessage('Приглашение отозвано');
+      setMessage(t('telegram.inviteRevoked'));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -104,7 +107,7 @@ export function TelegramPage() {
   }
 
   async function deleteRecipient(id: string) {
-    if (!confirm('Удалить получателя? Он перестанет получать уведомления.')) {
+    if (!confirm(t('telegram.confirmDeleteRecipient'))) {
       return;
     }
     setError('');
@@ -112,7 +115,7 @@ export function TelegramPage() {
     try {
       await telegramApi.deleteRecipient(id);
       await reload();
-      setMessage('Получатель удалён');
+      setMessage(t('telegram.recipientDeleted'));
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -121,9 +124,9 @@ export function TelegramPage() {
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      setMessage('Скопировано');
+      setMessage(t('telegram.copied'));
     } catch {
-      setError('Не удалось скопировать');
+      setError(t('telegram.copyFailed'));
     }
   }
 
@@ -132,23 +135,23 @@ export function TelegramPage() {
   return (
     <div>
       <PageHeader
-        title="Telegram"
-        subtitle="Получатели уведомлений и одноразовые приглашения"
+        title={t('telegram.title')}
+        subtitle={t('telegram.subtitle')}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
         {(
           [
-            ['recipients', 'Получатели'],
-            ['invites', 'Приглашения'],
+            ['recipients', 'telegram.tabRecipients'],
+            ['invites', 'telegram.tabInvites'],
           ] as const
-        ).map(([key, label]) => (
+        ).map(([key, labelKey]) => (
           <Button
             key={key}
             variant={tab === key ? 'primary' : 'secondary'}
             onClick={() => setTab(key)}
           >
-            {label}
+            {t(labelKey)}
           </Button>
         ))}
       </div>
@@ -163,13 +166,14 @@ export function TelegramPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-[var(--line)] bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
               <tr>
-                <th className="px-3 py-3">Имя</th>
-                <th className="px-3 py-3">Роль</th>
-                <th className="px-3 py-3">chat_id</th>
-                <th className="px-3 py-3">Активен</th>
-                <th className="px-3 py-3">Пауза до</th>
-                <th className="px-3 py-3">Создан</th>
-                <th className="px-3 py-3">Действия</th>
+                <th className="px-3 py-3">{t('telegram.colName')}</th>
+                <th className="px-3 py-3">{t('telegram.colRole')}</th>
+                <th className="px-3 py-3">{t('telegram.colLanguage')}</th>
+                <th className="px-3 py-3">{t('telegram.colChatId')}</th>
+                <th className="px-3 py-3">{t('telegram.colActive')}</th>
+                <th className="px-3 py-3">{t('telegram.colMutedUntil')}</th>
+                <th className="px-3 py-3">{t('telegram.colCreated')}</th>
+                <th className="px-3 py-3">{t('telegram.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -189,7 +193,7 @@ export function TelegramPage() {
                           void patchRecipient(
                             r.id,
                             { name: next },
-                            'Имя обновлено',
+                            t('telegram.nameUpdated'),
                           );
                         }
                       }}
@@ -209,7 +213,7 @@ export function TelegramPage() {
                           void patchRecipient(
                             r.id,
                             { role: e.target.value },
-                            'Роль обновлена',
+                            t('telegram.roleUpdated'),
                           )
                         }
                       >
@@ -220,6 +224,25 @@ export function TelegramPage() {
                         ))}
                       </Select>
                     </div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <Select
+                      className="min-w-[8rem]"
+                      value={r.language ?? 'ru'}
+                      onChange={(e) =>
+                        void patchRecipient(
+                          r.id,
+                          { language: e.target.value },
+                          t('telegram.languageUpdated'),
+                        )
+                      }
+                    >
+                      {LANGS.map((lng) => (
+                        <option key={lng} value={lng}>
+                          {t(`labels.language.${lng}`)}
+                        </option>
+                      ))}
+                    </Select>
                   </td>
                   <td className="px-3 py-3 font-mono text-xs">{r.chatId}</td>
                   <td className="px-3 py-3">
@@ -232,18 +255,20 @@ export function TelegramPage() {
                             r.id,
                             { isActive: e.target.checked },
                             e.target.checked
-                              ? 'Получатель включён'
-                              : 'Получатель отключён',
+                              ? t('telegram.recipientEnabled')
+                              : t('telegram.recipientDisabled'),
                           )
                         }
                       />
                       <span className="text-xs text-[var(--muted)]">
-                        {r.isActive ? 'да' : 'нет'}
+                        {r.isActive ? t('common.yes') : t('common.no')}
                       </span>
                     </label>
                   </td>
                   <td className="px-3 py-3 text-xs text-[var(--muted)]">
-                    {r.mutedUntil ? formatDateTime(r.mutedUntil) : '—'}
+                    {r.mutedUntil
+                      ? formatDateTime(r.mutedUntil)
+                      : t('common.emDash')}
                   </td>
                   <td className="px-3 py-3 text-xs text-[var(--muted)]">
                     {formatDateTime(r.createdAt)}
@@ -254,7 +279,7 @@ export function TelegramPage() {
                       className="!px-2 !py-1 text-xs"
                       onClick={() => void deleteRecipient(r.id)}
                     >
-                      Удалить
+                      {t('common.delete')}
                     </Button>
                   </td>
                 </tr>
@@ -262,17 +287,14 @@ export function TelegramPage() {
             </tbody>
           </table>
           {recipients.length === 0 ? (
-            <Empty>
-              Пока нет получателей. Создайте приглашение и откройте ссылку в
-              Telegram.
-            </Empty>
+            <Empty>{t('telegram.emptyRecipients')}</Empty>
           ) : null}
         </Card>
       ) : (
         <div className="space-y-4">
           <Card className="p-4">
             <div className="flex flex-wrap items-end gap-3">
-              <Field label="Роль">
+              <Field label={t('common.role')}>
                 <Select
                   className="min-w-[12rem]"
                   value={inviteRole}
@@ -288,18 +310,19 @@ export function TelegramPage() {
                 </Select>
               </Field>
               <Button disabled={busy} onClick={() => void createInvite()}>
-                Пригласить
+                {t('telegram.invite')}
               </Button>
             </div>
             <p className="mt-2 text-xs text-[var(--muted)]">
-              Код одноразовый, действует 24 часа. Человек открывает ссылку или
-              пишет боту <code>/start КОД</code>.
+              {t('telegram.inviteHint')}
             </p>
           </Card>
 
           {createdInvite ? (
             <Card className="space-y-3 p-4">
-              <div className="text-sm font-medium">Новое приглашение</div>
+              <div className="text-sm font-medium">
+                {t('telegram.newInviteTitle')}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <code className="rounded bg-[var(--bg)] px-3 py-2 text-lg tracking-widest">
                   {createdInvite.code}
@@ -308,7 +331,7 @@ export function TelegramPage() {
                   variant="secondary"
                   onClick={() => void copyText(createdInvite.code)}
                 >
-                  Копировать код
+                  {t('telegram.copyCode')}
                 </Button>
               </div>
               {createdInvite.deepLink ? (
@@ -325,34 +348,36 @@ export function TelegramPage() {
                     variant="secondary"
                     onClick={() => void copyText(createdInvite.deepLink!)}
                   >
-                    Копировать ссылку
+                    {t('telegram.copyLink')}
                   </Button>
                 </div>
               ) : (
                 <p className="text-sm text-amber-800">
-                  Deep link недоступен (бот ещё не стартовал или не задан
-                  TELEGRAM_BOT_USERNAME). Используйте код: /start{' '}
-                  {createdInvite.code}
+                  {t('telegram.deepLinkUnavailable', {
+                    code: createdInvite.code,
+                  })}
                 </p>
               )}
               <p className="text-xs text-[var(--muted)]">
-                Роль: {telegramRoleLabel(createdInvite.role)} · до{' '}
-                {formatDateTime(createdInvite.expiresAt)}
+                {t('telegram.inviteMeta', {
+                  role: telegramRoleLabel(createdInvite.role),
+                  datetime: formatDateTime(createdInvite.expiresAt),
+                })}
               </p>
             </Card>
           ) : null}
 
           <Card className="overflow-x-auto">
             <div className="border-b border-[var(--line)] px-4 py-3 text-sm font-medium">
-              Ожидают активации ({pendingInvites.length})
+              {t('telegram.pendingTitle', { count: pendingInvites.length })}
             </div>
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="px-3 py-3">Код</th>
-                  <th className="px-3 py-3">Роль</th>
-                  <th className="px-3 py-3">Истекает</th>
-                  <th className="px-3 py-3">Ссылка</th>
+                  <th className="px-3 py-3">{t('common.code')}</th>
+                  <th className="px-3 py-3">{t('telegram.colRole')}</th>
+                  <th className="px-3 py-3">{t('telegram.colExpires')}</th>
+                  <th className="px-3 py-3">{t('telegram.colLink')}</th>
                   <th className="px-3 py-3" />
                 </tr>
               </thead>
@@ -382,10 +407,12 @@ export function TelegramPage() {
                           className="text-left text-xs text-[var(--accent)] underline"
                           onClick={() => void copyText(inv.deepLink!)}
                         >
-                          копировать
+                          {t('common.copy')}
                         </button>
                       ) : (
-                        <span className="text-xs text-[var(--muted)]">—</span>
+                        <span className="text-xs text-[var(--muted)]">
+                          {t('common.emDash')}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-3">
@@ -394,7 +421,7 @@ export function TelegramPage() {
                         className="!px-2 !py-1 text-xs text-[var(--danger)]"
                         onClick={() => void revokeInvite(inv.id)}
                       >
-                        Отозвать
+                        {t('telegram.revoke')}
                       </Button>
                     </td>
                   </tr>
@@ -402,7 +429,7 @@ export function TelegramPage() {
               </tbody>
             </table>
             {pendingInvites.length === 0 ? (
-              <Empty>Нет активных приглашений</Empty>
+              <Empty>{t('telegram.emptyInvites')}</Empty>
             ) : null}
           </Card>
         </div>

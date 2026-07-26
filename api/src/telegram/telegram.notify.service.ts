@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, NotificationEvent } from '@prisma/client';
 import {
   BOOKING_CREATED_EVENT,
   BOOKING_HOLD_EXPIRED_EVENT,
@@ -12,29 +12,44 @@ import {
   BookingUpdatedPayload,
 } from '../bookings/events/booking.events';
 import {
+  PAYMENT_FAILED_EVENT,
+  PAYMENT_LATE_MANUAL_REVIEW_EVENT,
   PAYMENT_RECEIVED_EVENT,
+  PaymentFailedPayload,
+  PaymentLateManualReviewPayload,
   PaymentReceivedPayload,
 } from '../payments/events/payment.events';
+import type { TelegramLang } from './i18n';
 import {
   formatBookingCancelled,
   formatBookingEdited,
   formatCheckIn,
   formatCheckOut,
+  formatHoldExpired,
+  formatLatePaymentReview,
   formatNewBooking,
+  formatPaymentFailed,
   formatPaymentReceived,
   formatStatusChanged,
 } from './telegram.messages';
 import { TelegramQueueService } from './telegram.queue.service';
+import { TelegramRouterService } from './telegram.router.service';
+import type { MessageScope } from './telegram.routing';
 
 @Injectable()
 export class TelegramNotifyService {
   private readonly logger = new Logger(TelegramNotifyService.name);
 
-  constructor(private readonly queue: TelegramQueueService) {}
+  constructor(
+    private readonly queue: TelegramQueueService,
+    private readonly router: TelegramRouterService,
+  ) {}
 
   @OnEvent(BOOKING_CREATED_EVENT, { async: true })
   handleBookingCreated(payload: BookingCreatedPayload): void {
-    this.safeEnqueue(formatNewBooking(payload), 'booking.created');
+    void this.dispatch(NotificationEvent.booking_created, (scope, lang) =>
+      formatNewBooking(payload, scope, lang),
+    );
   }
 
   @OnEvent(BOOKING_UPDATED_EVENT, { async: true })
@@ -42,47 +57,92 @@ export class TelegramNotifyService {
     if (!payload.changes.length) {
       return;
     }
-    this.safeEnqueue(
-      formatBookingEdited(payload.publicCode, payload.changes),
-      'booking.updated',
+    void this.dispatch(NotificationEvent.booking_updated, (scope, lang) =>
+      formatBookingEdited(payload.publicCode, payload.changes, scope, lang),
     );
   }
 
   @OnEvent(BOOKING_STATUS_CHANGED_EVENT, { async: true })
   handleStatusChanged(payload: BookingStatusChangedPayload): void {
     const { booking, previousStatus, nextStatus } = payload;
-    let text: string;
+
     if (nextStatus === BookingStatus.checked_in) {
-      text = formatCheckIn(booking);
-    } else if (nextStatus === BookingStatus.checked_out) {
-      text = formatCheckOut(booking);
-    } else if (nextStatus === BookingStatus.cancelled) {
-      text = formatBookingCancelled(booking);
-    } else {
-      text = formatStatusChanged(booking, previousStatus, nextStatus);
+      void this.dispatch(NotificationEvent.booking_checked_in, (scope, lang) =>
+        formatCheckIn(booking, scope, lang),
+      );
+      return;
     }
-    this.safeEnqueue(text, 'booking.status_changed');
+    if (nextStatus === BookingStatus.checked_out) {
+      void this.dispatch(
+        NotificationEvent.booking_checked_out,
+        (scope, lang) => formatCheckOut(booking, scope, lang),
+      );
+      return;
+    }
+    if (nextStatus === BookingStatus.cancelled) {
+      void this.dispatch(NotificationEvent.booking_cancelled, (scope, lang) =>
+        formatBookingCancelled(booking, { scope, lang }),
+      );
+      return;
+    }
+
+    // Other transitions (e.g. deposit_paid → confirmed) → booking.updated matrix.
+    void this.dispatch(NotificationEvent.booking_updated, (scope, lang) =>
+      formatStatusChanged(booking, previousStatus, nextStatus, scope, lang),
+    );
   }
 
   @OnEvent(BOOKING_HOLD_EXPIRED_EVENT, { async: true })
   handleHoldExpired(payload: BookingHoldExpiredPayload): void {
-    this.safeEnqueue(
-      formatBookingCancelled(payload, { holdExpired: true }),
-      'booking.hold_expired',
+    void this.dispatch(NotificationEvent.system_hold_expired, (scope, lang) =>
+      formatHoldExpired(payload, scope, lang),
     );
   }
 
   @OnEvent(PAYMENT_RECEIVED_EVENT, { async: true })
   handlePaymentReceived(payload: PaymentReceivedPayload): void {
-    this.safeEnqueue(formatPaymentReceived(payload), 'payment.received');
+    void this.dispatch(NotificationEvent.payment_received, (scope, lang) =>
+      formatPaymentReceived(payload, scope, lang),
+    );
   }
 
-  private safeEnqueue(text: string, event: string): void {
+  @OnEvent(PAYMENT_FAILED_EVENT, { async: true })
+  handlePaymentFailed(payload: PaymentFailedPayload): void {
+    void this.dispatch(
+      NotificationEvent.system_payment_failed,
+      (scope, lang) => formatPaymentFailed(payload, scope, lang),
+    );
+  }
+
+  @OnEvent(PAYMENT_LATE_MANUAL_REVIEW_EVENT, { async: true })
+  handleLatePaymentReview(payload: PaymentLateManualReviewPayload): void {
+    void this.dispatch(
+      NotificationEvent.system_late_payment_review,
+      (scope, lang) => formatLatePaymentReview(payload, scope, lang),
+    );
+  }
+
+  private async dispatch(
+    event: NotificationEvent,
+    format: (scope: MessageScope, lang: TelegramLang) => string | null,
+  ): Promise<void> {
     try {
       if (!this.queue.isReady) {
         return;
       }
-      this.queue.enqueueBroadcast(text);
+      const targets = await this.router.resolve(event);
+      if (targets.length === 0) {
+        return;
+      }
+
+      const jobs: Array<{ chatId: string; text: string }> = [];
+      for (const t of targets) {
+        const text = format(t.scope, t.language);
+        if (text) {
+          jobs.push({ chatId: t.chatId, text });
+        }
+      }
+      this.queue.enqueueMany(jobs);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(

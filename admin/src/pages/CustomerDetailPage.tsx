@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { customersApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
@@ -15,15 +16,20 @@ import {
   TextArea,
 } from '../components/ui';
 import { formatDate, formatDateTime, formatMoney } from '../lib/format';
+import { formatGuestName, splitGuestName } from '../lib/guest-name';
+import {
+  paymentProviderLabel,
+  paymentTxnStatusLabel,
+} from '../lib/labels';
 
 export function CustomerDetailPage() {
+  const { t } = useTranslation();
   const { id = '' } = useParams();
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    guestName: '',
     phone: '',
     notes: '',
   });
@@ -36,8 +42,7 @@ export function CustomerDetailPage() {
         if (!cancelled) {
           setCustomer(data);
           setForm({
-            firstName: data.firstName,
-            lastName: data.lastName,
+            guestName: formatGuestName(data.firstName, data.lastName),
             phone: data.phone,
             notes: data.notes ?? '',
           });
@@ -56,16 +61,22 @@ export function CustomerDetailPage() {
     setError('');
     setMessage('');
     try {
-      const { data } = await customersApi.update(id, form);
+      const { firstName, lastName } = splitGuestName(form.guestName);
+      const { data } = await customersApi.update(id, {
+        firstName,
+        lastName,
+        phone: form.phone,
+        notes: form.notes,
+      });
       setCustomer(data);
-      setMessage('Сохранено');
+      setMessage(t('common.saved'));
     } catch (err) {
       setError(getErrorMessage(err));
     }
   }
 
   if (!customer && !error) {
-    return <div className="text-[var(--muted)]">Загрузка…</div>;
+    return <div className="text-[var(--muted)]">{t('common.loading')}</div>;
   }
 
   return (
@@ -73,12 +84,12 @@ export function CustomerDetailPage() {
       <PageHeader
         title={
           customer
-            ? `${customer.firstName} ${customer.lastName}`
-            : 'Клиент'
+            ? formatGuestName(customer.firstName, customer.lastName)
+            : t('customerDetail.fallbackTitle')
         }
         actions={
           <Link to="/customers">
-            <Button variant="secondary">К списку</Button>
+            <Button variant="secondary">{t('common.backToList')}</Button>
           </Link>
         }
       />
@@ -92,23 +103,16 @@ export function CustomerDetailPage() {
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card className="p-4">
           <form className="space-y-3" onSubmit={onSave}>
-            <Field label="Имя">
+            <Field label={t('common.guest')}>
               <Input
-                value={form.firstName}
+                value={form.guestName}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, firstName: e.target.value }))
+                  setForm((f) => ({ ...f, guestName: e.target.value }))
                 }
+                placeholder={t('common.guestNamePlaceholder')}
               />
             </Field>
-            <Field label="Фамилия">
-              <Input
-                value={form.lastName}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, lastName: e.target.value }))
-                }
-              />
-            </Field>
-            <Field label="Телефон">
+            <Field label={t('common.phone')}>
               <Input
                 value={form.phone}
                 onChange={(e) =>
@@ -116,7 +120,7 @@ export function CustomerDetailPage() {
                 }
               />
             </Field>
-            <Field label="Заметки">
+            <Field label={t('common.notes')}>
               <TextArea
                 value={form.notes}
                 onChange={(e) =>
@@ -124,13 +128,13 @@ export function CustomerDetailPage() {
                 }
               />
             </Field>
-            <Button type="submit">Сохранить</Button>
+            <Button type="submit">{t('common.save')}</Button>
           </form>
         </Card>
 
         <Card>
           <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-            История броней и платежей
+            {t('customerDetail.historyTitle')}
           </div>
           <ul className="divide-y divide-[var(--line)]">
             {(customer?.bookings ?? []).map((b) => (
@@ -146,16 +150,23 @@ export function CustomerDetailPage() {
                   <PaymentBadge status={b.paymentStatus} />
                 </div>
                 <div className="mt-1 text-sm text-[var(--muted)]">
-                  {formatDate(b.checkIn)} — {formatDate(b.checkOut)} ·{' '}
-                  {formatMoney(b.totalAmount)} ·{' '}
-                  {b.rooms.map((r) => r.number).join(', ')}
+                  {t('customerDetail.bookingLine', {
+                    checkIn: formatDate(b.checkIn),
+                    checkOut: formatDate(b.checkOut),
+                    total: formatMoney(b.totalAmount),
+                    rooms: b.rooms.map((r) => r.number).join(', '),
+                  })}
                 </div>
                 {b.payments.length > 0 ? (
                   <ul className="mt-2 space-y-1 text-xs text-[var(--muted)]">
                     {b.payments.map((p) => (
                       <li key={p.id}>
-                        {p.provider} · {formatMoney(p.amount)} · {p.status} ·{' '}
-                        {formatDateTime(p.createdAt)}
+                        {t('customerDetail.paymentLine', {
+                          provider: paymentProviderLabel(p.provider),
+                          amount: formatMoney(p.amount),
+                          status: paymentTxnStatusLabel(p.status),
+                          datetime: formatDateTime(p.createdAt),
+                        })}
                       </li>
                     ))}
                   </ul>
@@ -165,7 +176,7 @@ export function CustomerDetailPage() {
           </ul>
           {(customer?.bookings.length ?? 0) === 0 ? (
             <div className="px-4 py-8 text-sm text-[var(--muted)]">
-              Нет броней
+              {t('customerDetail.emptyBookings')}
             </div>
           ) : null}
         </Card>

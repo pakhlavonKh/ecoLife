@@ -72,7 +72,8 @@ The marketing/booking frontend stays on **Netlify**. Set build env:
 | Variable | Value |
 |----------|--------|
 | `VITE_API_URL` | Public origin of the VPS API, e.g. `https://your.domain.tld` (no trailing slash) |
-| `VITE_PAYMENT_PROVIDERS` | `payme,click` (omit `mock` in production) |
+| `VITE_PAYMENTS_ENABLED` | Optional mirror of API `PAYMENTS_ENABLED` (default `false`). Prefer API `GET /api/v1/config`. |
+| `VITE_PAYMENT_PROVIDERS` | `payme,click` when payments are on (omit `mock` in production) |
 
 Netlify build: `npm run build`, publish directory `dist`.
 
@@ -216,7 +217,9 @@ argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id}).then(h=>
 - [ ] Replace **placeholder prices** in the admin price matrix (category × capacity) with real UZS amounts  
 - [ ] Set real **Payme** (`PAYME_MERCHANT_ID`, `PAYME_KEY`) and **Click** (`CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY`) credentials  
 - [ ] Set `PAYMENT_PROVIDERS=payme,click` (no `mock` in production)  
+- [ ] Flip `PAYMENTS_ENABLED=true` (API) when ready — until then public bookings are operator pre-requests (`online_request`)  
 - [ ] Configure Netlify `VITE_API_URL` + `VITE_PAYMENT_PROVIDERS`  
+
 - [ ] **Revoke** any Telegram bot token that was ever committed or shared; put a fresh token in prod `.env`  
 - [ ] Change **ADMIN_PASSWORD** from the seed default  
 - [ ] Strong unique `JWT_*` and `POSTGRES_PASSWORD`  

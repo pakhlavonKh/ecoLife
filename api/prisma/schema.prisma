@@ -38,6 +38,7 @@ enum BookingStatus {
 
 enum BookingSource {
   online
+  online_request
   manual
 
   @@map("booking_source")
@@ -77,6 +78,13 @@ enum TelegramStaffRole {
   cleaner
 
   @@map("telegram_staff_role")
+}
+
+enum TelegramLanguage {
+  ru
+  uz
+
+  @@map("telegram_language")
 }
 
 enum NotificationEvent {
@@ -289,6 +297,7 @@ model TelegramRecipient {
   chatId     BigInt            @unique @map("chat_id")
   name       String
   role       TelegramStaffRole
+  language   TelegramLanguage  @default(ru)
   isActive   Boolean           @default(true) @map("is_active")
   mutedUntil DateTime?         @map("muted_until") @db.Timestamptz(6)
   createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
