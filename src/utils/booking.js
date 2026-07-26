@@ -2,11 +2,78 @@ import dayjs from 'dayjs';
 
 const CATEGORY_ORDER = { standart: 0, lux: 1 };
 
+/** Public booking preview shows only these two categories. */
+export const PUBLIC_CATEGORY_CODES = ['standart', 'lux'];
+
+export const DEFAULT_DEPOSIT = { standart: 30, lux: 50 };
+
 export function sortCategories(categories) {
   return [...categories].sort(
     (a, b) =>
       (CATEGORY_ORDER[a.code] ?? 99) - (CATEGORY_ORDER[b.code] ?? 99),
   );
+}
+
+/**
+ * Normalize API category (camelCase or snake_case) and keep only standart/lux.
+ * @returns {null | {id:string,code:string,name:string,description:string,depositPercent:number,images:string[],priceFrom:string|null,priceTo:string|null}}
+ */
+export function normalizeCategory(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const code = String(
+    raw.code ?? raw.categoryCode ?? raw.category_code ?? '',
+  )
+    .toLowerCase()
+    .trim();
+  if (!PUBLIC_CATEGORY_CODES.includes(code)) return null;
+
+  const depositRaw =
+    raw.depositPercent ?? raw.deposit_percent ?? DEFAULT_DEPOSIT[code];
+  const depositPercent = Number(depositRaw);
+  const priceFrom = raw.priceFrom ?? raw.price_from ?? null;
+  const priceTo = raw.priceTo ?? raw.price_to ?? null;
+
+  return {
+    id: String(raw.id || code),
+    code,
+    name: typeof raw.name === 'string' ? raw.name : '',
+    description: typeof raw.description === 'string' ? raw.description : '',
+    depositPercent: Number.isFinite(depositPercent)
+      ? depositPercent
+      : DEFAULT_DEPOSIT[code],
+    images: Array.isArray(raw.images) ? raw.images.filter(Boolean) : [],
+    priceFrom: priceFrom != null ? String(priceFrom) : null,
+    priceTo: priceTo != null ? String(priceTo) : null,
+  };
+}
+
+/** Accept array or wrapped `{ categories }` / HTML garbage → public categories only. */
+export function normalizeCategories(data) {
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.categories)
+      ? data.categories
+      : [];
+  const byCode = new Map();
+  for (const row of list) {
+    const cat = normalizeCategory(row);
+    if (cat && !byCode.has(cat.code)) byCode.set(cat.code, cat);
+  }
+  return sortCategories([...byCode.values()]);
+}
+
+/** Offline / API-down fallback so the page still shows Стандарт / Люкс. */
+export function fallbackCategories() {
+  return PUBLIC_CATEGORY_CODES.map((code) => ({
+    id: code,
+    code,
+    name: '',
+    description: '',
+    depositPercent: DEFAULT_DEPOSIT[code],
+    images: [],
+    priceFrom: null,
+    priceTo: null,
+  }));
 }
 
 export function todayStr() {

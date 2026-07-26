@@ -17,5 +17,8 @@ export async function fetchAvailability({
       ...(guests != null ? { guests } : {}),
     },
   });
+  if (typeof data === 'string' || !data || typeof data !== 'object') {
+    throw new Error('Invalid availability response');
+  }
   return data;
 }

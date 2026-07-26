@@ -8,8 +8,10 @@ import DateField from '../components/DateField';
 import {
   defaultCheckIn,
   defaultCheckOut,
+  fallbackCategories,
   formatMoney,
-  sortCategories,
+  nightsBetween,
+  normalizeCategories,
   todayStr,
 } from '../utils/booking';
 
@@ -30,7 +32,7 @@ function categoryImage(category) {
 
 function BookingPage() {
   const { t, i18n } = useTranslation();
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(() => fallbackCategories());
   const [checkIn, setCheckIn] = useState(defaultCheckIn);
   const [checkOut, setCheckOut] = useState(defaultCheckOut);
   const [availability, setAvailability] = useState(null);
@@ -45,10 +47,16 @@ function BookingPage() {
       ? 'en-US'
       : 'ru-RU';
 
+  const nights = useMemo(() => {
+    if (availability?.nights != null) return Number(availability.nights);
+    return nightsBetween(checkIn, checkOut);
+  }, [availability, checkIn, checkOut]);
+
   const availByCode = useMemo(() => {
     const map = {};
     for (const c of availability?.categories || []) {
-      map[c.code] = c;
+      const code = String(c.code || c.category_code || '').toLowerCase();
+      if (code) map[code] = c;
     }
     return map;
   }, [availability]);
@@ -59,14 +67,14 @@ function BookingPage() {
       setLoadingCats(true);
       try {
         const data = await fetchCategories();
-        if (!cancelled) {
-          setCategories(sortCategories(data));
-          setError('');
-        }
+        if (cancelled) return;
+        const next = normalizeCategories(data);
+        setCategories(next.length ? next : fallbackCategories());
+        setError('');
       } catch (err) {
-        if (!cancelled) {
-          setError(getErrorMessage(err, t('networkError')));
-        }
+        if (cancelled) return;
+        setCategories(fallbackCategories());
+        setError(getErrorMessage(err, t('networkError')));
       } finally {
         if (!cancelled) setLoadingCats(false);
       }
@@ -78,6 +86,10 @@ function BookingPage() {
 
   const loadAvailability = useCallback(async () => {
     if (!checkIn || !checkOut) return;
+    if (nightsBetween(checkIn, checkOut) < 1) {
+      setAvailability(null);
+      return;
+    }
     setLoadingAvail(true);
     try {
       const data = await fetchAvailability({ checkIn, checkOut });
@@ -131,8 +143,8 @@ function BookingPage() {
           <p className="booking-dates__meta">
             {loadingAvail
               ? t('loading')
-              : availability
-                ? t('bookingDatesNights', { count: availability.nights })
+              : nights > 0
+                ? t('bookingDatesNights', { count: nights })
                 : t('bookingDatesHint')}
           </p>
         </section>
@@ -146,9 +158,13 @@ function BookingPage() {
         {loadingCats ? (
           <p className="booking-page__hint">{t('loading')}</p>
         ) : (
-          <div className="rooms-grid rooms-grid--two">
+          <div className="rooms-grid rooms-grid--two category-preview">
             {categories.map((cat) => {
               const avail = availByCode[cat.code];
+              const title = t(`roomsData.${cat.code}.title`);
+              const description =
+                cat.description?.trim() ||
+                t(`roomsData.${cat.code}.description`);
               const priceLabel =
                 cat.priceFrom != null
                   ? cat.priceFrom === cat.priceTo
@@ -157,47 +173,46 @@ function BookingPage() {
                         price: formatMoney(cat.priceFrom, locale),
                       })
                   : t('priceUnavailable');
+              const roomsCount = avail?.availableRoomsCount;
+              const canBook =
+                Boolean(availability) &&
+                Boolean(avail) &&
+                Number(roomsCount) > 0 &&
+                nights > 0;
 
               return (
-                <article className="room-card" key={cat.id}>
+                <article className="room-card category-card" key={cat.id}>
                   <div className="room-card__media">
                     <img
                       src={categoryImage(cat)}
-                      alt={cat.name}
+                      alt={title}
                       loading="lazy"
                     />
                   </div>
                   <div className="room-card__body">
-                    <h3>{cat.name}</h3>
-                    <p>{cat.description || t(`roomsData.${cat.code}.description`)}</p>
-                    <ul className="room-card__meta">
-                      <li>
-                        <strong>{t('pricePerNight')}</strong>
-                        {': '}
-                        {priceLabel}
-                      </li>
-                      <li>
-                        <strong>{t('depositPercent')}</strong>
-                        {`: ${cat.depositPercent}%`}
-                      </li>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                    <p className="category-card__facts">
+                      <span>{priceLabel}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        {t('depositPercent')} {cat.depositPercent}%
+                      </span>
                       {avail ? (
-                        <li>
-                          <strong>{t('availability')}</strong>
-                          {': '}
-                          {t('availableRoomsCount', {
-                            count: avail.availableRoomsCount,
-                          })}
-                          {' · '}
-                          {t('availableBedsCount', {
-                            count: avail.availableBeds,
-                          })}
-                        </li>
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>
+                            {t('availableRoomsCount', {
+                              count: avail.availableRoomsCount,
+                            })}
+                          </span>
+                        </>
                       ) : null}
-                    </ul>
+                    </p>
                     <button
                       type="button"
                       className="btn btn--primary room-card__button"
-                      disabled={!availability || !avail}
+                      disabled={!canBook}
                       onClick={() => setModalCategory(cat)}
                     >
                       {t('bookNow')}

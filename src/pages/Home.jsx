@@ -5,7 +5,7 @@ import { fetchCategories } from '../api/categories';
 import Gallery from '../components/Gallery';
 import Reveal from '../components/Reveal';
 import { icons } from '../components/icons';
-import { sortCategories } from '../utils/booking';
+import { fallbackCategories, normalizeCategories } from '../utils/booking';
 
 import mobile1 from '../assets/mobile__hero-1.webp';
 import mobile2 from '../assets/mobile__hero-2.webp';
@@ -102,34 +102,28 @@ function Home() {
       try {
         const data = await fetchCategories();
         if (cancelled) return;
+        const cats = normalizeCategories(data);
+        const source = cats.length ? cats : fallbackCategories();
         setRooms(
-          sortCategories(data).map((cat) => ({
+          source.map((cat) => ({
             id: cat.id,
-            title: cat.name,
+            title: t(`roomsData.${cat.code}.title`),
             description:
-              cat.description ||
-              t(`roomsData.${cat.code}.description`, {
-                defaultValue: '',
-              }),
+              cat.description?.trim() ||
+              t(`roomsData.${cat.code}.description`),
             img: cat.images?.[0] || FALLBACK_IMAGES[cat.code] || roomStandart,
           })),
         );
       } catch {
         if (cancelled) return;
-        setRooms([
-          {
-            id: 'standart',
-            title: t('roomsData.standart.title'),
-            description: t('roomsData.standart.description'),
-            img: roomStandart,
-          },
-          {
-            id: 'lux',
-            title: t('roomsData.lux.title'),
-            description: t('roomsData.lux.description'),
-            img: roomLux,
-          },
-        ]);
+        setRooms(
+          fallbackCategories().map((cat) => ({
+            id: cat.id,
+            title: t(`roomsData.${cat.code}.title`),
+            description: t(`roomsData.${cat.code}.description`),
+            img: FALLBACK_IMAGES[cat.code] || roomStandart,
+          })),
+        );
       }
     })();
     return () => {

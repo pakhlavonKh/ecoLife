@@ -10,6 +10,7 @@ import {
 import DateField from './DateField';
 import {
   calcPreview,
+  DEFAULT_DEPOSIT,
   formatMoney,
   formatPhoneMask,
   isValidUzPhone,
@@ -54,14 +55,15 @@ function BookingModal({
   const [nights, setNights] = useState(0);
   const [requestResult, setRequestResult] = useState(null);
 
+  const depositPercent =
+    category.depositPercent ??
+    DEFAULT_DEPOSIT[category.code] ??
+    30;
+
   const selectedRoom = rooms.find((r) => r.id === roomId) || null;
   const preview =
     selectedRoom && nights > 0
-      ? calcPreview(
-          selectedRoom.pricePerNight,
-          nights,
-          category.depositPercent,
-        )
+      ? calcPreview(selectedRoom.pricePerNight, nights, depositPercent)
       : null;
 
   useEffect(() => {
@@ -221,7 +223,9 @@ function BookingModal({
             <h2 id="booking-modal-title" className="booking-modal__title">
               {requestResult
                 ? t('bookingModal.requestSubmittedTitle')
-                : category.name}
+                : t(`roomsData.${category.code}.title`, {
+                    defaultValue: category.name,
+                  })}
             </h2>
           </div>
           <button
@@ -383,7 +387,7 @@ function BookingModal({
                   <div>
                     <dt>
                       {t('bookingModal.deposit', {
-                        percent: category.depositPercent,
+                        percent: depositPercent,
                       })}
                     </dt>
                     <dd>{formatMoney(preview.deposit, locale)}</dd>

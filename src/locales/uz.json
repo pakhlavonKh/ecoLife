@@ -69,7 +69,24 @@
   "availableBedsCount": "{{count}} o‘rin",
   "bookingDatesTitle": "Yashash sanalari",
   "bookingDatesHint": "Kelish va chiqish sanalarini tanlang",
+  "bookingDatesNights_one": "{{count}} kecha",
+  "bookingDatesNights_other": "{{count}} kecha",
   "bookingDatesNights": "{{count}} kecha",
+  "dateField": {
+    "placeholder": "kk/oo/yyyy",
+    "openCalendarAria": "Taqvimni ochish",
+    "prevMonth": "Oldingi oy",
+    "nextMonth": "Keyingi oy",
+    "weekdays": {
+      "mo": "Du",
+      "tu": "Se",
+      "we": "Ch",
+      "th": "Pa",
+      "fr": "Ju",
+      "sa": "Sh",
+      "su": "Ya"
+    }
+  },
   "bookRoom": "Xonani band qilish",
   "name": "Ism",
   "invalidName": "Ism kiriting (kamida 2 belgi). Familiya ixtiyoriy",

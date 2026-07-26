@@ -72,6 +72,21 @@
   "bookingDatesNights_one": "{{count}} night",
   "bookingDatesNights_other": "{{count}} nights",
   "bookingDatesNights": "{{count}} nights",
+  "dateField": {
+    "placeholder": "dd/mm/yyyy",
+    "openCalendarAria": "Open calendar",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "weekdays": {
+      "mo": "Mo",
+      "tu": "Tu",
+      "we": "We",
+      "th": "Th",
+      "fr": "Fr",
+      "sa": "Sa",
+      "su": "Su"
+    }
+  },
   "bookRoom": "Book Room",
   "name": "Name",
   "invalidName": "Enter a name (at least 2 characters). Surname is optional",

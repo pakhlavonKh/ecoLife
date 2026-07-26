@@ -72,7 +72,23 @@
   "bookingDatesNights_one": "{{count}} ночь",
   "bookingDatesNights_few": "{{count}} ночи",
   "bookingDatesNights_many": "{{count}} ночей",
+  "bookingDatesNights_other": "{{count}} ночей",
   "bookingDatesNights": "{{count}} ночей",
+  "dateField": {
+    "placeholder": "дд/мм/гггг",
+    "openCalendarAria": "Открыть календарь",
+    "prevMonth": "Предыдущий месяц",
+    "nextMonth": "Следующий месяц",
+    "weekdays": {
+      "mo": "Пн",
+      "tu": "Вт",
+      "we": "Ср",
+      "th": "Чт",
+      "fr": "Пт",
+      "sa": "Сб",
+      "su": "Вс"
+    }
+  },
   "bookRoom": "Забронировать номер",
   "name": "Имя",
   "invalidName": "Укажите имя (не менее 2 символов). Фамилия необязательна",
