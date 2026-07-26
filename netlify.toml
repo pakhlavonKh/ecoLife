@@ -1,3 +1,12 @@
+# Proxy API through the site origin (HTTPS) → VPS nginx (HTTP only for now).
+# Must be above the SPA fallback. Requires VITE_API_URL empty or
+# https://eco-life-etiqod.com (NOT https://api.... until TLS is on the VPS).
+[[redirects]]
+  from = "/api/*"
+  to = "http://api.eco-life-etiqod.com/api/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -7,5 +16,5 @@
   package = "netlify-plugin-cloudinary"
 
   [plugins.inputs]
-  cloudName = "ECOLIFE_CLOUD_IMAGES"
-  folder = "src/assets"
+    cloudName = "ECOLIFE_CLOUD_IMAGES"
+    folder = "src/assets"
