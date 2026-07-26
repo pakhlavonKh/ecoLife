@@ -297,7 +297,7 @@ model TelegramRecipient {
   chatId     BigInt            @unique @map("chat_id")
   name       String
   role       TelegramStaffRole
-  language   TelegramLanguage  @default(ru)
+  language   TelegramLanguage  @default(uz)
   isActive   Boolean           @default(true) @map("is_active")
   mutedUntil DateTime?         @map("muted_until") @db.Timestamptz(6)
   createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)

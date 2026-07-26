@@ -69,7 +69,7 @@ export class TelegramRouterService {
       chatId,
       role: TelegramStaffRole.admin,
       scope: scopeForRole(TelegramStaffRole.admin),
-      language: 'ru' as const,
+      language: 'uz' as const,
     }));
   }
 
