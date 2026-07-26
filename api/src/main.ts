@@ -24,6 +24,11 @@ async function bootstrap() {
     }),
   );
 
+  // Dynamic booking data must never 304 with an empty body — axios/browsers
+  // send If-None-Match after the first hit, and clients then see "" as data.
+  app.set('etag', false);
+  app.disable('etag');
+
   app.setGlobalPrefix('api/v1');
 
   const uploadsRoot = join(process.cwd(), 'uploads');
