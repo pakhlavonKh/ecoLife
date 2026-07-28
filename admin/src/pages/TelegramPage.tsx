@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import { telegramApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { TelegramInvite, TelegramRecipient, TelegramStaffRole } from '../api/types';
@@ -32,6 +33,157 @@ function roleBadgeClass(role: string): string {
     default:
       return 'bg-[var(--bg)] text-[var(--muted)]';
   }
+}
+
+/** Clean deep link: https://t.me/<bot>?start=<CODE> — no spaces/newlines. */
+function inviteDeepLink(invite: TelegramInvite): string | null {
+  const fromApi = invite.deepLink?.trim() ?? '';
+  if (fromApi.startsWith('https://t.me/')) {
+    return fromApi;
+  }
+  const username = (invite.botUsername ?? '').trim().replace(/^@/, '');
+  if (!username || !invite.code) {
+    return null;
+  }
+  return `https://t.me/${username}?start=${invite.code.trim()}`;
+}
+
+function InviteCard({
+  invite,
+  onCopy,
+  onDismiss,
+}: {
+  invite: TelegramInvite;
+  onCopy: (text: string) => void;
+  onDismiss?: () => void;
+}) {
+  const { t } = useTranslation();
+  const deepLink = inviteDeepLink(invite);
+  const code = invite.code.trim();
+  const fromField = (invite.botUsername ?? '').trim().replace(/^@/, '');
+  const fromLink =
+    deepLink?.match(/^https:\/\/t\.me\/([^/?#]+)/)?.[1]?.trim() ?? '';
+  const username = fromField || fromLink;
+  const mention = username ? `@${username}` : '@bot';
+  const shareText = t('telegram.shareMessage', {
+    link: deepLink ?? '',
+    mention,
+    code,
+  });
+
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-medium">{t('telegram.newInviteTitle')}</div>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {t('telegram.inviteMeta', {
+              role: telegramRoleLabel(invite.role),
+              datetime: formatDateTime(invite.expiresAt),
+            })}
+          </p>
+        </div>
+        {onDismiss ? (
+          <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={onDismiss}>
+            {t('common.close')}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        {deepLink ? (
+          <div className="flex shrink-0 flex-col items-center gap-2 rounded-lg border border-[var(--line)] bg-white p-3">
+            <QRCodeSVG
+              value={deepLink}
+              size={148}
+              level="M"
+              marginSize={1}
+              title={t('telegram.qrTitle')}
+            />
+            <span className="max-w-[10rem] text-center text-[11px] leading-snug text-[var(--muted)]">
+              {t('telegram.qrHint')}
+            </span>
+          </div>
+        ) : null}
+
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+              {t('common.code')}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="rounded bg-[var(--bg)] px-3 py-2 text-lg tracking-widest">
+                {invite.code}
+              </code>
+              <Button
+                variant="secondary"
+                onClick={() => onCopy(invite.code.trim())}
+              >
+                {t('telegram.copyCode')}
+              </Button>
+            </div>
+          </div>
+
+          {deepLink ? (
+            <div>
+              <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                {t('telegram.deepLinkLabel')}
+              </div>
+              <div className="flex flex-col gap-2">
+                <input
+                  readOnly
+                  value={deepLink}
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--bg)] px-3 py-2 font-mono text-xs text-[var(--ink)] outline-none"
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label={t('telegram.deepLinkLabel')}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => onCopy(deepLink)}
+                  >
+                    {t('telegram.copyLink')}
+                  </Button>
+                  <a
+                    href={deepLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--bg)]"
+                  >
+                    {t('telegram.openLink')}
+                  </a>
+                </div>
+                <p className="text-[11px] text-[var(--muted)]">
+                  {t('telegram.copyLinkHint')}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-amber-800">
+              {t('telegram.deepLinkUnavailable', { code: invite.code })}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-[var(--line)] pt-3">
+        <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+          {t('telegram.shareLabel')}
+        </div>
+        <pre className="whitespace-pre-wrap rounded-md border border-[var(--line)] bg-[var(--bg)] px-3 py-2 font-sans text-sm leading-relaxed text-[var(--ink)]">
+          {shareText}
+        </pre>
+        <div className="mt-2">
+          <Button variant="secondary" onClick={() => onCopy(shareText.trim())}>
+            {t('telegram.copyShare')}
+          </Button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-[var(--muted)]">
+          {t('telegram.shareHint')}
+        </p>
+      </div>
+    </Card>
+  );
 }
 
 export function TelegramPage() {
@@ -122,8 +274,9 @@ export function TelegramPage() {
   }
 
   async function copyText(text: string) {
+    const clean = text.replace(/\u00a0/g, ' ').trim();
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(clean);
       setMessage(t('telegram.copied'));
     } catch {
       setError(t('telegram.copyFailed'));
@@ -319,52 +472,11 @@ export function TelegramPage() {
           </Card>
 
           {createdInvite ? (
-            <Card className="space-y-3 p-4">
-              <div className="text-sm font-medium">
-                {t('telegram.newInviteTitle')}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded bg-[var(--bg)] px-3 py-2 text-lg tracking-widest">
-                  {createdInvite.code}
-                </code>
-                <Button
-                  variant="secondary"
-                  onClick={() => void copyText(createdInvite.code)}
-                >
-                  {t('telegram.copyCode')}
-                </Button>
-              </div>
-              {createdInvite.deepLink ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={createdInvite.deepLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="break-all text-sm text-[var(--accent)] underline"
-                  >
-                    {createdInvite.deepLink}
-                  </a>
-                  <Button
-                    variant="secondary"
-                    onClick={() => void copyText(createdInvite.deepLink!)}
-                  >
-                    {t('telegram.copyLink')}
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-sm text-amber-800">
-                  {t('telegram.deepLinkUnavailable', {
-                    code: createdInvite.code,
-                  })}
-                </p>
-              )}
-              <p className="text-xs text-[var(--muted)]">
-                {t('telegram.inviteMeta', {
-                  role: telegramRoleLabel(createdInvite.role),
-                  datetime: formatDateTime(createdInvite.expiresAt),
-                })}
-              </p>
-            </Card>
+            <InviteCard
+              invite={createdInvite}
+              onCopy={(text) => void copyText(text)}
+              onDismiss={() => setCreatedInvite(null)}
+            />
           ) : null}
 
           <Card className="overflow-x-auto">
@@ -382,50 +494,62 @@ export function TelegramPage() {
                 </tr>
               </thead>
               <tbody>
-                {pendingInvites.map((inv) => (
-                  <tr
-                    key={inv.id}
-                    className="border-b border-[var(--line)] last:border-0"
-                  >
-                    <td className="px-3 py-3 font-mono tracking-wider">
-                      {inv.code}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${roleBadgeClass(inv.role)}`}
-                      >
-                        {telegramRoleLabel(inv.role)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-[var(--muted)]">
-                      {formatDateTime(inv.expiresAt)}
-                    </td>
-                    <td className="px-3 py-3">
-                      {inv.deepLink ? (
-                        <button
-                          type="button"
-                          className="text-left text-xs text-[var(--accent)] underline"
-                          onClick={() => void copyText(inv.deepLink!)}
+                {pendingInvites.map((inv) => {
+                  const link = inviteDeepLink(inv);
+                  return (
+                    <tr
+                      key={inv.id}
+                      className="border-b border-[var(--line)] last:border-0"
+                    >
+                      <td className="px-3 py-3 font-mono tracking-wider">
+                        {inv.code}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${roleBadgeClass(inv.role)}`}
                         >
-                          {t('common.copy')}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-[var(--muted)]">
-                          {t('common.emDash')}
+                          {telegramRoleLabel(inv.role)}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      <Button
-                        variant="ghost"
-                        className="!px-2 !py-1 text-xs text-[var(--danger)]"
-                        onClick={() => void revokeInvite(inv.id)}
-                      >
-                        {t('telegram.revoke')}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-[var(--muted)]">
+                        {formatDateTime(inv.expiresAt)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {link ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="text-left text-xs text-[var(--accent)] underline"
+                              onClick={() => void copyText(link)}
+                            >
+                              {t('telegram.copyLink')}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-left text-xs text-[var(--muted)] underline"
+                              onClick={() => setCreatedInvite(inv)}
+                            >
+                              {t('telegram.showQr')}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[var(--muted)]">
+                            {t('common.emDash')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Button
+                          variant="ghost"
+                          className="!px-2 !py-1 text-xs text-[var(--danger)]"
+                          onClick={() => void revokeInvite(inv.id)}
+                        >
+                          {t('telegram.revoke')}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {pendingInvites.length === 0 ? (

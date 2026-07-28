@@ -230,6 +230,9 @@ export type TelegramInvite = {
   id: string;
   code: string;
   role: TelegramStaffRole;
+  /** Bot username without @ (from getMe / TELEGRAM_BOT_USERNAME). */
+  botUsername: string | null;
+  /** https://t.me/<bot_username>?start=<CODE> */
   deepLink: string | null;
   createdById: string;
   expiresAt: string;

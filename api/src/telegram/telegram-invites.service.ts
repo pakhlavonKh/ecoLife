@@ -26,6 +26,9 @@ export type TelegramInviteView = {
   id: string;
   code: string;
   role: TelegramStaffRole;
+  /** Live username from getMe / TELEGRAM_BOT_USERNAME (no @). */
+  botUsername: string | null;
+  /** https://t.me/<bot_username>?start=<CODE> */
   deepLink: string | null;
   createdById: string;
   expiresAt: Date;
@@ -44,32 +47,39 @@ export class TelegramInvitesService {
   ) {}
 
   private botUsername(): string | null {
+    // Prefer live getMe() cache; fall back to TELEGRAM_BOT_USERNAME env.
+    const fromLive = getTelegramBotUsername();
+    if (fromLive) {
+      return fromLive;
+    }
     const fromEnv = (
       this.config.get<string>('TELEGRAM_BOT_USERNAME') ?? ''
     ).trim();
     if (fromEnv) {
       return fromEnv.replace(/^@/, '');
     }
-    return getTelegramBotUsername();
+    return null;
   }
 
-  private deepLink(code: string): string | null {
-    const username = this.botUsername();
+  private deepLink(code: string, username: string | null): string | null {
     if (!username) {
       return null;
     }
-    return `https://t.me/${username}?start=${code}`;
+    // Telegram deep link — auto-clickable when pasted as a clean URL.
+    return `https://t.me/${username}?start=${encodeURIComponent(code)}`;
   }
 
   toView(row: TelegramInvite): TelegramInviteView {
     const now = Date.now();
     const isPending =
       row.usedAt === null && row.expiresAt.getTime() > now;
+    const botUsername = this.botUsername();
     return {
       id: row.id,
       code: row.code,
       role: row.role,
-      deepLink: this.deepLink(row.code),
+      botUsername,
+      deepLink: this.deepLink(row.code, botUsername),
       createdById: row.createdById,
       expiresAt: row.expiresAt,
       usedAt: row.usedAt,
