@@ -47,6 +47,8 @@ import {
 } from './events/booking.events';
 import {
   assertTransition,
+  formatDebtUzs,
+  isCheckOutBlockedByDebt,
   listAllowedTransitions,
   OCCUPYING_STATUSES,
   releasesInventory,
@@ -1052,6 +1054,14 @@ export class BookingsService {
         } catch {
           throw new UnprocessableEntityException(
             `Illegal status transition: ${booking.status} → ${next}`,
+          );
+        }
+
+        if (isCheckOutBlockedByDebt(next, booking.remainingAmount)) {
+          throw new UnprocessableEntityException(
+            `Нельзя выселить: задолженность ${formatDebtUzs(
+              booking.remainingAmount,
+            )}. Сначала отметьте оплату остатка.`,
           );
         }
 

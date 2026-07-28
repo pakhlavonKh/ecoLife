@@ -142,6 +142,8 @@
     "cashAmountLabel": "Summa (bo‘sh = butun qoldiq)",
     "markCashPaid": "To‘lovni belgilash",
     "confirmCancel": "Bronni bekor qilishni xohlaysizmi?",
+    "checkOutDebtNotice": "❌ Chiqarib bo‘lmaydi: qarz {{amount}}. Avval qoldiq to‘lovini belgilang.",
+    "checkOutWithDebt": "{{action}} · qarz {{amount}}",
     "statusChanged": "Holat: {{action}}",
     "cashRecorded": "Naqd to‘lov yozib olindi",
     "onlineRequestWarning": "⚠️ Oldindan so‘rov onlayn to‘lovsiz — mehmon bilan bog‘laning <phoneLink>{{phone}}</phoneLink> va to‘lovni qo‘lda tasdiqlang (depozit → tasdiqlash)."

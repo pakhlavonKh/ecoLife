@@ -325,6 +325,11 @@ export function BookingDetailPage() {
     Number(booking.paidAmount) > 0 &&
     Number(booking.paidAmount) >= Number(booking.depositAmount);
 
+  const debt = booking ? Number(booking.remainingAmount) : 0;
+  const checkOutBlockedByDebt =
+    debt > 0 &&
+    (booking?.allowedTransitions ?? []).includes('checked_out');
+
   const relevantLocks = locks.filter(
     (l) =>
       !form.checkIn ||
@@ -550,17 +555,39 @@ export function BookingDetailPage() {
             <div className="mb-3 text-sm font-medium">
               {t('bookingDetail.actionsTitle')}
             </div>
+            {checkOutBlockedByDebt ? (
+              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {t('bookingDetail.checkOutDebtNotice', {
+                  amount: formatMoney(booking?.remainingAmount),
+                })}
+              </div>
+            ) : null}
             <div className="flex flex-col gap-2">
-              {(booking?.allowedTransitions ?? []).map((s) => (
-                <Button
-                  key={s}
-                  variant={s === 'cancelled' ? 'danger' : 'secondary'}
-                  disabled={busy}
-                  onClick={() => void onTransition(s)}
-                >
-                  {statusActionLabel(s)}
-                </Button>
-              ))}
+              {(booking?.allowedTransitions ?? []).map((s) => {
+                const blocked = s === 'checked_out' && checkOutBlockedByDebt;
+                return (
+                  <Button
+                    key={s}
+                    variant={s === 'cancelled' ? 'danger' : 'secondary'}
+                    disabled={busy || blocked}
+                    title={
+                      blocked
+                        ? t('bookingDetail.checkOutDebtNotice', {
+                            amount: formatMoney(booking?.remainingAmount),
+                          })
+                        : undefined
+                    }
+                    onClick={() => void onTransition(s)}
+                  >
+                    {blocked
+                      ? t('bookingDetail.checkOutWithDebt', {
+                          action: statusActionLabel(s),
+                          amount: formatMoney(booking?.remainingAmount),
+                        })
+                      : statusActionLabel(s)}
+                  </Button>
+                );
+              })}
               {(booking?.allowedTransitions ?? []).length === 0 ? (
                 <div className="text-sm text-[var(--muted)]">
                   {t('bookingDetail.noTransitions')}

@@ -142,6 +142,8 @@
     "cashAmountLabel": "Сумма (пусто = весь остаток)",
     "markCashPaid": "Отметить оплату",
     "confirmCancel": "Отменить бронь?",
+    "checkOutDebtNotice": "❌ Нельзя выселить: задолженность {{amount}}. Сначала отметьте оплату остатка.",
+    "checkOutWithDebt": "{{action}} · долг {{amount}}",
     "statusChanged": "Статус: {{action}}",
     "cashRecorded": "Оплата наличными записана",
     "onlineRequestWarning": "⚠️ Предзаявка без онлайн-оплаты — свяжитесь с гостем <phoneLink>{{phone}}</phoneLink> и подтвердите оплату вручную (депозит → подтвердить)."

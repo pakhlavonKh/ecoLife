@@ -1,4 +1,5 @@
 import { BookingStatus } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 /**
  * Legal status transitions (§8 / §5).
@@ -52,6 +53,25 @@ export function listAllowedTransitions(
   from: BookingStatus,
 ): readonly BookingStatus[] {
   return ALLOWED[from];
+}
+
+/**
+ * Check-out is forbidden while the guest still owes money:
+ * remaining_amount > 0 → the admin must record the payment first.
+ */
+export function isCheckOutBlockedByDebt(
+  to: BookingStatus,
+  remainingAmount: Decimal,
+): boolean {
+  return to === BookingStatus.checked_out && remainingAmount.gt(0);
+}
+
+/** "1234567.00" → "1 234 567 UZS" (for human-facing error messages). */
+export function formatDebtUzs(amount: Decimal): string {
+  const fixed = amount.toFixed(2).replace(/\.00$/, '');
+  const [int, frac] = fixed.split('.');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${frac ? `${grouped}.${frac}` : grouped} UZS`;
 }
 
 /** Statuses that occupy inventory (when hold not expired). */

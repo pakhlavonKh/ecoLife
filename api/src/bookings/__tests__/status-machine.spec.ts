@@ -1,6 +1,9 @@
 import { BookingStatus } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   canTransition,
+  formatDebtUzs,
+  isCheckOutBlockedByDebt,
   listAllowedTransitions,
   releasesInventory,
 } from '../status-machine';
@@ -69,5 +72,55 @@ describe('booking status machine', () => {
     expect(releasesInventory(BookingStatus.cancelled)).toBe(true);
     expect(releasesInventory(BookingStatus.checked_out)).toBe(true);
     expect(releasesInventory(BookingStatus.confirmed)).toBe(false);
+  });
+
+  describe('check-out debt guard', () => {
+    it('blocks check-out while remaining > 0', () => {
+      expect(
+        isCheckOutBlockedByDebt(
+          BookingStatus.checked_out,
+          new Decimal('550000.00'),
+        ),
+      ).toBe(true);
+      expect(
+        isCheckOutBlockedByDebt(
+          BookingStatus.checked_out,
+          new Decimal('0.01'),
+        ),
+      ).toBe(true);
+    });
+
+    it('allows check-out when remaining == 0', () => {
+      expect(
+        isCheckOutBlockedByDebt(BookingStatus.checked_out, new Decimal(0)),
+      ).toBe(false);
+      expect(
+        isCheckOutBlockedByDebt(
+          BookingStatus.checked_out,
+          new Decimal('0.00'),
+        ),
+      ).toBe(false);
+    });
+
+    it('never blocks other transitions (cancel with debt stays legal)', () => {
+      expect(
+        isCheckOutBlockedByDebt(
+          BookingStatus.cancelled,
+          new Decimal('550000.00'),
+        ),
+      ).toBe(false);
+      expect(
+        isCheckOutBlockedByDebt(
+          BookingStatus.checked_in,
+          new Decimal('550000.00'),
+        ),
+      ).toBe(false);
+    });
+
+    it('formats debt for the error message', () => {
+      expect(formatDebtUzs(new Decimal('550000.00'))).toBe('550 000 UZS');
+      expect(formatDebtUzs(new Decimal('1680000'))).toBe('1 680 000 UZS');
+      expect(formatDebtUzs(new Decimal('1234.50'))).toBe('1 234.50 UZS');
+    });
   });
 });

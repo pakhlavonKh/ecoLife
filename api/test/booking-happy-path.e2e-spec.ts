@@ -1,6 +1,7 @@
 /**
  * E2E happy path (§12 Phase 9):
- * book → mock pay → deposit_paid → confirmed → checked_in → checked_out
+ * book → mock pay → deposit_paid → confirmed → checked_in
+ * → check-out with debt = 422 → cash for remaining → checked_out.
  * Asserts statuses and money amounts at each step.
  *
  * Requires PostgreSQL (DATABASE_URL) with seeded inventory.
@@ -155,7 +156,28 @@ describe('Booking happy path (Phase 9)', () => {
     expect(checkedIn.body.totalAmount).toBe(expectedTotal);
     expect(checkedIn.body.paidAmount).toBe(expectedDeposit);
 
-    // 5) Check-out
+    // 5) Check-out with unpaid remaining balance → 422 (debt guard)
+    const blockedCheckOut = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/bookings/${bookingId}/status`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ status: BookingStatus.checked_out });
+
+    expect(blockedCheckOut.status).toBe(422);
+    expect(blockedCheckOut.body.message).toContain('задолженность');
+    expect(blockedCheckOut.body.message).toContain('1 680 000 UZS');
+
+    // 6) Admin records cash for the remaining balance → paid_full
+    const cash = await request(app.getHttpServer())
+      .post(`/api/v1/admin/bookings/${bookingId}/payments/cash`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({});
+
+    expect(cash.status).toBe(201);
+    expect(cash.body.booking.paymentStatus).toBe(PaymentStatus.paid_full);
+    expect(cash.body.booking.paidAmount).toBe(expectedTotal);
+    expect(cash.body.booking.remainingAmount).toBe('0.00');
+
+    // 7) Check-out (now allowed)
     const checkedOut = await request(app.getHttpServer())
       .patch(`/api/v1/admin/bookings/${bookingId}/status`)
       .set('Authorization', `Bearer ${accessToken}`)
@@ -163,11 +185,11 @@ describe('Booking happy path (Phase 9)', () => {
 
     expect(checkedOut.status).toBe(200);
     expect(checkedOut.body.status).toBe(BookingStatus.checked_out);
-    expect(checkedOut.body.paymentStatus).toBe(PaymentStatus.deposit_paid);
+    expect(checkedOut.body.paymentStatus).toBe(PaymentStatus.paid_full);
     expect(checkedOut.body.totalAmount).toBe(expectedTotal);
     expect(checkedOut.body.depositAmount).toBe(expectedDeposit);
-    expect(checkedOut.body.paidAmount).toBe(expectedDeposit);
-    expect(checkedOut.body.remainingAmount).toBe(expectedRemaining);
+    expect(checkedOut.body.paidAmount).toBe(expectedTotal);
+    expect(checkedOut.body.remainingAmount).toBe('0.00');
 
     // Inventory released after check-out
     const activeRooms = await prisma.bookingRoom.findMany({
