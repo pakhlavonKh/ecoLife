@@ -155,3 +155,12 @@ Editable in admin on each category («Цена за место / ночь»).
 
 See root `README.md` pre-launch checklist: DB backup → migrate `bed_mode` →
 **preview** then apply `prisma/scripts/backfill-room-locks.sql` → confirm prices 800/600.
+
+
+
+
+
+
+
+
+

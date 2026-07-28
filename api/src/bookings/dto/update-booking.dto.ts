@@ -21,10 +21,9 @@ export class UpdateBookingDto {
   @MaxLength(100)
   firstName?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Optional — may be empty' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
   lastName?: string;
 
