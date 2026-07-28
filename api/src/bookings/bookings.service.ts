@@ -753,12 +753,14 @@ export class BookingsService {
             );
           }
 
-          const datesOrRoomChanged =
+          const stayOrRoomChanged =
             roomId !== currentRoom.roomId ||
             stay.checkInStr !== before.checkIn ||
-            stay.checkOutStr !== before.checkOut;
+            stay.checkOutStr !== before.checkOut ||
+            stay.checkInTime !== before.checkInTime ||
+            stay.checkOutTime !== before.checkOutTime;
           const guestsChanged = guests !== currentRoom.bedsBooked;
-          const inventoryChanged = datesOrRoomChanged || guestsChanged;
+          const inventoryChanged = stayOrRoomChanged || guestsChanged;
 
           if (
             inventoryChanged &&

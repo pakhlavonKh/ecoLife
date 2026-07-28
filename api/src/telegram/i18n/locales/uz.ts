@@ -39,6 +39,8 @@ export const uz: TelegramDict = {
     category: 'Toifa',
     checkIn: 'Kelish',
     checkOut: 'Chiqish',
+    checkInTime: 'Kelish vaqti',
+    checkOutTime: 'Chiqish vaqti',
     notes: 'Izohlar',
     totalAmount: 'Jami',
     priceOriginal: 'Saytdagi narx',
@@ -77,9 +79,10 @@ export const uz: TelegramDict = {
   },
   cleaner: {
     freedGeneric: '🧹 Xona bo‘shadi.',
-    checkoutDate: 'Chiqish sanasi: {{date}}',
+    checkoutDate: 'Chiqish: {{date}}',
     canClean: 'Tozalash mumkin.',
-    freedRoom: '🧹 {{number}}-xona bo‘shadi ({{cottage}}). Tozalash mumkin.',
+    freedRoom:
+      '🧹 {{number}}-xona bo‘shadi ({{cottage}}). Chiqish {{datetime}}. Tozalash mumkin.',
     digestTitle: 'Ertalabki xulosa {{date}}',
     digestDepartures: 'Bugun bo‘shaydi ({{count}}):',
     digestNoDepartures: 'Bugun chiqishlar yo‘q.',

@@ -35,11 +35,27 @@ export function formatDateRu(iso: string): string {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+/** YYYY-MM-DD + HH:mm → DD/MM/YYYY HH:mm */
+export function formatDateTimeRu(isoDate: string, time?: string): string {
+  const date = formatDateRu(isoDate);
+  const t = String(time || '').trim();
+  if (!t) return date;
+  return `${date} ${escapeHtml(t)}`;
+}
+
 /** YYYY-MM-DD → DD.MM (short range for room-lock alerts) */
 export function formatDateShort(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
   if (!m) return escapeHtml(iso);
   return `${m[3]}.${m[2]}`;
+}
+
+/** YYYY-MM-DD + HH:mm → DD.MM HH:mm */
+export function formatDateTimeShort(isoDate: string, time?: string): string {
+  const date = formatDateShort(isoDate);
+  const t = String(time || '').trim();
+  if (!t) return date;
+  return `${date} ${escapeHtml(t)}`;
 }
 
 function cottageLabel(name: string, lang: TelegramLang): string {
@@ -111,7 +127,7 @@ function compactBookingLines(
     `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
-    `${tt(lang, 'common.dates')}: ${formatDateRu(booking.checkIn)} → ${formatDateRu(booking.checkOut)}`,
+    `${tt(lang, 'common.dates')}: ${formatDateTimeRu(booking.checkIn, booking.checkInTime)} → ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
   );
   if (opts?.includeDeposit) {
     lines.push(
@@ -121,17 +137,16 @@ function compactBookingLines(
   return lines;
 }
 
-/** Cleaner checkout lines — cottage + room + date only (§5). */
+/** Cleaner checkout — room + checkout datetime only (no names/money/codes). */
 export function formatCleanerCheckout(
   booking: BookingSnapshot,
   lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
 ): string {
+  const when = formatDateTimeRu(booking.checkOut, booking.checkOutTime);
   if (booking.rooms.length === 0) {
     return [
       tt(lang, 'cleaner.freedGeneric'),
-      tt(lang, 'cleaner.checkoutDate', {
-        date: formatDateRu(booking.checkOut),
-      }),
+      tt(lang, 'cleaner.checkoutDate', { date: when }),
       tt(lang, 'cleaner.canClean'),
     ].join('\n');
   }
@@ -140,6 +155,7 @@ export function formatCleanerCheckout(
       tt(lang, 'cleaner.freedRoom', {
         number: escapeHtml(r.number),
         cottage: escapeHtml(r.cottageName),
+        datetime: when,
       }),
     )
     .join('\n');
@@ -221,7 +237,7 @@ export function formatCheckOut(
     `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
-    `${tt(lang, 'common.checkOut')}: ${formatDateRu(booking.checkOut)}`,
+    `${tt(lang, 'common.checkOut')}: ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
   ].join('\n');
 }
 
@@ -259,7 +275,7 @@ export function formatHoldExpired(
     `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
-    `${tt(lang, 'common.dates')}: ${formatDateRu(booking.checkIn)} → ${formatDateRu(booking.checkOut)}`,
+    `${tt(lang, 'common.dates')}: ${formatDateTimeRu(booking.checkIn, booking.checkInTime)} → ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
   ].join('\n');
 }
 
@@ -282,6 +298,7 @@ export function formatStatusChanged(
 }
 
 const DATE_FIELDS = new Set(['checkIn', 'checkOut']);
+const TIME_FIELDS = new Set(['checkInTime', 'checkOutTime']);
 
 export function formatBookingEdited(
   publicCode: string,
@@ -298,6 +315,7 @@ export function formatBookingEdited(
     const fmt = (v: string | null | undefined) => {
       if (v === '' || v == null) return tt(lang, 'common.emDash');
       if (DATE_FIELDS.has(c.field)) return formatDateRu(v);
+      if (TIME_FIELDS.has(c.field)) return escapeHtml(v);
       return escapeHtml(v);
     };
     return `• ${escapeHtml(label)}: ${fmt(c.from)} → ${fmt(c.to)}`;
@@ -353,8 +371,8 @@ export function formatRoomLocked(
   }
   const line = tt(lang, 'events.roomLocked', {
     number: escapeHtml(lock.roomNumber),
-    from: formatDateShort(lock.checkIn),
-    to: formatDateShort(lock.checkOut),
+    from: formatDateTimeShort(lock.checkIn, lock.checkInTime),
+    to: formatDateTimeShort(lock.checkOut, lock.checkOutTime),
   });
   const lines = [`<b>${line}</b>`];
   if (lock.cottageName) {
@@ -377,10 +395,12 @@ export type TodayBrief = {
   rooms: string[];
   checkIn: string;
   checkOut: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   status: string;
 };
 
-/** Admin /today — arrivals + departures with guest PII. */
+/** Admin /today — arrivals + departures with guest PII + times. */
 export function formatToday(
   date: string,
   arrivals: TodayBrief[],
@@ -392,17 +412,23 @@ export function formatToday(
     return formatCleanerToday(date, departures, lang);
   }
 
-  const fmtList = (items: TodayBrief[], empty: string): string => {
+  const fmtList = (
+    items: TodayBrief[],
+    empty: string,
+    timeOf: (b: TodayBrief) => string | undefined,
+  ): string => {
     if (items.length === 0) return empty;
     return items
       .map((b, i) => {
         const rooms = b.rooms.length
           ? b.rooms.map(escapeHtml).join(', ')
           : tt(lang, 'common.emDash');
+        const time = String(timeOf(b) || '').trim();
+        const timeSuffix = time ? ` · ${escapeHtml(time)}` : '';
         return (
           `${i + 1}. <code>${escapeHtml(b.publicCode)}</code> — ` +
           `${escapeHtml(b.customerName)}, ${escapeHtml(b.phone)}\n` +
-          `   ${rooms}`
+          `   ${rooms}${timeSuffix}`
         );
       })
       .join('\n');
@@ -412,20 +438,20 @@ export function formatToday(
     `<b>${tt(lang, 'today.title', { date: formatDateRu(date) })}</b>`,
     '',
     `<b>${tt(lang, 'today.arrivals', { count: arrivals.length })}</b>`,
-    fmtList(arrivals, tt(lang, 'today.noArrivals')),
+    fmtList(arrivals, tt(lang, 'today.noArrivals'), (b) => b.checkInTime),
     '',
     `<b>${tt(lang, 'today.departures', { count: departures.length })}</b>`,
-    fmtList(departures, tt(lang, 'today.noDepartures')),
+    fmtList(departures, tt(lang, 'today.noDepartures'), (b) => b.checkOutTime),
   ].join('\n');
 }
 
-/** Cleaner /today — checkout rooms only, no names/phones/codes/money. */
+/** Cleaner /today — checkout room + time only, no names/phones/codes/money. */
 export function formatCleanerToday(
   date: string,
   departures: TodayBrief[],
   lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
 ): string {
-  const rooms = uniqueRoomLabels(departures);
+  const rooms = uniqueCheckoutRooms(departures);
   const lines = [
     `<b>${tt(lang, 'today.cleanerTitle', { date: formatDateRu(date) })}</b>`,
     tt(lang, 'today.cleanerDepartures', { count: rooms.length }),
@@ -433,14 +459,14 @@ export function formatCleanerToday(
   if (rooms.length === 0) {
     lines.push(tt(lang, 'today.noDepartures'));
   } else {
-    rooms.forEach((room, i) => {
-      lines.push(`${i + 1}. ${escapeHtml(room)}`);
+    rooms.forEach((row, i) => {
+      lines.push(`${i + 1}. ${escapeHtml(row.label)}`);
     });
   }
   return lines.join('\n');
 }
 
-/** Morning digest — full staff vs cleaner (checkout rooms only). */
+/** Morning digest — full staff vs cleaner (checkout room + time only). */
 export function formatMorningDigest(
   date: string,
   arrivals: TodayBrief[],
@@ -449,7 +475,7 @@ export function formatMorningDigest(
   lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
 ): string | null {
   if (scope === 'cleaner') {
-    const rooms = uniqueRoomLabels(departures);
+    const rooms = uniqueCheckoutRooms(departures);
     const lines = [
       `<b>${tt(lang, 'cleaner.digestTitle', { date: formatDateRu(date) })}</b>`,
     ];
@@ -459,8 +485,8 @@ export function formatMorningDigest(
       lines.push(
         tt(lang, 'cleaner.digestDepartures', { count: rooms.length }),
       );
-      rooms.forEach((room, i) => {
-        lines.push(`${i + 1}. ${escapeHtml(room)}`);
+      rooms.forEach((row, i) => {
+        lines.push(`${i + 1}. ${escapeHtml(row.label)}`);
       });
     }
     return lines.join('\n');
@@ -469,15 +495,21 @@ export function formatMorningDigest(
   return formatToday(date, arrivals, departures, lang, 'full');
 }
 
-function uniqueRoomLabels(briefs: TodayBrief[]): string[] {
+/** Room + checkout time for cleaners (dedupe room@time). */
+function uniqueCheckoutRooms(
+  briefs: TodayBrief[],
+): Array<{ label: string }> {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: Array<{ label: string }> = [];
   for (const b of briefs) {
+    const time = String(b.checkOutTime || '').trim();
     for (const room of b.rooms) {
       const key = room.trim();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push(key);
+      if (!key) continue;
+      const dedupe = `${key}|${time}`;
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      out.push({ label: time ? `${key} · ${time}` : key });
     }
   }
   return out;

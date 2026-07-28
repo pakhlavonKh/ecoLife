@@ -64,7 +64,7 @@ describe('telegram.messages', () => {
     expect(text).toContain('Гости: 2');
     expect(text).toContain('Коттедж Среда / 305');
     expect(text).toContain('Мест в номере: 2/9 занято');
-    expect(text).toContain('Даты: 01/08/2026 → 03/08/2026');
+    expect(text).toContain('Даты: 01/08/2026 14:00 → 03/08/2026 12:00');
     expect(text).toMatch(/Депозит: .*360.?000 UZS/);
     expect(text).not.toContain('Требует ручного подтверждения');
     // No noise money/status fields beyond deposit
@@ -196,11 +196,12 @@ describe('telegram.messages', () => {
     expect(text).not.toContain('Итого:');
   });
 
-  it('formats edited fields old → new with date format', () => {
+  it('formats edited fields old → new with date and time format', () => {
     const text = formatBookingEdited(
       'BK-TEST',
       [
         { field: 'checkIn', from: '2026-08-01', to: '2026-08-02' },
+        { field: 'checkInTime', from: '14:00', to: '16:00' },
         { field: 'phone', from: '+998901111111', to: '+998902222222' },
       ],
       'full',
@@ -208,6 +209,7 @@ describe('telegram.messages', () => {
     );
     expect(text).toContain('<b>Бронирование изменено</b>');
     expect(text).toContain('Заезд: 01/08/2026 → 02/08/2026');
+    expect(text).toContain('Время заезда: 14:00 → 16:00');
     expect(text).toContain('Телефон:');
   });
 
@@ -228,7 +230,7 @@ describe('telegram.messages', () => {
       'full',
       'ru',
     );
-    expect(text).toContain('Номер 305 закрыт целиком на 01.08–05.08');
+    expect(text).toContain('Номер 305 закрыт целиком на 01.08 14:00–05.08 12:00');
     expect(text).toContain('Коттедж Среда / 305');
     expect(text).toContain('группа');
     expect(formatRoomLocked(
@@ -249,7 +251,7 @@ describe('telegram.messages', () => {
     )).toBeNull();
   });
 
-  it('formats /today arrivals and departures', () => {
+  it('formats /today arrivals and departures with times', () => {
     const text = formatToday(
       '2026-07-25',
       [
@@ -260,6 +262,8 @@ describe('telegram.messages', () => {
           rooms: ['C / 1'],
           checkIn: '2026-07-25',
           checkOut: '2026-07-26',
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
           status: 'confirmed',
         },
       ],
@@ -269,15 +273,17 @@ describe('telegram.messages', () => {
     expect(text).toContain('Сегодня 25/07/2026');
     expect(text).toContain('Заезды (1)');
     expect(text).toContain('BK-IN');
+    expect(text).toContain('C / 1 · 14:00');
     expect(text).toContain('Нет выездов');
   });
 
   describe('cleaner scope privacy (§5 GATE)', () => {
-    it('checkout template has cottage + room only — no name/phone/money/code', () => {
+    it('checkout template has cottage + room + time only — no name/phone/money/code', () => {
       const text = formatCheckOut(sampleBooking, 'cleaner', 'ru');
       expect(text).toBeTruthy();
       expect(text).toContain('305');
       expect(text).toContain('Chorshanba kottej');
+      expect(text).toContain('Выезд 03/08/2026 12:00');
       expect(text).toContain('Можно убирать');
 
       expect(text).not.toContain('Ali');
@@ -295,10 +301,10 @@ describe('telegram.messages', () => {
       expect(text).not.toContain('Итого');
     });
 
-    it('formatCleanerCheckout matches the §5 example shape', () => {
+    it('formatCleanerCheckout matches the §5 example shape with time', () => {
       const text = formatCleanerCheckout(sampleBooking, 'ru');
       expect(text).toBe(
-        '🧹 Освободился номер 305 (Chorshanba kottej). Можно убирать.',
+        '🧹 Освободился номер 305 (Chorshanba kottej). Выезд 03/08/2026 12:00. Можно убирать.',
       );
     });
 
@@ -320,7 +326,7 @@ describe('telegram.messages', () => {
       ).toBeNull();
     });
 
-    it('/today and morning digest for cleaner — rooms only, no PII/money', () => {
+    it('/today and morning digest for cleaner — room + time only, no PII/money', () => {
       const departures = [
         {
           publicCode: 'BK-OUT',
@@ -329,12 +335,14 @@ describe('telegram.messages', () => {
           rooms: ['Chorshanba kottej / 305'],
           checkIn: '2026-07-24',
           checkOut: '2026-07-25',
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
           status: 'checked_in',
         },
       ];
       const today = formatCleanerToday('2026-07-25', departures, 'ru');
       expect(today).toContain('Выезды сегодня 25/07/2026');
-      expect(today).toContain('Chorshanba kottej / 305');
+      expect(today).toContain('Chorshanba kottej / 305 · 12:00');
       expect(today).not.toContain('Secret');
       expect(today).not.toContain('BK-OUT');
       expect(today).not.toContain('998901111111');
@@ -348,7 +356,7 @@ describe('telegram.messages', () => {
         'ru',
       );
       expect(digest).toContain('Утренняя сводка');
-      expect(digest).toContain('Chorshanba kottej / 305');
+      expect(digest).toContain('Chorshanba kottej / 305 · 12:00');
       expect(digest).not.toContain('Secret');
       expect(digest).not.toContain('BK-OUT');
       expect(digest).not.toContain('998901111111');

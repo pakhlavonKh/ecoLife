@@ -2,7 +2,12 @@
 
 Booking platform for a cottage resort: NestJS API + PostgreSQL, public React site (Netlify), admin SPA, mock/Payme/Click deposits, Telegram staff notifications.
 
-Inventory: **Cottage → Room** (capacity = beds). Booking is **per bed** (shared room): several bookings may occupy one room on overlapping dates as long as nightly occupancy ≤ capacity. Price is **per bed per night by category** (lux / standart). Admin can **lock** a room for specific dates (`room_locks`) so no further beds are sold. Overbooking is blocked by row locks + per-night occupancy checks in a transaction.
+Inventory: **Cottage → Room** (capacity = beds). Booking is **per bed** (shared room): several bookings may occupy one room on overlapping **datetimes** as long as concurrent bed usage ≤ capacity. Price is **per bed per night by category** (lux / standart), nights = calendar nights between check-in and check-out dates (same-day stay = min 1 night).
+
+**Stay model (datetime + cleaning buffer):**
+- Check-in / check-out are **TIMESTAMPTZ** (Asia/Tashkent wall clock). Defaults: check-in **14:00**, check-out **12:00** (`CHECK_IN_TIME` / `CHECK_OUT_TIME`).
+- Guest stay is half-open `[check_in, check_out)`. After every checkout the **released beds** stay blocked for `CLEANING_BUFFER_MINUTES` (default **60**) — other guests still in the room are unaffected.
+- Admin can lock a whole room for a datetime range (`room_locks`). Overbooking is blocked by row locks + interval-sweep occupancy checks in a transaction.
 
 ---
 
@@ -56,13 +61,13 @@ npm run dev            # http://localhost:5174
 
 ```bash
 cd api
-npm run test:unit      # unit specs (availability, payments, telegram, …)
-npm run test:e2e       # bed concurrency gate + happy-path e2e (needs DB up + seeded)
+npm run test:unit      # unit specs (occupancy sweep, datetime, payments, telegram, …)
+npm run test:e2e       # time-based concurrency gate + happy-path e2e (needs DB up + seeded)
 npm run test:gate      # unit + e2e
 ```
 
 Happy path: create booking → mock pay → `deposit_paid` → confirm → check-in → check-out.
-Concurrency gate: parallel bookings for remaining beds — never exceed capacity; overflow → 409.
+Concurrency gate: parallel bookings for overlapping time ranges — total effective beds never exceed capacity; overflow → 409.
 
 ---
 
@@ -88,7 +93,18 @@ One-command stack: API, Telegram bot worker, Postgres, daily `pg_dump` backups (
 
 - Docker Engine + Compose plugin  
 - Open ports **80** / **443**  
-- Clone this repo on the VPS
+- Clone this repo on the VPS  
+- On small VPS (**≤1–2 GB RAM**): enable a **1 GB swap** before rebuilding images (compose build OOMs without it):
+
+```bash
+# one-time on the VPS (if swap is missing)
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h   # confirm Swap ≈ 1.0G
+```
 
 ### 2. Configure secrets
 
@@ -96,6 +112,15 @@ One-command stack: API, Telegram bot worker, Postgres, daily `pg_dump` backups (
 cp .env.prod.example .env
 # Edit .env — strong POSTGRES_PASSWORD, JWT_*, ADMIN_PASSWORD, URLs, payment & Telegram keys
 ```
+
+Important datetime / buffer knobs (defaults are fine for launch):
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `CHECK_IN_TIME` | `14:00` | Default local check-in time for new bookings / DATE→TIMESTAMPTZ backfill |
+| `CHECK_OUT_TIME` | `12:00` | Default local check-out time |
+| `CLEANING_BUFFER_MINUTES` | `60` | Beds stay unavailable this long after checkout (per released beds) |
+| `APP_TIME_ZONE` | `Asia/Tashkent` | Wall-clock zone for dates/times |
 
 Set URLs consistently:
 
@@ -215,6 +240,32 @@ argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id}).then(h=>
 
 ## Pre-launch checklist
 
+### Datetime cutover (existing production DB) — HOURLY.md Phase 5
+
+Run **in order**. Migration `20260728160000_stay_timestamptz` converts DATE → TIMESTAMPTZ and backfills check-in **14:00** / check-out **12:00** Asia/Tashkent.
+
+- [ ] **Backup DB** first (copy latest dump out of the backup volume, or one-off `pg_dump`)
+- [ ] Confirm **1 GB swap** is on (`free -h`) — required before image rebuild on small VPS
+- [ ] `git pull` on the VPS
+- [ ] Rebuild & restart: `docker compose -f docker-compose.prod.yml up -d --build`
+- [ ] Apply migrations: `docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy`
+- [ ] **Preview** datetime backfill (read-only; safe before or after migrate on a clone / if columns are still DATE):
+  ```bash
+  docker compose -f docker-compose.prod.yml exec api npm run db:preview:datetime
+  ```
+  Expect every existing booking to become `YYYY-MM-DD 14:00` / `YYYY-MM-DD 12:00` local. Confirm a sample with the owner.
+- [ ] Spot-check after migrate:
+  ```bash
+  docker compose -f docker-compose.prod.yml exec postgres \
+    psql -U ecolife -d ecolife -c \
+    "SELECT public_code,
+            to_char(check_in  AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS cin,
+            to_char(check_out AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS cout
+     FROM bookings ORDER BY updated_at DESC LIMIT 5;"
+  ```
+- [ ] Smoke-test: public booking with custom times, admin datetime edit, шахматка time labels, Telegram new-booking / checkout (cleaners: room + checkout time only)
+- [ ] Confirm `CLEANING_BUFFER_MINUTES=60` in prod `.env`
+
 ### Bed-mode cutover (existing production DB)
 
 - [ ] **Backup DB** first (`pg_dump` / backup service volume)  
@@ -251,7 +302,8 @@ argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id}).then(h=>
 ├── docker-compose.prod.yml
 ├── .env.prod.example
 ├── AGENTS.md            Original product master prompt
-└── BED_MODE.md          Per-bed shared-room change prompt
+├── BED_MODE.md          Per-bed shared-room change prompt
+└── HOURLY.md            Datetime check-in/out + cleaning buffer prompt
 ```
 
 ---

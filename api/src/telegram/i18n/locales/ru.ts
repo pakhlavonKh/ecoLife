@@ -45,6 +45,8 @@ const ruSource = {
     category: 'Категория',
     checkIn: 'Заезд',
     checkOut: 'Выезд',
+    checkInTime: 'Время заезда',
+    checkOutTime: 'Время выезда',
     notes: 'Заметки',
     totalAmount: 'Итого',
     priceOriginal: 'Цена с сайта',
@@ -83,9 +85,10 @@ const ruSource = {
   },
   cleaner: {
     freedGeneric: '🧹 Номер освободился.',
-    checkoutDate: 'Дата выезда: {{date}}',
+    checkoutDate: 'Выезд: {{date}}',
     canClean: 'Можно убирать.',
-    freedRoom: '🧹 Освободился номер {{number}} ({{cottage}}). Можно убирать.',
+    freedRoom:
+      '🧹 Освободился номер {{number}} ({{cottage}}). Выезд {{datetime}}. Можно убирать.',
     digestTitle: 'Утренняя сводка {{date}}',
     digestDepartures: 'Сегодня освобождаются ({{count}}):',
     digestNoDepartures: 'Сегодня выездов нет.',
