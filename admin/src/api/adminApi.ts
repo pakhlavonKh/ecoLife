@@ -8,7 +8,6 @@ import type {
   CustomerDetail,
   CustomerListItem,
   DashboardStats,
-  PriceMatrix,
   Room,
   RoomLock,
   TelegramInvite,
@@ -126,12 +125,6 @@ export const inventoryApi = {
     api.get<Room[]>('/api/v1/admin/rooms', { params }),
   updateRoom: (id: string, body: Record<string, unknown>) =>
     api.patch<Room>(`/api/v1/admin/rooms/${id}`, body),
-  priceMatrix: () => api.get<PriceMatrix>('/api/v1/admin/price-tiers'),
-  upsertTier: (body: {
-    categoryId: string;
-    capacity: number;
-    pricePerNight: string;
-  }) => api.put('/api/v1/admin/price-tiers', body),
 };
 
 export const calendarApi = {

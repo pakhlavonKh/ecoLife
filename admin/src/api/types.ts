@@ -87,8 +87,8 @@ export type Room = {
   cottageName: string;
   categoryId: string;
   categoryCode: string;
-  priceOverride: string | null;
-  tierPrice: string | null;
+  /** Price per bed per night from category (UZS). */
+  pricePerBedPerNight: string | null;
   resolvedPrice: string | null;
   bookable: boolean;
   isActive: boolean;
@@ -252,15 +252,6 @@ export type CalendarData = {
     checkInAt?: string;
     checkOutAt?: string;
     reason: string | null;
-  }>;
-};
-
-export type PriceMatrix = {
-  matrix: Array<{
-    categoryId: string;
-    categoryCode: string;
-    categoryName: string;
-    tiers: Array<{ id: string; capacity: number; pricePerNight: string }>;
   }>;
 };
 

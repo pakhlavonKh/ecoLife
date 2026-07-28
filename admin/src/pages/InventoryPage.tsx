@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { inventoryApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
-import type { Category, PriceMatrix, Room } from '../api/types';
+import type { Category, Room } from '../api/types';
 import {
   Button,
   Card,
@@ -19,19 +19,16 @@ export function InventoryPage() {
   const [tab, setTab] = useState<'categories' | 'prices' | 'rooms'>('categories');
   const [categories, setCategories] = useState<Category[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [matrix, setMatrix] = useState<PriceMatrix | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
   async function reload() {
-    const [c, r, m] = await Promise.all([
+    const [c, r] = await Promise.all([
       inventoryApi.categories(),
       inventoryApi.rooms(),
-      inventoryApi.priceMatrix(),
     ]);
     setCategories(c.data);
     setRooms(r.data);
-    setMatrix(m.data);
   }
 
   useEffect(() => {
@@ -62,15 +59,11 @@ export function InventoryPage() {
     }
   }
 
-  async function saveTier(
-    categoryId: string,
-    capacity: number,
-    pricePerNight: string,
-  ) {
+  async function savePrice(cat: Category, pricePerBedPerNight: string) {
     setError('');
     setMessage('');
     try {
-      await inventoryApi.upsertTier({ categoryId, capacity, pricePerNight });
+      await inventoryApi.updateCategory(cat.id, { pricePerBedPerNight });
       await reload();
       setMessage(t('inventory.priceSaved'));
     } catch (err) {
@@ -121,47 +114,30 @@ export function InventoryPage() {
       ) : null}
 
       {tab === 'prices' ? (
-        <div className="space-y-4">
-          {matrix?.matrix.map((group) => (
-            <Card key={group.categoryId} className="overflow-x-auto">
-              <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-                {t('inventory.categoryHeading', {
-                  name: group.categoryName,
-                  code: group.categoryCode,
-                })}
-              </div>
-              <table className="min-w-full text-sm">
-                <thead className="bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
-                  <tr>
-                    <th className="px-3 py-2 text-left">
-                      {t('inventory.colCapacity')}
-                    </th>
-                    <th className="px-3 py-2 text-left">
-                      {t('inventory.colPricePerNight')}
-                    </th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.tiers.map((tier) => (
-                    <TierRow
-                      key={tier.id}
-                      capacity={tier.capacity}
-                      price={tier.pricePerNight}
-                      onSave={(price) =>
-                        void saveTier(
-                          group.categoryId,
-                          tier.capacity,
-                          price,
-                        )
-                      }
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          ))}
-        </div>
+        <Card className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-[var(--bg)] text-xs uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-3 py-2 text-left">
+                  {t('inventory.colCategory')}
+                </th>
+                <th className="px-3 py-2 text-left">
+                  {t('inventory.colPricePerBed')}
+                </th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((cat) => (
+                <PriceRow
+                  key={cat.id}
+                  category={cat}
+                  onSave={(price) => void savePrice(cat, price)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </Card>
       ) : null}
 
       {tab === 'rooms' ? (
@@ -173,8 +149,7 @@ export function InventoryPage() {
                 <th className="px-3 py-3">{t('inventory.colCottage')}</th>
                 <th className="px-3 py-3">{t('inventory.colCategoryShort')}</th>
                 <th className="px-3 py-3">{t('inventory.colBeds')}</th>
-                <th className="px-3 py-3">{t('inventory.colTier')}</th>
-                <th className="px-3 py-3">{t('inventory.colOverride')}</th>
+                <th className="px-3 py-3">{t('inventory.colPricePerBed')}</th>
                 <th className="px-3 py-3">{t('inventory.colActive')}</th>
               </tr>
             </thead>
@@ -187,17 +162,16 @@ export function InventoryPage() {
                   <td className="px-3 py-2 font-medium">{room.number}</td>
                   <td className="px-3 py-2">{room.cottageName}</td>
                   <td className="px-3 py-2">{room.categoryCode}</td>
-                  <td className="px-3 py-2">{room.capacity}</td>
                   <td className="px-3 py-2">
-                    {formatMoney(room.tierPrice)}
+                    <CapacityCell
+                      value={room.capacity}
+                      onSave={(capacity) => void saveRoom(room, { capacity })}
+                    />
                   </td>
                   <td className="px-3 py-2">
-                    <OverrideCell
-                      value={room.priceOverride}
-                      onSave={(priceOverride) =>
-                        void saveRoom(room, { priceOverride })
-                      }
-                    />
+                    {formatMoney(
+                      room.pricePerBedPerNight ?? room.resolvedPrice,
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <label className="inline-flex items-center gap-2 text-sm">
@@ -234,6 +208,9 @@ function CategoryCard({
   const [depositPercent, setDepositPercent] = useState(
     String(category.depositPercent),
   );
+  const [pricePerBedPerNight, setPricePerBedPerNight] = useState(
+    category.pricePerBedPerNight,
+  );
   const [images, setImages] = useState(category.images.join('\n'));
   const [isActive, setIsActive] = useState(category.isActive);
 
@@ -241,6 +218,7 @@ function CategoryCard({
     setName(category.name);
     setDescription(category.description);
     setDepositPercent(String(category.depositPercent));
+    setPricePerBedPerNight(category.pricePerBedPerNight);
     setImages(category.images.join('\n'));
     setIsActive(category.isActive);
   }, [category]);
@@ -269,6 +247,12 @@ function CategoryCard({
             onChange={(e) => setDepositPercent(e.target.value)}
           />
         </Field>
+        <Field label={t('inventory.fieldPricePerBed')}>
+          <Input
+            value={pricePerBedPerNight}
+            onChange={(e) => setPricePerBedPerNight(e.target.value)}
+          />
+        </Field>
         <Field label={t('inventory.fieldImages')}>
           <TextArea
             value={images}
@@ -289,6 +273,7 @@ function CategoryCard({
               name,
               description,
               depositPercent: Number(depositPercent),
+              pricePerBedPerNight,
               images: images
                 .split('\n')
                 .map((s) => s.trim())
@@ -304,21 +289,65 @@ function CategoryCard({
   );
 }
 
-function TierRow({
-  capacity,
-  price,
+function CapacityCell({
+  value,
   onSave,
 }: {
-  capacity: number;
-  price: string;
+  value: number;
+  onSave: (capacity: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [local, setLocal] = useState(String(value));
+  useEffect(() => setLocal(String(value)), [value]);
+
+  function commit() {
+    const next = Number(local);
+    if (!Number.isInteger(next) || next < 1) return;
+    if (next === value) return;
+    onSave(next);
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        min={1}
+        step={1}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+        }}
+        className="w-20"
+      />
+      <Button variant="ghost" onClick={commit}>
+        {t('common.ok')}
+      </Button>
+    </div>
+  );
+}
+
+function PriceRow({
+  category,
+  onSave,
+}: {
+  category: Category;
   onSave: (price: string) => void;
 }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState(price);
-  useEffect(() => setValue(price), [price]);
+  const [value, setValue] = useState(category.pricePerBedPerNight);
+  useEffect(
+    () => setValue(category.pricePerBedPerNight),
+    [category.pricePerBedPerNight],
+  );
   return (
     <tr className="border-t border-[var(--line)]">
-      <td className="px-3 py-2">{capacity}</td>
+      <td className="px-3 py-2">
+        {t('inventory.categoryHeading', {
+          name: category.name,
+          code: category.code,
+        })}
+      </td>
       <td className="px-3 py-2">
         <Input
           value={value}
@@ -332,33 +361,5 @@ function TierRow({
         </Button>
       </td>
     </tr>
-  );
-}
-
-function OverrideCell({
-  value,
-  onSave,
-}: {
-  value: string | null;
-  onSave: (v: string | null) => void;
-}) {
-  const { t } = useTranslation();
-  const [local, setLocal] = useState(value ?? '');
-  useEffect(() => setLocal(value ?? ''), [value]);
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        placeholder={t('common.emDash')}
-        className="w-28"
-      />
-      <Button
-        variant="ghost"
-        onClick={() => onSave(local.trim() === '' ? null : local.trim())}
-      >
-        {t('common.ok')}
-      </Button>
-    </div>
   );
 }
