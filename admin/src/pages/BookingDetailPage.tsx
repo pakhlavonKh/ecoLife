@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { availabilityApi, bookingsApi } from '../api/adminApi';
@@ -21,6 +21,13 @@ import { formatDateTime, formatMoney } from '../lib/format';
 import { formatGuestName, splitGuestName } from '../lib/guest-name';
 import { sourceLabel, statusActionLabel } from '../lib/labels';
 
+function liveRemaining(totalStr: string, paidStr: string): number {
+  const total = Number(totalStr);
+  const paid = Number(paidStr);
+  if (!Number.isFinite(total) || !Number.isFinite(paid)) return NaN;
+  return Math.max(0, total - paid);
+}
+
 export function BookingDetailPage() {
   const { t } = useTranslation();
   const { id = '' } = useParams();
@@ -39,6 +46,7 @@ export function BookingDetailPage() {
     roomId: '',
     guests: 1,
     notes: '',
+    totalAmount: '',
   });
 
   async function load() {
@@ -55,6 +63,7 @@ export function BookingDetailPage() {
       roomId: data.rooms[0]?.roomId ?? '',
       guests: data.rooms[0]?.bedsBooked ?? data.bedsTotal,
       notes: data.notes ?? '',
+      totalAmount: data.totalAmount,
     });
     setCashAmount(data.remainingAmount);
   }
@@ -113,6 +122,13 @@ export function BookingDetailPage() {
     };
   }, [form.checkIn, form.checkOut, booking]);
 
+  const previewRemaining = useMemo(() => {
+    if (!booking) return null;
+    const rem = liveRemaining(form.totalAmount, booking.paidAmount);
+    if (!Number.isFinite(rem)) return null;
+    return rem;
+  }, [booking, form.totalAmount]);
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -129,8 +145,11 @@ export function BookingDetailPage() {
         roomId: form.roomId,
         guests: form.guests,
         notes: form.notes,
+        totalAmount: form.totalAmount,
       });
       setBooking(data);
+      setForm((f) => ({ ...f, totalAmount: data.totalAmount }));
+      setCashAmount(data.remainingAmount);
       setMessage(t('common.saved'));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -179,6 +198,11 @@ export function BookingDetailPage() {
   if (!booking && !error) {
     return <div className="text-[var(--muted)]">{t('common.loading')}</div>;
   }
+
+  const depositPaid =
+    booking != null &&
+    Number(booking.paidAmount) > 0 &&
+    Number(booking.paidAmount) >= Number(booking.depositAmount);
 
   return (
     <div>
@@ -314,6 +338,43 @@ export function BookingDetailPage() {
                 ))}
               </Select>
             </Field>
+
+            {booking ? (
+              <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2 rounded-md border border-stone-200 bg-stone-50 p-3">
+                <Field label={t('bookingDetail.priceOriginalLabel')}>
+                  <Input
+                    value={formatMoney(booking.priceOriginal)}
+                    readOnly
+                    disabled
+                  />
+                </Field>
+                <Field label={t('bookingDetail.totalAmountLabel')}>
+                  <Input
+                    value={form.totalAmount}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, totalAmount: e.target.value }))
+                    }
+                    inputMode="decimal"
+                    required
+                  />
+                </Field>
+                <div className="sm:col-span-2 text-sm text-[var(--muted)]">
+                  {t(
+                    depositPaid
+                      ? 'bookingDetail.totalAmountHint'
+                      : 'bookingDetail.totalAmountHintUnpaid',
+                    {
+                      deposit: formatMoney(booking.depositAmount),
+                      remaining:
+                        previewRemaining == null
+                          ? formatMoney(booking.remainingAmount)
+                          : formatMoney(previewRemaining),
+                    },
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             <div className="sm:col-span-2">
               <Field label={t('common.notes')}>
                 <TextArea
@@ -364,7 +425,11 @@ export function BookingDetailPage() {
               <Input
                 value={cashAmount}
                 onChange={(e) => setCashAmount(e.target.value)}
-                placeholder={booking?.remainingAmount}
+                placeholder={
+                  previewRemaining != null
+                    ? String(previewRemaining)
+                    : booking?.remainingAmount
+                }
               />
             </Field>
             <Button

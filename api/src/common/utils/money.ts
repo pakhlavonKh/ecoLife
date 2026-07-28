@@ -29,3 +29,15 @@ export function calcDepositAmount(
     .div(100)
     .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
+
+/**
+ * After bargaining total_amount: remaining = total − paid (floored at 0).
+ * Deposit is never recalculated here.
+ */
+export function calcRemainingAfterTotalChange(
+  totalAmount: Decimal | string | number,
+  paidAmount: Decimal | string | number,
+): Decimal {
+  const remaining = toDecimal(totalAmount).sub(toDecimal(paidAmount));
+  return remaining.lt(0) ? new Decimal(0) : remaining.toDecimalPlaces(2);
+}

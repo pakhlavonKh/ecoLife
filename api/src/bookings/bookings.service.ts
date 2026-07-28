@@ -24,8 +24,10 @@ import {
 import { formatGuestName } from '../common/utils/guest-name';
 import {
   calcDepositAmount,
+  calcRemainingAfterTotalChange,
   calcTotalAmount,
   decimalToString,
+  toDecimal,
 } from '../common/utils/money';
 import { isPaymentsEnabled } from '../common/utils/env-flag';
 import { normalizePhoneE164 } from '../common/utils/phone';
@@ -197,6 +199,7 @@ export class BookingsService {
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
                   bedsTotal: room.capacity,
+                  priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
                   paidAmount: new Decimal(0),
@@ -537,6 +540,7 @@ export class BookingsService {
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
                   bedsTotal: room.capacity,
+                  priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
                   paidAmount: new Decimal(0),
@@ -689,8 +693,11 @@ export class BookingsService {
             checkIn: formatIsoDate(booking.checkIn),
             checkOut: formatIsoDate(booking.checkOut),
             notes: booking.notes ?? '',
+            priceOriginal: decimalToString(booking.priceOriginal),
             totalAmount: decimalToString(booking.totalAmount),
             depositAmount: decimalToString(booking.depositAmount),
+            paidAmount: decimalToString(booking.paidAmount),
+            remainingAmount: decimalToString(booking.remainingAmount),
             bedsTotal: String(booking.bedsTotal),
             paymentStatus: booking.paymentStatus,
           };
@@ -757,6 +764,7 @@ export class BookingsService {
             }
           }
 
+          let priceOriginal = booking.priceOriginal;
           let totalAmount = booking.totalAmount;
           let depositAmount = booking.depositAmount;
           if (datesOrRoomChanged) {
@@ -776,17 +784,29 @@ export class BookingsService {
               );
             }
             totalAmount = calcTotalAmount(stay.nights, pricePerNight);
+            // Room/date change resets catalog snapshot; deposit still recalculates
+            // only here (not when admin bargains totalAmount alone).
             depositAmount = calcDepositAmount(
               totalAmount,
               room.category.depositPercent,
             );
+            priceOriginal = totalAmount;
+          }
+
+          // Bargain: change total only — deposit & price_original stay fixed.
+          if (dto.totalAmount !== undefined) {
+            const bargained = toDecimal(dto.totalAmount);
+            if (bargained.lte(0)) {
+              throw new BadRequestException('totalAmount must be greater than 0');
+            }
+            totalAmount = bargained.toDecimalPlaces(2);
           }
 
           const paidAmount = booking.paidAmount;
-          let remainingAmount = totalAmount.sub(paidAmount);
-          if (remainingAmount.lt(0)) {
-            remainingAmount = new Decimal(0);
-          }
+          const remainingAmount = calcRemainingAfterTotalChange(
+            totalAmount,
+            paidAmount,
+          );
 
           let paymentStatus = booking.paymentStatus;
           if (paidAmount.gte(totalAmount) && totalAmount.gt(0)) {
@@ -831,6 +851,7 @@ export class BookingsService {
               checkIn: stay.checkIn,
               checkOut: stay.checkOut,
               bedsTotal: room.capacity,
+              priceOriginal,
               totalAmount,
               depositAmount,
               remainingAmount,
@@ -860,8 +881,11 @@ export class BookingsService {
             checkIn: stay.checkInStr,
             checkOut: stay.checkOutStr,
             notes: after.notes ?? '',
+            priceOriginal: decimalToString(priceOriginal),
             totalAmount: decimalToString(totalAmount),
             depositAmount: decimalToString(depositAmount),
+            paidAmount: decimalToString(paidAmount),
+            remainingAmount: decimalToString(remainingAmount),
             bedsTotal: String(after.bedsTotal),
             paymentStatus: after.paymentStatus,
           };
@@ -1184,6 +1208,7 @@ export class BookingsService {
       bedsTotal: booking.bedsTotal,
       checkIn: booking.checkIn.toISOString().slice(0, 10),
       checkOut: booking.checkOut.toISOString().slice(0, 10),
+      priceOriginal: decimalToString(booking.priceOriginal),
       totalAmount: decimalToString(booking.totalAmount),
       depositAmount: decimalToString(booking.depositAmount),
       paidAmount: decimalToString(booking.paidAmount),
@@ -1221,6 +1246,7 @@ export class BookingsService {
       checkIn: Date;
       checkOut: Date;
       bedsTotal: number;
+      priceOriginal: Decimal;
       totalAmount: Decimal;
       depositAmount: Decimal;
       paidAmount: Decimal;
@@ -1260,6 +1286,7 @@ export class BookingsService {
       checkIn: booking.checkIn.toISOString().slice(0, 10),
       checkOut: booking.checkOut.toISOString().slice(0, 10),
       bedsTotal: booking.bedsTotal,
+      priceOriginal: decimalToString(booking.priceOriginal),
       totalAmount: decimalToString(booking.totalAmount),
       depositAmount: decimalToString(booking.depositAmount),
       paidAmount: decimalToString(booking.paidAmount),

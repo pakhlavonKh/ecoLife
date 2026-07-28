@@ -218,6 +218,7 @@ model Booking {
   checkIn          DateTime        @map("check_in") @db.Date
   checkOut         DateTime        @map("check_out") @db.Date
   bedsTotal        Int             @map("beds_total")
+  priceOriginal    Decimal         @map("price_original") @db.Decimal(14, 2)
   totalAmount      Decimal         @map("total_amount") @db.Decimal(14, 2)
   depositAmount    Decimal         @map("deposit_amount") @db.Decimal(14, 2)
   paidAmount       Decimal         @default(0) @map("paid_amount") @db.Decimal(14, 2)

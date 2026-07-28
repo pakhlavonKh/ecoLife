@@ -31,6 +31,7 @@ export type Booking = {
   checkIn: string;
   checkOut: string;
   bedsTotal: number;
+  priceOriginal: string;
   totalAmount: string;
   depositAmount: string;
   paidAmount: string;

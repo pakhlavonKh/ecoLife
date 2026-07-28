@@ -321,6 +321,25 @@ export class PaymentsService {
       provider: 'cash',
       amount: decimalToString(amount),
       providerTxnId: result.payment.providerTxnId ?? '',
+      ...(result.booking.totalAmount.eq(result.booking.priceOriginal)
+        ? {}
+        : {
+            priceAdjustment: {
+              priceOriginal: decimalToString(result.booking.priceOriginal),
+              totalAmount: decimalToString(result.booking.totalAmount),
+              depositAmount: decimalToString(result.booking.depositAmount),
+              // Negotiated balance after deposit (unchanged by this cash row).
+              remainingAmount: decimalToString(
+                result.booking.totalAmount.sub(result.booking.depositAmount).lt(
+                  0,
+                )
+                  ? new Decimal(0)
+                  : result.booking.totalAmount.sub(
+                      result.booking.depositAmount,
+                    ),
+              ),
+            },
+          }),
     };
     this.events.emit(PAYMENT_RECEIVED_EVENT, received);
 

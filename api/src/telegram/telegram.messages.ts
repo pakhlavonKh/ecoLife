@@ -40,12 +40,16 @@ function cottageLabel(name: string, lang: TelegramLang): string {
 }
 
 function fmtMoney(amount: string, lang: TelegramLang): string {
+  return `${fmtMoneyAmount(amount, lang)} UZS`;
+}
+
+function fmtMoneyAmount(amount: string, lang: TelegramLang): string {
   const n = Number(amount);
   const locale = lang === 'uz' ? 'uz-UZ' : 'ru-RU';
   if (!Number.isFinite(n)) {
-    return `${escapeHtml(amount)} UZS`;
+    return escapeHtml(amount);
   }
-  return `${n.toLocaleString(locale)} UZS`;
+  return n.toLocaleString(locale);
 }
 
 function roomsLine(booking: BookingSnapshot, lang: TelegramLang): string {
@@ -143,11 +147,23 @@ export function formatPaymentReceived(
   if (scope === 'cleaner') {
     return null;
   }
-  return [
+  const lines = [
     `<b>${tt(lang, 'events.paymentReceived')}</b>`,
     `${tt(lang, 'common.code')}: <code>${escapeHtml(payment.publicCode)}</code>`,
     `${tt(lang, 'common.amount')}: ${fmtMoney(payment.amount, lang)}`,
-  ].join('\n');
+  ];
+  if (payment.priceAdjustment) {
+    const a = payment.priceAdjustment;
+    lines.push(
+      tt(lang, 'events.paymentAmountAdjusted', {
+        from: fmtMoneyAmount(a.priceOriginal, lang),
+        to: fmtMoneyAmount(a.totalAmount, lang),
+        deposit: fmtMoneyAmount(a.depositAmount, lang),
+        remaining: fmtMoneyAmount(a.remainingAmount, lang),
+      }),
+    );
+  }
+  return lines.join('\n');
 }
 
 export function formatCheckIn(

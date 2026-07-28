@@ -35,6 +35,7 @@ describe('PaymentsService.applyWebhookEvent', () => {
     publicCode: 'BK-TEST',
     status: BookingStatus.pending_payment,
     paymentStatus: PaymentStatus.unpaid,
+    priceOriginal: new Decimal('1000000.00'),
     totalAmount: new Decimal('1000000.00'),
     depositAmount: new Decimal('300000.00'),
     paidAmount: new Decimal('0'),

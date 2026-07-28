@@ -24,6 +24,7 @@ export type BookingSnapshot = {
   bedsTotal: number;
   checkIn: string;
   checkOut: string;
+  priceOriginal: string;
   totalAmount: string;
   depositAmount: string;
   paidAmount: string;

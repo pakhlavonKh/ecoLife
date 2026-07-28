@@ -11,6 +11,14 @@ export type PaymentReceivedPayload = {
   provider: string;
   amount: string;
   providerTxnId: string;
+  /** Present when total was bargained away from the catalog snapshot. */
+  priceAdjustment?: {
+    priceOriginal: string;
+    totalAmount: string;
+    depositAmount: string;
+    /** Remaining due after this payment (or negotiated balance context). */
+    remainingAmount: string;
+  };
 };
 
 export type PaymentLateManualReviewPayload = {

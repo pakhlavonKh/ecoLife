@@ -39,10 +39,13 @@ export const uz: TelegramDict = {
     checkOut: 'Chiqish',
     notes: 'Izohlar',
     totalAmount: 'Jami',
+    priceOriginal: 'Saytdagi narx',
     depositAmount: 'Depozit',
     paymentStatus: 'To‘lov',
     bedsTotal: 'O‘rin',
     status: 'Holat',
+    paidAmount: 'To‘langan',
+    remainingAmount: 'Qoldiq',
   },
   roles: {
     owner: 'egasi',
@@ -55,6 +58,8 @@ export const uz: TelegramDict = {
     newRequest: 'Yangi oldindan so‘rov',
     requestNeedsConfirm: '⚠️ To‘lovni qo‘lda tasdiqlash kerak',
     paymentReceived: 'To‘lov qabul qilindi',
+    paymentAmountAdjusted:
+      'Summa tuzatildi: {{from}} → {{to}} UZS (depozit {{deposit}} to‘langan, qoldiq {{remaining}})',
     checkIn: 'Kelish',
     checkOut: 'Chiqish',
     cancelled: 'Bron bekor qilindi',

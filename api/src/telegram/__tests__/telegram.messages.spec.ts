@@ -30,6 +30,7 @@ const sampleBooking: BookingSnapshot = {
   bedsTotal: 9,
   checkIn: '2026-08-01',
   checkOut: '2026-08-03',
+  priceOriginal: '2000000.00',
   totalAmount: '2000000.00',
   depositAmount: '600000.00',
   paidAmount: '600000.00',
@@ -121,11 +122,39 @@ describe('telegram.messages', () => {
         providerTxnId: 'txn-1',
       },
       'full',
+      'ru',
     );
     expect(text).toContain('<b>Оплата получена</b>');
     expect(text).toMatch(/600.?000 UZS/);
     expect(text).not.toContain('cash');
     expect(text).not.toContain('Провайдер');
+    expect(text).not.toContain('Сумма скорректирована');
+  });
+
+  it('adds bargain line when total differs from price_original', () => {
+    const text = formatPaymentReceived(
+      {
+        bookingId: 'b1',
+        paymentId: 'p1',
+        publicCode: 'BK-TEST',
+        provider: 'cash',
+        amount: '550000.00',
+        providerTxnId: 'txn-2',
+        priceAdjustment: {
+          priceOriginal: '1000000.00',
+          totalAmount: '850000.00',
+          depositAmount: '300000.00',
+          remainingAmount: '550000.00',
+        },
+      },
+      'full',
+      'ru',
+    );
+    expect(text).toContain('<b>Оплата получена</b>');
+    expect(text).toMatch(/550.?000 UZS/);
+    expect(text).toMatch(
+      /Сумма скорректирована: 1.?000.?000 → 850.?000 UZS \(депозит 300.?000 оплачен, остаток 550.?000\)/,
+    );
   });
 
   it('formats hold-expired cancellation', () => {

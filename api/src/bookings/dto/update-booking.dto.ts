@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsInt,
+  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
@@ -64,4 +65,13 @@ export class UpdateBookingDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Bargained stay total (UZS). Does not recalculate deposit; remaining = total − paid.',
+    example: '850000.00',
+  })
+  @IsOptional()
+  @IsNumberString()
+  totalAmount?: string;
 }

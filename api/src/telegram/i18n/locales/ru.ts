@@ -45,10 +45,13 @@ const ruSource = {
     checkOut: 'Выезд',
     notes: 'Заметки',
     totalAmount: 'Итого',
+    priceOriginal: 'Цена с сайта',
     depositAmount: 'Депозит',
     paymentStatus: 'Оплата',
     bedsTotal: 'Мест',
     status: 'Статус',
+    paidAmount: 'Оплачено',
+    remainingAmount: 'Остаток',
   },
   roles: {
     owner: 'владелец',
@@ -61,6 +64,8 @@ const ruSource = {
     newRequest: 'Новая предзаявка',
     requestNeedsConfirm: '⚠️ Требует ручного подтверждения оплаты',
     paymentReceived: 'Оплата получена',
+    paymentAmountAdjusted:
+      'Сумма скорректирована: {{from}} → {{to}} UZS (депозит {{deposit}} оплачен, остаток {{remaining}})',
     checkIn: 'Заезд',
     checkOut: 'Выезд',
     cancelled: 'Бронирование отменено',
