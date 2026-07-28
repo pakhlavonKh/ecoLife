@@ -1,8 +1,21 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  calendarNightsBetween,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
+  formatLocalDate,
+  formatLocalTime,
+  parseLocalDateTime,
+  parseTimeOfDay,
+  startOfLocalDay,
+} from './datetime';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Parse YYYY-MM-DD into a UTC calendar date (time 00:00:00.000Z). */
+/**
+ * Parse YYYY-MM-DD into a UTC calendar date (time 00:00:00.000Z).
+ * For stay boundaries prefer `parseLocalDateTime` — stays now carry a real time.
+ */
 export function parseIsoDate(value: string, field = 'date'): Date {
   if (!DATE_RE.test(value)) {
     throw new BadRequestException(`${field} must be YYYY-MM-DD`);
@@ -23,16 +36,23 @@ export function formatIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Half-open stay nights: [checkIn, checkOut). */
+/**
+ * Nights spanned by a stay, counted from local calendar dates — times do not
+ * change the price (HOURLY.md §5). Same-day day-use (calendar nights = 0) is
+ * charged as 1 night (owner-confirmed default).
+ */
 export function nightsBetween(checkIn: Date, checkOut: Date): number {
-  const ms = checkOut.getTime() - checkIn.getTime();
-  return Math.round(ms / (24 * 60 * 60 * 1000));
+  const nights = calendarNightsBetween(checkIn, checkOut);
+  if (nights === 0 && checkIn.getTime() < checkOut.getTime()) {
+    return 1;
+  }
+  return nights;
 }
 
 /**
  * Half-open intervals [aStart, aEnd) and [bStart, bEnd) overlap
  * iff aStart < bEnd && bStart < aEnd.
- * Adjacent stays (checkout == next checkin) do NOT overlap.
+ * Adjacent stays (checkout instant == next checkin instant) do NOT overlap.
  */
 export function rangesOverlap(
   aStart: Date,
@@ -46,20 +66,34 @@ export function rangesOverlap(
 export type StayValidationOptions = {
   minNights?: number;
   maxNights?: number;
-  /** Calendar "today" in UTC (YYYY-MM-DD as Date). Defaults to UTC today. */
+  /** Start of "today" as an instant. Defaults to local midnight. */
   today?: Date;
   /** Admin edits of existing stays may keep a past check-in. */
   allowPast?: boolean;
-}
-
-export type ValidatedStay = {
-  checkIn: Date;
-  checkOut: Date;
-  nights: number;
-  checkInStr: string;
-  checkOutStr: string;
+  /** Local wall-clock check-in time, HH:mm. Defaults to 14:00. */
+  checkInTime?: string;
+  /** Local wall-clock check-out time, HH:mm. Defaults to 12:00. */
+  checkOutTime?: string;
 };
 
+export type ValidatedStay = {
+  /** Absolute check-in instant. */
+  checkIn: Date;
+  /** Absolute check-out instant (guest's stay is [checkIn, checkOut)). */
+  checkOut: Date;
+  nights: number;
+  /** Local calendar date, YYYY-MM-DD. */
+  checkInStr: string;
+  checkOutStr: string;
+  /** Local wall-clock time, HH:mm. */
+  checkInTime: string;
+  checkOutTime: string;
+};
+
+/**
+ * Validate a stay given local dates plus (optional) local times.
+ * Returns absolute instants for the availability engine.
+ */
 export function validateStayDates(
   checkInStr: string,
   checkOutStr: string,
@@ -67,12 +101,19 @@ export function validateStayDates(
 ): ValidatedStay {
   const minNights = options.minNights ?? 1;
   const maxNights = options.maxNights ?? 30;
-  const today =
-    options.today ??
-    parseIsoDate(formatIsoDate(new Date()));
+  const today = options.today ?? startOfLocalDay(new Date());
 
-  const checkIn = parseIsoDate(checkInStr, 'check_in');
-  const checkOut = parseIsoDate(checkOutStr, 'check_out');
+  const checkInTime = parseTimeOfDay(
+    options.checkInTime ?? DEFAULT_CHECK_IN_TIME,
+    'check_in_time',
+  );
+  const checkOutTime = parseTimeOfDay(
+    options.checkOutTime ?? DEFAULT_CHECK_OUT_TIME,
+    'check_out_time',
+  );
+
+  const checkIn = parseLocalDateTime(checkInStr, checkInTime, 'check_in');
+  const checkOut = parseLocalDateTime(checkOutStr, checkOutTime, 'check_out');
 
   if (!options.allowPast && checkIn.getTime() < today.getTime()) {
     throw new BadRequestException('check_in must not be in the past');
@@ -98,7 +139,9 @@ export function validateStayDates(
     checkIn,
     checkOut,
     nights,
-    checkInStr: formatIsoDate(checkIn),
-    checkOutStr: formatIsoDate(checkOut),
+    checkInStr: formatLocalDate(checkIn),
+    checkOutStr: formatLocalDate(checkOut),
+    checkInTime: formatLocalTime(checkIn),
+    checkOutTime: formatLocalTime(checkOut),
   };
 }

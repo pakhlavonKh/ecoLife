@@ -7,7 +7,11 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActorType, Prisma } from '@prisma/client';
 import { AvailabilityService } from '../availability/availability.service';
-import { formatIsoDate, parseIsoDate } from '../common/utils/dates';
+import {
+  formatLocalDate,
+  formatLocalTime,
+  parseLocalDateTime,
+} from '../common/utils/datetime';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomLockDto } from './dto/create-room-lock.dto';
 import {
@@ -57,9 +61,11 @@ export class RoomLocksService {
     }
     if (params.from || params.to) {
       const from = params.from
-        ? parseIsoDate(params.from, 'from')
+        ? parseLocalDateTime(params.from, undefined, 'from')
         : undefined;
-      const to = params.to ? parseIsoDate(params.to, 'to') : undefined;
+      const to = params.to
+        ? parseLocalDateTime(params.to, undefined, 'to')
+        : undefined;
       where.AND = [
         ...(from ? [{ checkOut: { gt: from } }] : []),
         ...(to ? [{ checkIn: { lt: to } }] : []),
@@ -77,8 +83,12 @@ export class RoomLocksService {
       roomId: lock.roomId,
       roomNumber: lock.room.number,
       bookingId: lock.bookingId,
-      checkIn: formatIsoDate(lock.checkIn),
-      checkOut: formatIsoDate(lock.checkOut),
+      checkIn: formatLocalDate(lock.checkIn),
+      checkOut: formatLocalDate(lock.checkOut),
+      checkInTime: formatLocalTime(lock.checkIn),
+      checkOutTime: formatLocalTime(lock.checkOut),
+      checkInAt: lock.checkIn.toISOString(),
+      checkOutAt: lock.checkOut.toISOString(),
       reason: lock.reason,
       createdAt: lock.createdAt,
     }));
@@ -185,8 +195,10 @@ export class RoomLocksService {
         roomId: lock.lock.roomId,
         roomNumber: lock.room.number,
         cottageName: lock.room.cottage.name,
-        checkIn: formatIsoDate(lock.lock.checkIn),
-        checkOut: formatIsoDate(lock.lock.checkOut),
+        checkIn: formatLocalDate(lock.lock.checkIn),
+        checkOut: formatLocalDate(lock.lock.checkOut),
+        checkInTime: formatLocalTime(lock.lock.checkIn),
+        checkOutTime: formatLocalTime(lock.lock.checkOut),
         reason: lock.lock.reason,
         bookingId: lock.lock.bookingId,
       };
@@ -197,8 +209,12 @@ export class RoomLocksService {
         roomId: lock.lock.roomId,
         roomNumber: lock.room.number,
         bookingId: lock.lock.bookingId,
-        checkIn: formatIsoDate(lock.lock.checkIn),
-        checkOut: formatIsoDate(lock.lock.checkOut),
+        checkIn: formatLocalDate(lock.lock.checkIn),
+        checkOut: formatLocalDate(lock.lock.checkOut),
+        checkInTime: formatLocalTime(lock.lock.checkIn),
+        checkOutTime: formatLocalTime(lock.lock.checkOut),
+        checkInAt: lock.lock.checkIn.toISOString(),
+        checkOutAt: lock.lock.checkOut.toISOString(),
         reason: lock.lock.reason,
         createdAt: lock.lock.createdAt,
       };

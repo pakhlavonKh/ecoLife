@@ -6,10 +6,16 @@ import { ConfigService } from '@nestjs/config';
 import { BookingStatus, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
+  getCleaningBufferMinutes,
+  getDefaultCheckInTime,
+  getDefaultCheckOutTime,
+} from '../common/utils/booking-time';
+import {
   validateStayDates,
   type ValidatedStay,
 } from '../common/utils/dates';
 import { decimalToString } from '../common/utils/money';
+import { addMinutes } from '../common/utils/datetime';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   canAcceptGuests,
@@ -19,7 +25,8 @@ import {
   type OccupancyStay,
 } from './occupancy';
 
-export const BEDS_UNAVAILABLE_MESSAGE = 'мест на эти даты не осталось';
+export const BEDS_UNAVAILABLE_MESSAGE =
+  'на эти дату и время в номере не осталось мест';
 
 export type AvailableRoomView = {
   id: string;
@@ -67,23 +74,38 @@ export class AvailabilityService {
     private readonly config: ConfigService,
   ) {}
 
-  validateQuery(checkIn: string, checkOut: string): ValidatedStay {
+  /**
+   * Minutes released beds stay blocked after a check-out (HOURLY.md §3).
+   * Config-only: never persisted, so changing it re-prices future availability.
+   */
+  get cleaningBufferMinutes(): number {
+    return getCleaningBufferMinutes(this.config);
+  }
+
+  validateQuery(
+    checkIn: string,
+    checkOut: string,
+    times?: { checkInTime?: string; checkOutTime?: string },
+  ): ValidatedStay {
     return validateStayDates(checkIn, checkOut, {
       minNights: Number(this.config.get('MIN_STAY_NIGHTS') ?? 1),
       maxNights: Number(this.config.get('MAX_STAY_NIGHTS') ?? 30),
+      checkInTime: times?.checkInTime ?? getDefaultCheckInTime(this.config),
+      checkOutTime: times?.checkOutTime ?? getDefaultCheckOutTime(this.config),
     });
   }
 
   /**
-   * Active bed stays overlapping [checkIn, checkOut) for the given rooms.
-   * Expired pending_payment holds are ignored even before the worker runs.
+   * Active bed stays whose effective interval (stay + cleaning buffer) overlaps
+   * [checkIn, checkOut). Expired pending_payment holds are ignored even before
+   * the worker runs. The buffer is not stored — it only widens the load window.
    */
   async loadActiveStaysByRoom(
     roomIds: string[],
     checkIn: Date,
     checkOut: Date,
     tx: TxClient = this.prisma,
-    options?: { excludeBookingId?: string },
+    options?: { excludeBookingId?: string; bufferMinutes?: number },
   ): Promise<Map<string, OccupancyStay[]>> {
     const map = new Map<string, OccupancyStay[]>();
     for (const id of roomIds) {
@@ -93,6 +115,10 @@ export class AvailabilityService {
       return map;
     }
 
+    const bufferMinutes =
+      options?.bufferMinutes ?? this.cleaningBufferMinutes;
+    // A stay that checked out `buffer` minutes ago can still block checkIn.
+    const loadFrom = addMinutes(checkIn, -bufferMinutes);
     const excludeId = options?.excludeBookingId ?? null;
     const rows = await tx.$queryRaw<
       {
@@ -107,8 +133,8 @@ export class AvailabilityService {
       INNER JOIN bookings b ON b.id = br.booking_id
       WHERE br.is_active = true
         AND br.room_id IN (${Prisma.join(roomIds.map((id) => Prisma.sql`${id}::uuid`))})
-        AND br.check_in < ${checkOut}::date
-        AND br.check_out > ${checkIn}::date
+        AND br.check_in < ${checkOut}::timestamptz
+        AND br.check_out > ${loadFrom}::timestamptz
         AND (
           b.status <> ${BookingStatus.pending_payment}::booking_status
           OR b.expires_at IS NULL
@@ -145,16 +171,16 @@ export class AvailabilityService {
             SELECT DISTINCT rl.room_id
             FROM room_locks rl
             WHERE rl.room_id IN (${Prisma.join(roomIds.map((id) => Prisma.sql`${id}::uuid`))})
-              AND rl.check_in < ${checkOut}::date
-              AND rl.check_out > ${checkIn}::date
+              AND rl.check_in < ${checkOut}::timestamptz
+              AND rl.check_out > ${checkIn}::timestamptz
           `
         : roomIds && roomIds.length === 0
           ? []
           : await tx.$queryRaw<{ room_id: string }[]>`
             SELECT DISTINCT rl.room_id
             FROM room_locks rl
-            WHERE rl.check_in < ${checkOut}::date
-              AND rl.check_out > ${checkIn}::date
+            WHERE rl.check_in < ${checkOut}::timestamptz
+              AND rl.check_out > ${checkIn}::timestamptz
           `;
     return new Set(rows.map((r) => r.room_id));
   }
@@ -174,19 +200,25 @@ export class AvailabilityService {
     remainingBeds: number;
     locked: boolean;
   }> {
+    const bufferMinutes = this.cleaningBufferMinutes;
     const staysByRoom = await this.loadActiveStaysByRoom(
       [roomId],
       checkIn,
       checkOut,
       tx,
-      options,
+      { ...options, bufferMinutes },
     );
     const stays = staysByRoom.get(roomId) ?? [];
     const lockedIds = await this.findLockedRoomIds(checkIn, checkOut, tx, {
       roomIds: [roomId],
     });
     const locked = lockedIds.has(roomId);
-    const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+    const maxOccupied = maxOccupiedOverStay(
+      checkIn,
+      checkOut,
+      stays,
+      bufferMinutes,
+    );
     return {
       maxOccupied,
       remainingBeds: remainingBeds(capacity, maxOccupied, locked),
@@ -196,7 +228,7 @@ export class AvailabilityService {
 
   /**
    * Throws 409 if the room cannot accept `guests` for the stay
-   * (per-night capacity or overlapping room_lock).
+   * (effective bed capacity over the time window, or overlapping room_lock).
    */
   async assertRoomAcceptsGuests(
     roomId: string,
@@ -223,8 +255,8 @@ export class AvailabilityService {
   }
 
   /**
-   * True if any active (non-expired) beds are booked on overlapping nights.
-   * Used when creating a whole-room lock.
+   * True if any active (non-expired) beds are booked over the lock window,
+   * including cleaning tails on those beds (Variant б).
    */
   async assertRoomHasNoBookedBeds(
     roomId: string,
@@ -233,18 +265,24 @@ export class AvailabilityService {
     tx: TxClient,
     options?: { excludeBookingId?: string },
   ): Promise<void> {
+    const bufferMinutes = this.cleaningBufferMinutes;
     const staysByRoom = await this.loadActiveStaysByRoom(
       [roomId],
       checkIn,
       checkOut,
       tx,
-      options,
+      { ...options, bufferMinutes },
     );
     const stays = staysByRoom.get(roomId) ?? [];
-    const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+    const maxOccupied = maxOccupiedOverStay(
+      checkIn,
+      checkOut,
+      stays,
+      bufferMinutes,
+    );
     if (maxOccupied > 0) {
       throw new ConflictException(
-        'нельзя закрыть номер: на эти даты уже есть брони',
+        'нельзя закрыть номер: на эти дату и время уже есть брони',
       );
     }
   }
@@ -326,8 +364,12 @@ export class AvailabilityService {
     options?: { excludeBookingId?: string },
   ): Promise<Array<RoomWithPrice & { remainingBeds: number }>> {
     const roomIds = bookable.map((r) => r.id);
+    const bufferMinutes = this.cleaningBufferMinutes;
     const [staysByRoom, lockedIds] = await Promise.all([
-      this.loadActiveStaysByRoom(roomIds, checkIn, checkOut, this.prisma, options),
+      this.loadActiveStaysByRoom(roomIds, checkIn, checkOut, this.prisma, {
+        ...options,
+        bufferMinutes,
+      }),
       this.findLockedRoomIds(checkIn, checkOut, this.prisma, { roomIds }),
     ]);
 
@@ -335,7 +377,12 @@ export class AvailabilityService {
     for (const room of bookable) {
       const locked = lockedIds.has(room.id);
       const stays = staysByRoom.get(room.id) ?? [];
-      const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+      const maxOccupied = maxOccupiedOverStay(
+        checkIn,
+        checkOut,
+        stays,
+        bufferMinutes,
+      );
       const rem = remainingBeds(room.capacity, maxOccupied, locked);
       if (guests != null && rem < guests) {
         continue;
@@ -399,6 +446,11 @@ export class AvailabilityService {
     return {
       checkIn: stay.checkInStr,
       checkOut: stay.checkOutStr,
+      checkInTime: stay.checkInTime,
+      checkOutTime: stay.checkOutTime,
+      checkInAt: stay.checkIn.toISOString(),
+      checkOutAt: stay.checkOut.toISOString(),
+      cleaningBufferMinutes: this.cleaningBufferMinutes,
       nights: stay.nights,
       categories: categoryViews,
     };
@@ -444,6 +496,11 @@ export class AvailabilityService {
     return {
       checkIn: stay.checkInStr,
       checkOut: stay.checkOutStr,
+      checkInTime: stay.checkInTime,
+      checkOutTime: stay.checkOutTime,
+      checkInAt: stay.checkIn.toISOString(),
+      checkOutAt: stay.checkOut.toISOString(),
+      cleaningBufferMinutes: this.cleaningBufferMinutes,
       nights: stay.nights,
       categories: categoryViews,
     };

@@ -1,17 +1,15 @@
 /**
- * Bed-mode concurrency gate (§4):
+ * Bed-mode concurrency gate (HOURLY.md §4 / Phase 2):
  * Room capacity 7, 2 beds already taken; 20 parallel bookings each request 5 beds
- * → exactly 1 success, 19 × 409; no night exceeds capacity 7.
+ * → exactly 1 success, 19 × 409; no instant exceeds capacity 7 (with cleaning buffer).
  *
  * Requires PostgreSQL (DATABASE_URL) with seeded inventory.
  */
 import { INestApplication } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 import request from 'supertest';
-import {
-  bedsOccupiedOnNight,
-  enumerateNights,
-} from '../src/availability/occupancy';
+import { maxOccupiedOverStay } from '../src/availability/occupancy';
+import { parseLocalDateTime } from '../src/common/utils/datetime';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { createE2eApp } from './e2e-app';
 
@@ -23,9 +21,13 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
 
   const checkIn = '2030-06-01';
   const checkOut = '2030-06-05';
+  // Stays are TIMESTAMPTZ; the API applies the default local times to these dates.
+  const checkInAt = parseLocalDateTime(checkIn, '14:00');
+  const checkOutAt = parseLocalDateTime(checkOut, '12:00');
   const capacity = 7;
   const seedBeds = 2;
   const requestBeds = 5;
+  const bufferMinutes = 60;
 
   beforeAll(async () => {
     app = await createE2eApp();
@@ -40,8 +42,8 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
     const conflicting = await prisma.bookingRoom.findMany({
       where: {
         roomId,
-        checkIn: { lt: new Date(checkOut) },
-        checkOut: { gt: new Date(checkIn) },
+        checkIn: { lt: checkOutAt },
+        checkOut: { gt: checkInAt },
       },
       select: { bookingId: true },
     });
@@ -62,8 +64,8 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
     await prisma.roomLock.deleteMany({
       where: {
         roomId,
-        checkIn: { lt: new Date(checkOut) },
-        checkOut: { gt: new Date(checkIn) },
+        checkIn: { lt: checkOutAt },
+        checkOut: { gt: checkInAt },
       },
     });
   }
@@ -103,8 +105,8 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
       data: {
         publicCode: seedCode,
         customerId: customer.id,
-        checkIn: new Date(checkIn),
-        checkOut: new Date(checkOut),
+        checkIn: checkInAt,
+        checkOut: checkOutAt,
         bedsTotal: seedBeds,
         priceOriginal: '100.00',
         totalAmount: '100.00',
@@ -116,8 +118,8 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
           create: {
             roomId: room!.id,
             bedsBooked: seedBeds,
-            checkIn: new Date(checkIn),
-            checkOut: new Date(checkOut),
+            checkIn: checkInAt,
+            checkOut: checkOutAt,
             isActive: true,
           },
         },
@@ -171,8 +173,8 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
       where: {
         roomId: room!.id,
         isActive: true,
-        checkIn: { lt: new Date(checkOut) },
-        checkOut: { gt: new Date(checkIn) },
+        checkIn: { lt: checkOutAt },
+        checkOut: { gt: checkInAt },
       },
       include: { booking: true },
     });
@@ -199,17 +201,14 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
     expect(totalBeds).toBe(seedBeds + requestBeds);
     expect(totalBeds).toBeLessThanOrEqual(capacity);
 
-    // No night over capacity
+    // No instant over capacity (effective intervals incl. cleaning buffer)
     const stays = occupying.map((r) => ({
       checkIn: r.checkIn,
       checkOut: r.checkOut,
       beds: r.bedsBooked,
     }));
-    for (const night of enumerateNights(
-      new Date(checkIn),
-      new Date(checkOut),
-    )) {
-      expect(bedsOccupiedOnNight(night, stays)).toBeLessThanOrEqual(capacity);
-    }
+    expect(
+      maxOccupiedOverStay(checkInAt, checkOutAt, stays, bufferMinutes),
+    ).toBeLessThanOrEqual(capacity);
   });
 });

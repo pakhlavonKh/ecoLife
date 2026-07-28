@@ -46,6 +46,17 @@ describe('nightsBetween', () => {
   it('counts half-open nights', () => {
     expect(nightsBetween(parseIsoDate('2026-08-01'), parseIsoDate('2026-08-03'))).toBe(2);
   });
+
+  it('charges same-day day-use as 1 night (HOURLY.md §5)', () => {
+    const stay = validateStayDates('2026-08-05', '2026-08-05', {
+      today: parseIsoDate('2026-07-24'),
+      checkInTime: '09:00',
+      checkOutTime: '20:00',
+    });
+    expect(stay.nights).toBe(1);
+    expect(stay.checkInTime).toBe('09:00');
+    expect(stay.checkOutTime).toBe('20:00');
+  });
 });
 
 describe('validateStayDates', () => {
@@ -57,9 +68,13 @@ describe('validateStayDates', () => {
     ).toThrow(/past/i);
   });
 
-  it('rejects check_in >= check_out', () => {
+  it('rejects check_in >= check_out by instant', () => {
     expect(() =>
-      validateStayDates('2026-08-01', '2026-08-01', { today }),
+      validateStayDates('2026-08-01', '2026-08-01', {
+        today,
+        checkInTime: '14:00',
+        checkOutTime: '14:00',
+      }),
     ).toThrow(/before/i);
   });
 

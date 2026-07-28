@@ -16,11 +16,14 @@ import {
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AvailabilityService, BEDS_UNAVAILABLE_MESSAGE } from '../availability/availability.service';
+import { validateStayDates } from '../common/utils/dates';
 import {
-  formatIsoDate,
-  parseIsoDate,
-  validateStayDates,
-} from '../common/utils/dates';
+  addLocalDays,
+  formatLocalDate,
+  formatLocalTime,
+  MS_PER_DAY,
+  parseLocalDateTime,
+} from '../common/utils/datetime';
 import { formatGuestName } from '../common/utils/guest-name';
 import {
   calcDepositAmount,
@@ -406,15 +409,15 @@ export class BookingsService {
 
     if (filters?.dateFrom || filters?.dateTo) {
       const from = filters.dateFrom
-        ? parseIsoDate(filters.dateFrom, 'dateFrom')
+        ? parseLocalDateTime(filters.dateFrom, undefined, 'dateFrom')
         : undefined;
-      const to = filters.dateTo
-        ? parseIsoDate(filters.dateTo, 'dateTo')
+      // Inclusive calendar range [from, to] → exclusive instant after the `to` day.
+      const toExclusive = filters.dateTo
+        ? addLocalDays(parseLocalDateTime(filters.dateTo, undefined, 'dateTo'), 1)
         : undefined;
-      // Overlap with inclusive calendar range [from, to].
       where.AND = [
         ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-        ...(to ? [{ checkIn: { lte: to } }] : []),
+        ...(toExclusive ? [{ checkIn: { lt: toExclusive } }] : []),
         ...(from ? [{ checkOut: { gt: from } }] : []),
       ];
     }
@@ -685,8 +688,10 @@ export class BookingsService {
             roomNumber: currentRoom.room.number,
             cottageName: currentRoom.room.cottage.name,
             category: currentRoom.room.category.name,
-            checkIn: formatIsoDate(booking.checkIn),
-            checkOut: formatIsoDate(booking.checkOut),
+            checkIn: formatLocalDate(booking.checkIn),
+            checkOut: formatLocalDate(booking.checkOut),
+            checkInTime: formatLocalTime(booking.checkIn),
+            checkOutTime: formatLocalTime(booking.checkOut),
             notes: booking.notes ?? '',
             priceOriginal: decimalToString(booking.priceOriginal),
             totalAmount: decimalToString(booking.totalAmount),
@@ -708,12 +713,15 @@ export class BookingsService {
             }
           }
 
-          const checkInStr = dto.checkIn ?? formatIsoDate(booking.checkIn);
-          const checkOutStr = dto.checkOut ?? formatIsoDate(booking.checkOut);
+          const checkInStr = dto.checkIn ?? before.checkIn;
+          const checkOutStr = dto.checkOut ?? before.checkOut;
+          // Editing only the dates must not silently reset the booking's times.
           const stay = validateStayDates(checkInStr, checkOutStr, {
             minNights: Number(this.config.get('MIN_STAY_NIGHTS') ?? 1),
             maxNights: Number(this.config.get('MAX_STAY_NIGHTS') ?? 30),
             allowPast: true,
+            checkInTime: before.checkInTime,
+            checkOutTime: before.checkOutTime,
           });
 
           const roomId = dto.roomId ?? currentRoom.roomId;
@@ -872,6 +880,8 @@ export class BookingsService {
             category: room.category.name,
             checkIn: stay.checkInStr,
             checkOut: stay.checkOutStr,
+            checkInTime: stay.checkInTime,
+            checkOutTime: stay.checkOutTime,
             notes: after.notes ?? '',
             priceOriginal: decimalToString(priceOriginal),
             totalAmount: decimalToString(totalAmount),
@@ -931,15 +941,13 @@ export class BookingsService {
   }
 
   async getCalendar(fromStr: string, toStr: string) {
-    const from = parseIsoDate(fromStr, 'from');
-    const to = parseIsoDate(toStr, 'to');
+    const from = parseLocalDateTime(fromStr, undefined, 'from');
+    const to = parseLocalDateTime(toStr, undefined, 'to');
     if (!(from.getTime() < to.getTime())) {
       throw new BadRequestException('from must be before to');
     }
     const maxDays = 62;
-    const days = Math.round(
-      (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000),
-    );
+    const days = Math.round((to.getTime() - from.getTime()) / MS_PER_DAY);
     if (days > maxDays) {
       throw new BadRequestException(`Calendar range must be ≤ ${maxDays} days`);
     }
@@ -982,6 +990,10 @@ export class BookingsService {
       paymentStatus: PaymentStatus;
       checkIn: string;
       checkOut: string;
+      checkInTime: string;
+      checkOutTime: string;
+      checkInAt: string;
+      checkOutAt: string;
       customerName: string;
       roomId: string;
       roomNumber: string;
@@ -995,8 +1007,12 @@ export class BookingsService {
           publicCode: b.publicCode,
           status: b.status,
           paymentStatus: b.paymentStatus,
-          checkIn: formatIsoDate(br.checkIn),
-          checkOut: formatIsoDate(br.checkOut),
+          checkIn: formatLocalDate(br.checkIn),
+          checkOut: formatLocalDate(br.checkOut),
+          checkInTime: formatLocalTime(br.checkIn),
+          checkOutTime: formatLocalTime(br.checkOut),
+          checkInAt: br.checkIn.toISOString(),
+          checkOutAt: br.checkOut.toISOString(),
           customerName: formatGuestName(
             b.customer.firstName,
             b.customer.lastName,
@@ -1009,8 +1025,9 @@ export class BookingsService {
     }
 
     return {
-      from: formatIsoDate(from),
-      to: formatIsoDate(to),
+      from: formatLocalDate(from),
+      to: formatLocalDate(to),
+      cleaningBufferMinutes: this.availability.cleaningBufferMinutes,
       rooms: rooms.map((r) => ({
         id: r.id,
         number: r.number,
@@ -1025,8 +1042,12 @@ export class BookingsService {
         roomId: lock.roomId,
         roomNumber: lock.room.number,
         bookingId: lock.bookingId,
-        checkIn: formatIsoDate(lock.checkIn),
-        checkOut: formatIsoDate(lock.checkOut),
+        checkIn: formatLocalDate(lock.checkIn),
+        checkOut: formatLocalDate(lock.checkOut),
+        checkInTime: formatLocalTime(lock.checkIn),
+        checkOutTime: formatLocalTime(lock.checkOut),
+        checkInAt: lock.checkIn.toISOString(),
+        checkOutAt: lock.checkOut.toISOString(),
         reason: lock.reason,
       })),
     };
@@ -1228,8 +1249,10 @@ export class BookingsService {
         bedsBooked: br.bedsBooked,
       })),
       bedsTotal: booking.bedsTotal,
-      checkIn: booking.checkIn.toISOString().slice(0, 10),
-      checkOut: booking.checkOut.toISOString().slice(0, 10),
+      checkIn: formatLocalDate(booking.checkIn),
+      checkOut: formatLocalDate(booking.checkOut),
+      checkInTime: formatLocalTime(booking.checkIn),
+      checkOutTime: formatLocalTime(booking.checkOut),
       priceOriginal: decimalToString(booking.priceOriginal),
       totalAmount: decimalToString(booking.totalAmount),
       depositAmount: decimalToString(booking.depositAmount),
@@ -1305,8 +1328,12 @@ export class BookingsService {
     return {
       id: booking.id,
       publicCode: booking.publicCode,
-      checkIn: booking.checkIn.toISOString().slice(0, 10),
-      checkOut: booking.checkOut.toISOString().slice(0, 10),
+      checkIn: formatLocalDate(booking.checkIn),
+      checkOut: formatLocalDate(booking.checkOut),
+      checkInTime: formatLocalTime(booking.checkIn),
+      checkOutTime: formatLocalTime(booking.checkOut),
+      checkInAt: booking.checkIn.toISOString(),
+      checkOutAt: booking.checkOut.toISOString(),
       bedsTotal: booking.bedsTotal,
       priceOriginal: decimalToString(booking.priceOriginal),
       totalAmount: decimalToString(booking.totalAmount),

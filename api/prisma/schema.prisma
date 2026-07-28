@@ -206,8 +206,10 @@ model Booking {
   id               String          @id @default(uuid()) @db.Uuid
   publicCode       String          @unique @map("public_code")
   customerId       String          @map("customer_id") @db.Uuid
-  checkIn          DateTime        @map("check_in") @db.Date
-  checkOut         DateTime        @map("check_out") @db.Date
+  /// Absolute check-in instant; the guest's local time lives in APP_TIME_ZONE.
+  checkIn          DateTime        @map("check_in") @db.Timestamptz(6)
+  /// Absolute check-out instant. Stay is half-open [check_in, check_out).
+  checkOut         DateTime        @map("check_out") @db.Timestamptz(6)
   bedsTotal        Int             @map("beds_total")
   priceOriginal    Decimal         @map("price_original") @db.Decimal(14, 2)
   totalAmount      Decimal         @map("total_amount") @db.Decimal(14, 2)
@@ -239,12 +241,13 @@ model BookingRoom {
   bookingId  String   @map("booking_id") @db.Uuid
   roomId     String   @map("room_id") @db.Uuid
   bedsBooked Int      @map("beds_booked")
-  checkIn    DateTime @map("check_in") @db.Date
-  checkOut   DateTime @map("check_out") @db.Date
+  checkIn    DateTime @map("check_in") @db.Timestamptz(6)
+  checkOut   DateTime @map("check_out") @db.Timestamptz(6)
   isActive   Boolean  @default(true) @map("is_active")
-  /// Generated daterange [check_in, check_out). Room-level exclusion dropped (bed mode);
-  /// anti-overbooking is app-level + room_locks (Phase 2).
-  stay       Unsupported("daterange")?
+  /// Generated tstzrange [check_in, check_out) — the guest's stay, WITHOUT the cleaning
+  /// buffer (the buffer is applied in availability logic, never persisted).
+  /// Room-level exclusion dropped (bed mode); anti-overbooking is app-level + room_locks.
+  stay       Unsupported("tstzrange")?
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   room    Room    @relation(fields: [roomId], references: [id], onDelete: Restrict)
@@ -259,13 +262,13 @@ model RoomLock {
   roomId    String   @map("room_id") @db.Uuid
   /// Optional link to the booking that caused the lock (backfill / admin).
   bookingId String?  @map("booking_id") @db.Uuid
-  checkIn   DateTime @map("check_in") @db.Date
-  checkOut  DateTime @map("check_out") @db.Date
+  checkIn   DateTime @map("check_in") @db.Timestamptz(6)
+  checkOut  DateTime @map("check_out") @db.Timestamptz(6)
   reason    String?
   createdById String? @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  /// Generated daterange [check_in, check_out) — exclusion in SQL migration.
-  stay      Unsupported("daterange")?
+  /// Generated tstzrange [check_in, check_out) — exclusion in SQL migration.
+  stay      Unsupported("tstzrange")?
 
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
   booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)

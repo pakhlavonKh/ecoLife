@@ -7,8 +7,12 @@ export type RoomLockCreatedPayload = {
   roomId: string;
   roomNumber: string;
   cottageName: string;
+  /** Local calendar date, YYYY-MM-DD. */
   checkIn: string;
   checkOut: string;
+  /** Local wall-clock time, HH:mm. */
+  checkInTime: string;
+  checkOutTime: string;
   reason: string | null;
   bookingId: string | null;
 };

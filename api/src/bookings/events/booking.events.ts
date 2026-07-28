@@ -22,8 +22,12 @@ export type BookingSnapshot = {
   phone: string;
   rooms: BookingRoomInfo[];
   bedsTotal: number;
+  /** Local calendar date, YYYY-MM-DD. */
   checkIn: string;
   checkOut: string;
+  /** Local wall-clock time, HH:mm. */
+  checkInTime: string;
+  checkOutTime: string;
   priceOriginal: string;
   totalAmount: string;
   depositAmount: string;

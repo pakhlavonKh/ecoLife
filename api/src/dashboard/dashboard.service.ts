@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { BookingStatus, PaymentRecordStatus } from '@prisma/client';
-import { formatIsoDate, parseIsoDate } from '../common/utils/dates';
+import {
+  addLocalDays,
+  formatLocalDate,
+  formatLocalTime,
+  localParts,
+  parseLocalDateTime,
+  startOfLocalDay,
+  zonedTimeToUtc,
+} from '../common/utils/datetime';
 import { formatGuestName } from '../common/utils/guest-name';
 import { decimalToString } from '../common/utils/money';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,15 +18,19 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getStats(periodFrom?: string, periodTo?: string) {
-    const today = parseIsoDate(formatIsoDate(new Date()));
-    const from = periodFrom
-      ? parseIsoDate(periodFrom, 'from')
-      : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-    const to = periodTo
-      ? parseIsoDate(periodTo, 'to')
-      : today;
+    // Stay boundaries are instants now, so "today" is a local day window, not one date.
+    const dayStart = startOfLocalDay(new Date());
+    const dayEnd = addLocalDays(dayStart, 1);
+    const nowParts = localParts(dayStart);
 
-    const toExclusive = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+    const from = periodFrom
+      ? parseLocalDateTime(periodFrom, undefined, 'from')
+      : zonedTimeToUtc(nowParts.year, nowParts.month, 1);
+    const to = periodTo
+      ? parseLocalDateTime(periodTo, undefined, 'to')
+      : dayStart;
+
+    const toExclusive = addLocalDays(to, 1);
 
     const [
       arrivals,
@@ -33,7 +45,7 @@ export class DashboardService {
     ] = await Promise.all([
       this.prisma.booking.count({
         where: {
-          checkIn: today,
+          checkIn: { gte: dayStart, lt: dayEnd },
           status: {
             in: [
               BookingStatus.deposit_paid,
@@ -45,7 +57,7 @@ export class DashboardService {
       }),
       this.prisma.booking.count({
         where: {
-          checkOut: today,
+          checkOut: { gte: dayStart, lt: dayEnd },
           status: {
             in: [BookingStatus.checked_in, BookingStatus.checked_out],
           },
@@ -56,7 +68,7 @@ export class DashboardService {
       }),
       this.prisma.booking.count({
         where: {
-          checkIn: { gt: today },
+          checkIn: { gte: dayEnd },
           status: {
             in: [
               BookingStatus.pending_payment,
@@ -83,8 +95,8 @@ export class DashboardService {
       this.prisma.bookingRoom.findMany({
         where: {
           isActive: true,
-          checkIn: { lte: today },
-          checkOut: { gt: today },
+          checkIn: { lt: dayEnd },
+          checkOut: { gt: dayStart },
           booking: {
             status: {
               in: [
@@ -118,7 +130,7 @@ export class DashboardService {
 
     const todayArrivals = await this.prisma.booking.findMany({
       where: {
-        checkIn: today,
+        checkIn: { gte: dayStart, lt: dayEnd },
         status: {
           in: [
             BookingStatus.deposit_paid,
@@ -139,7 +151,7 @@ export class DashboardService {
 
     const todayDepartures = await this.prisma.booking.findMany({
       where: {
-        checkOut: today,
+        checkOut: { gte: dayStart, lt: dayEnd },
         status: {
           in: [BookingStatus.checked_in, BookingStatus.checked_out],
         },
@@ -168,15 +180,19 @@ export class DashboardService {
       rooms: b.bookingRooms.map(
         (br) => `${br.room.cottage.name} / ${br.room.number}`,
       ),
-      checkIn: b.checkIn.toISOString().slice(0, 10),
-      checkOut: b.checkOut.toISOString().slice(0, 10),
+      checkIn: formatLocalDate(b.checkIn),
+      checkOut: formatLocalDate(b.checkOut),
+      checkInTime: formatLocalTime(b.checkIn),
+      checkOutTime: formatLocalTime(b.checkOut),
+      checkInAt: b.checkIn.toISOString(),
+      checkOutAt: b.checkOut.toISOString(),
     });
 
     return {
-      today: formatIsoDate(today),
+      today: formatLocalDate(dayStart),
       period: {
-        from: formatIsoDate(from),
-        to: formatIsoDate(to),
+        from: formatLocalDate(from),
+        to: formatLocalDate(to),
       },
       arrivalsToday: arrivals,
       departuresToday: departures,

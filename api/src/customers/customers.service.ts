@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { ActorType, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import {
+  formatLocalDate,
+  formatLocalTime,
+} from '../common/utils/datetime';
 import { decimalToString } from '../common/utils/money';
 import { normalizePhoneE164 } from '../common/utils/phone';
 import { PrismaService } from '../prisma/prisma.service';
@@ -79,8 +83,10 @@ export class CustomersService {
       bookings: customer.bookings.map((b) => ({
         id: b.id,
         publicCode: b.publicCode,
-        checkIn: b.checkIn.toISOString().slice(0, 10),
-        checkOut: b.checkOut.toISOString().slice(0, 10),
+        checkIn: formatLocalDate(b.checkIn),
+        checkOut: formatLocalDate(b.checkOut),
+        checkInTime: formatLocalTime(b.checkIn),
+        checkOutTime: formatLocalTime(b.checkOut),
         status: b.status,
         paymentStatus: b.paymentStatus,
         totalAmount: decimalToString(b.totalAmount),
