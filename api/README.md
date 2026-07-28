@@ -126,4 +126,4 @@ After seed you should see:
 - STANDART: 23 rooms / 65 beds
 - Total beds: 215
 
-Price tiers are seeded with placeholder amounts (`1000000.00` UZS) — edit via `PUT /api/v1/admin/price-tiers`.
+Price tiers: **lux = 800 000 UZS/night**, **standart = 600 000 UZS/night** (all capacities). Editable via `PUT /api/v1/admin/price-tiers`.

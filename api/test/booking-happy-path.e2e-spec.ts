@@ -20,11 +20,11 @@ describe('Booking happy path (Phase 9)', () => {
 
   const checkIn = '2031-03-01';
   const checkOut = '2031-03-03';
-  /** Seed placeholder: standart × capacity 2 = 1_000_000 UZS / night × 2 nights */
-  const expectedTotal = '2000000.00';
+  /** Seed: standart × capacity 2 = 600_000 UZS / night × 2 nights */
+  const expectedTotal = '1200000.00';
   /** deposit_percent = 30 for standart */
-  const expectedDeposit = '600000.00';
-  const expectedRemaining = '1400000.00';
+  const expectedDeposit = '360000.00';
+  const expectedRemaining = '840000.00';
 
   beforeAll(async () => {
     app = await createE2eApp();

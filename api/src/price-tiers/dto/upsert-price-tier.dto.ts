@@ -16,7 +16,7 @@ export class UpsertPriceTierDto {
   @Min(1)
   capacity!: number;
 
-  @ApiProperty({ example: '1500000.00' })
+  @ApiProperty({ example: '600000.00' })
   @IsNumberString()
   pricePerNight!: string;
 }

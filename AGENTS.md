@@ -77,19 +77,19 @@ Categories (CONFIRMED):
 - `lux` — name "Люкс", **deposit_percent = 50**
 - `standart` — name "Стандарт", **deposit_percent = 30**
 
-Price tiers to seed (one row per category × capacity found in inventory; amounts in UZS,
-placeholders ⚠️ must be replaced with real prices before go-live — editable in admin anyway):
+Price tiers to seed (one row per category × capacity found in inventory; amounts in UZS.
+Confirmed: lux = **800000**, standart = **600000** for all capacities — editable in admin):
 
 | Category | Capacity | price_per_night |
 |----------|----------|-----------------|
-| lux      | 4        | ⚠️PLACEHOLDER   |
-| lux      | 7        | ⚠️PLACEHOLDER   |
-| lux      | 9        | ⚠️PLACEHOLDER   |
-| lux      | 10       | ⚠️PLACEHOLDER   |
-| lux      | 12       | ⚠️PLACEHOLDER   |
-| standart | 2        | ⚠️PLACEHOLDER   |
-| standart | 7        | ⚠️PLACEHOLDER   |
-| standart | 9        | ⚠️PLACEHOLDER   |
+| lux      | 4        | 800000          |
+| lux      | 7        | 800000          |
+| lux      | 9        | 800000          |
+| lux      | 10       | 800000          |
+| lux      | 12       | 800000          |
+| standart | 2        | 600000          |
+| standart | 7        | 600000          |
+| standart | 9        | 600000          |
 
 | Cottage            | Room | Capacity (beds) | Category |
 |--------------------|------|-----------------|----------|
@@ -317,8 +317,7 @@ CONFIRMED:
 6. **Room 406 exists**: Payshanba kottej, 2 kishi, standart (included in seed).
 
 STILL OPEN — fill in when known (⚠️):
-7. **Real prices** for the 8 tiers in §4.1 (until then seed placeholders; admin can set them,
-   but rooms without a resolved price must be non-bookable). → ⚠️
+7. **Real prices** for the 8 tiers in §4.1: lux = **800000** UZS/night, standart = **600000** UZS/night (all capacities). → ✅
 8. **Existing frontend stack** (plain HTML / React / Next / other) → Phase 0 audit will detect,
    but confirm if known.
 9. Public site languages (ru / uz / both); currency = UZS assumed. → ⚠️

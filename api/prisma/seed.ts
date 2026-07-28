@@ -65,8 +65,9 @@ const ALL_STAFF_ROLES: TelegramStaffRole[] = [
   TelegramStaffRole.cleaner,
 ];
 
-/** Obvious placeholder UZS amounts — replace via admin before go-live. */
-const PLACEHOLDER_PRICE = '1000000.00';
+/** Real category prices (UZS per night) — same for all capacities in the category. */
+const LUX_PRICE = '800000.00';
+const STANDART_PRICE = '600000.00';
 
 type RoomSeed = {
   number: string;
@@ -160,15 +161,19 @@ const INVENTORY: CottageSeed[] = [
   },
 ];
 
-const PRICE_TIERS: Array<{ category: 'lux' | 'standart'; capacity: number }> = [
-  { category: 'lux', capacity: 4 },
-  { category: 'lux', capacity: 7 },
-  { category: 'lux', capacity: 9 },
-  { category: 'lux', capacity: 10 },
-  { category: 'lux', capacity: 12 },
-  { category: 'standart', capacity: 2 },
-  { category: 'standart', capacity: 7 },
-  { category: 'standart', capacity: 9 },
+const PRICE_TIERS: Array<{
+  category: 'lux' | 'standart';
+  capacity: number;
+  pricePerNight: string;
+}> = [
+  { category: 'lux', capacity: 4, pricePerNight: LUX_PRICE },
+  { category: 'lux', capacity: 7, pricePerNight: LUX_PRICE },
+  { category: 'lux', capacity: 9, pricePerNight: LUX_PRICE },
+  { category: 'lux', capacity: 10, pricePerNight: LUX_PRICE },
+  { category: 'lux', capacity: 12, pricePerNight: LUX_PRICE },
+  { category: 'standart', capacity: 2, pricePerNight: STANDART_PRICE },
+  { category: 'standart', capacity: 7, pricePerNight: STANDART_PRICE },
+  { category: 'standart', capacity: 9, pricePerNight: STANDART_PRICE },
 ];
 
 const EXPECTED = {
@@ -277,18 +282,18 @@ async function seedPriceTiers(categories: {
         },
       },
       update: {
-        pricePerNight: PLACEHOLDER_PRICE,
+        pricePerNight: tier.pricePerNight,
       },
       create: {
         categoryId,
         capacity: tier.capacity,
-        pricePerNight: PLACEHOLDER_PRICE,
+        pricePerNight: tier.pricePerNight,
       },
     });
   }
 
   console.log(
-    `Price tiers: ${PRICE_TIERS.length} rows (placeholder ${PLACEHOLDER_PRICE} UZS each)`,
+    `Price tiers: ${PRICE_TIERS.length} rows (lux ${LUX_PRICE}, standart ${STANDART_PRICE} UZS/night)`,
   );
 }
 

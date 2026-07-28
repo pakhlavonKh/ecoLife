@@ -16,7 +16,7 @@ export class CreatePriceTierDto {
   @Min(1)
   capacity!: number;
 
-  @ApiProperty({ example: '1500000.00', description: 'UZS per night' })
+  @ApiProperty({ example: '800000.00', description: 'UZS per night' })
   @IsNumberString()
   pricePerNight!: string;
 }
