@@ -51,6 +51,28 @@ export class UpdateBookingDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   checkOut?: string;
 
+  @ApiPropertyOptional({
+    example: '14:00',
+    description: 'Local check-in time HH:mm',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'checkInTime must be HH:mm',
+  })
+  checkInTime?: string;
+
+  @ApiPropertyOptional({
+    example: '12:00',
+    description: 'Local check-out time HH:mm',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'checkOutTime must be HH:mm',
+  })
+  checkOutTime?: string;
+
   @ApiPropertyOptional({ minimum: 1 })
   @IsOptional()
   @Type(() => Number)

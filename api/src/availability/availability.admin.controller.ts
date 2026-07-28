@@ -30,7 +30,11 @@ export class AvailabilityAdminController {
     return this.availabilityService.getAdminAvailability(
       query.check_in,
       query.check_out,
-      { excludeBookingId: query.exclude_booking_id },
+      {
+        excludeBookingId: query.exclude_booking_id,
+        checkInTime: query.check_in_time,
+        checkOutTime: query.check_out_time,
+      },
     );
   }
 }

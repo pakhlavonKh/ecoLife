@@ -102,7 +102,10 @@ export class RoomLocksService {
     dto: CreateRoomLockDto,
     actor: { type: ActorType; id: string },
   ) {
-    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
+    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut, {
+      checkInTime: dto.checkInTime,
+      checkOutTime: dto.checkOutTime,
+    });
 
     try {
       const lock = await this.prisma.$transaction(

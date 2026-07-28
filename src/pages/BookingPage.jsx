@@ -5,12 +5,16 @@ import { fetchCategories } from '../api/categories';
 import { getErrorMessage } from '../api/client';
 import BookingModal from '../components/BookingModal';
 import DateField from '../components/DateField';
+import TimeField from '../components/TimeField';
 import {
+  billedNights,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
   defaultCheckIn,
   defaultCheckOut,
   fallbackCategories,
   formatMoney,
-  nightsBetween,
+  isValidStay,
   normalizeCategories,
   todayStr,
 } from '../utils/booking';
@@ -35,6 +39,8 @@ function BookingPage() {
   const [categories, setCategories] = useState(() => fallbackCategories());
   const [checkIn, setCheckIn] = useState(defaultCheckIn);
   const [checkOut, setCheckOut] = useState(defaultCheckOut);
+  const [checkInTime, setCheckInTime] = useState(DEFAULT_CHECK_IN_TIME);
+  const [checkOutTime, setCheckOutTime] = useState(DEFAULT_CHECK_OUT_TIME);
   const [availability, setAvailability] = useState(null);
   const [loadingCats, setLoadingCats] = useState(true);
   const [loadingAvail, setLoadingAvail] = useState(false);
@@ -48,9 +54,10 @@ function BookingPage() {
       : 'ru-RU';
 
   const nights = useMemo(() => {
+    if (!isValidStay(checkIn, checkOut, checkInTime, checkOutTime)) return 0;
     if (availability?.nights != null) return Number(availability.nights);
-    return nightsBetween(checkIn, checkOut);
-  }, [availability, checkIn, checkOut]);
+    return billedNights(checkIn, checkOut);
+  }, [availability, checkIn, checkOut, checkInTime, checkOutTime]);
 
   const availByCode = useMemo(() => {
     const map = {};
@@ -86,13 +93,18 @@ function BookingPage() {
 
   const loadAvailability = useCallback(async () => {
     if (!checkIn || !checkOut) return;
-    if (nightsBetween(checkIn, checkOut) < 1) {
+    if (!isValidStay(checkIn, checkOut, checkInTime, checkOutTime)) {
       setAvailability(null);
       return;
     }
     setLoadingAvail(true);
     try {
-      const data = await fetchAvailability({ checkIn, checkOut });
+      const data = await fetchAvailability({
+        checkIn,
+        checkOut,
+        checkInTime,
+        checkOutTime,
+      });
       setAvailability(data);
       setError('');
     } catch (err) {
@@ -101,7 +113,7 @@ function BookingPage() {
     } finally {
       setLoadingAvail(false);
     }
-  }, [checkIn, checkOut, t]);
+  }, [checkIn, checkOut, checkInTime, checkOutTime, t]);
 
   useEffect(() => {
     loadAvailability();
@@ -125,11 +137,15 @@ function BookingPage() {
                 min={todayStr()}
                 onChange={(next) => {
                   setCheckIn(next);
-                  if (checkOut && checkOut <= next) {
+                  if (checkOut && checkOut < next) {
                     setCheckOut('');
                   }
                 }}
               />
+            </label>
+            <label className="field">
+              <span>{t('bookingModal.checkInTime')}</span>
+              <TimeField value={checkInTime} onChange={setCheckInTime} />
             </label>
             <label className="field">
               <span>{t('check-out')}</span>
@@ -138,6 +154,10 @@ function BookingPage() {
                 min={checkIn || todayStr()}
                 onChange={setCheckOut}
               />
+            </label>
+            <label className="field">
+              <span>{t('bookingModal.checkOutTime')}</span>
+              <TimeField value={checkOutTime} onChange={setCheckOutTime} />
             </label>
           </div>
           <p className="booking-dates__meta">
@@ -256,6 +276,8 @@ function BookingPage() {
           category={modalCategory}
           initialCheckIn={checkIn}
           initialCheckOut={checkOut}
+          initialCheckInTime={checkInTime}
+          initialCheckOutTime={checkOutTime}
           onClose={() => {
             setModalCategory(null);
             loadAvailability();

@@ -26,6 +26,28 @@ export class AvailabilityQueryDto {
   check_out!: string;
 
   @ApiPropertyOptional({
+    example: '14:00',
+    description: 'Local check-in time HH:mm (default 14:00)',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'check_in_time must be HH:mm',
+  })
+  check_in_time?: string;
+
+  @ApiPropertyOptional({
+    example: '12:00',
+    description: 'Local check-out time HH:mm (default 12:00)',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'check_out_time must be HH:mm',
+  })
+  check_out_time?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter rooms by category code (lux | standart)',
   })
   @IsOptional()

@@ -78,7 +78,10 @@
     "bedsHint": "{{occupied}} / {{total}} мест",
     "revenuePeriod": "Выручка за период",
     "pendingPayments": "Ожидают оплаты",
-    "emptyList": "Нет записей"
+    "emptyList": "Нет записей",
+    "sortByTime": "По времени ({{dir}})",
+    "sortAsc": "раньше → позже",
+    "sortDesc": "позже → раньше"
   },
   "bookings": {
     "title": "Бронирования",
@@ -110,6 +113,7 @@
     "priceTotal": "Итого",
     "priceDeposit": "Депозит {{percent}}%",
     "priceRemaining": "Остаток",
+    "cleaningBufferHint": "Места заняты до {{until}} из-за уборки (+{{minutes}} мин после выезда)",
     "create": "Создать бронь",
     "creating": "Создание…"
   },
@@ -122,6 +126,7 @@
     "totalAmountHint": "Депозит уже оплачен: {{deposit}}. Остаток к доплате: {{remaining}}",
     "totalAmountHintUnpaid": "Депозит: {{deposit}}. Остаток: {{remaining}} (пересчитывается от итоговой суммы − оплачено)",
     "livePrice": "Расчёт: {{price}} × {{guests}} × {{nights}} ноч. = {{total}} (депозит {{percent}}% = {{deposit}})",
+    "cleaningBufferHint": "Места заняты до {{until}} из-за уборки (+{{minutes}} мин после выезда)",
     "priceResetNotice": "Состав брони изменился — ручная сумма сброшена: {{from}} → {{to}}. При необходимости торгуйтесь заново.",
     "roomOption": "{{number}} · {{cottage}} · осталось {{remaining}}/{{capacity}} · {{category}}",
     "saveChanges": "Сохранить изменения",
@@ -197,13 +202,16 @@
     "colRoom": "Номер",
     "roomMeta": "{{cottage}} · {{category}}",
     "capacityLabel": "{{capacity}} мест",
-    "segmentLabel": "{{beds}}/{{capacity}}",
+    "segmentLabel": "{{roomNumber}} · {{beds}}/{{capacity}} · {{checkInTime}}–{{checkOutTime}}",
     "segmentTitle": "{{code}} · {{customerName}} · {{beds}}/{{capacity}} · {{checkIn}}–{{checkOut}} · {{status}}",
     "occupiedHint": "{{occupied}}/{{capacity}} занято",
     "fullLockHint": "закрыт",
     "lockLabel": "лок",
     "lockTitle": "Закрыт {{checkIn}}–{{checkOut}} · {{reason}}",
+    "bufferLabel": "уборка",
+    "bufferTitle": "Уборка с {{from}} (+{{minutes}} мин) — места ещё заняты",
     "legendBooking": "Бронь (места)",
+    "legendBuffer": "Буфер уборки",
     "legendLock": "Лок целиком",
     "barLabel": "{{code}} {{customerName}}",
     "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}"

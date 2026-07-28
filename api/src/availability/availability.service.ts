@@ -15,10 +15,15 @@ import {
   type ValidatedStay,
 } from '../common/utils/dates';
 import { decimalToString } from '../common/utils/money';
-import { addMinutes } from '../common/utils/datetime';
+import {
+  addMinutes,
+  formatLocalDate,
+  formatLocalTime,
+} from '../common/utils/datetime';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   canAcceptGuests,
+  earliestFreeAt,
   hasOverlappingLock,
   maxOccupiedOverStay,
   remainingBeds,
@@ -28,17 +33,31 @@ import {
 export const BEDS_UNAVAILABLE_MESSAGE =
   'на эти дату и время в номере не осталось мест';
 
+export type AvailableFromHint = {
+  /** Absolute instant beds become free (ISO). */
+  at: string;
+  /** Local calendar date YYYY-MM-DD. */
+  date: string;
+  /** Local wall-clock HH:mm (after cleaning). */
+  time: string;
+};
+
 export type AvailableRoomView = {
   id: string;
   number: string;
   capacity: number;
-  /** Min free beds across nights in the requested stay (0 if locked). */
+  /** Free beds over the requested time window (0 if locked). */
   remainingBeds: number;
   categoryCode: string;
   cottageId: string;
   cottageName: string;
   /** Price per bed per night (UZS). */
   pricePerNight: string;
+  /**
+   * When remainingBeds < guests: earliest time those beds free up
+   * (checkout + cleaning). Counts only — never co-occupant identities.
+   */
+  availableFrom?: AvailableFromHint | null;
 };
 
 export type CategoryAvailabilityView = {
@@ -51,6 +70,11 @@ export type CategoryAvailabilityView = {
   availableRoomsCount: number;
   /** Present for admin responses, or when category_code+guests requested publicly. */
   availableRooms?: AvailableRoomView[];
+  /**
+   * Public only: rooms that cannot take `guests` at the requested start, but
+   * will free enough beds later (incl. cleaning). Guest sees times only.
+   */
+  alternatives?: AvailableRoomView[];
 };
 
 type RoomWithPrice = {
@@ -362,7 +386,14 @@ export class AvailabilityService {
     checkOut: Date,
     guests?: number,
     options?: { excludeBookingId?: string },
-  ): Promise<Array<RoomWithPrice & { remainingBeds: number }>> {
+  ): Promise<
+    Array<
+      RoomWithPrice & {
+        remainingBeds: number;
+        availableFrom: Date | null;
+      }
+    >
+  > {
     const roomIds = bookable.map((r) => r.id);
     const bufferMinutes = this.cleaningBufferMinutes;
     const [staysByRoom, lockedIds] = await Promise.all([
@@ -373,7 +404,9 @@ export class AvailabilityService {
       this.findLockedRoomIds(checkIn, checkOut, this.prisma, { roomIds }),
     ]);
 
-    const annotated: Array<RoomWithPrice & { remainingBeds: number }> = [];
+    const annotated: Array<
+      RoomWithPrice & { remainingBeds: number; availableFrom: Date | null }
+    > = [];
     for (const room of bookable) {
       const locked = lockedIds.has(room.id);
       const stays = staysByRoom.get(room.id) ?? [];
@@ -384,10 +417,23 @@ export class AvailabilityService {
         bufferMinutes,
       );
       const rem = remainingBeds(room.capacity, maxOccupied, locked);
+      let availableFrom: Date | null = null;
       if (guests != null && rem < guests) {
-        continue;
+        const freeAt = earliestFreeAt(
+          room.capacity,
+          guests,
+          checkIn,
+          stays,
+          bufferMinutes,
+          locked,
+        );
+        // Only surface a later start; "already free at checkIn" is contradictory
+        // when rem < guests (e.g. lock or stay length conflict).
+        if (freeAt && freeAt.getTime() > checkIn.getTime()) {
+          availableFrom = freeAt;
+        }
       }
-      annotated.push({ ...room, remainingBeds: rem });
+      annotated.push({ ...room, remainingBeds: rem, availableFrom });
     }
     return annotated;
   }
@@ -395,9 +441,17 @@ export class AvailabilityService {
   async getPublicAvailability(
     checkInStr: string,
     checkOutStr: string,
-    opts?: { categoryCode?: string; guests?: number },
+    opts?: {
+      categoryCode?: string;
+      guests?: number;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
   ) {
-    const stay = this.validateQuery(checkInStr, checkOutStr);
+    const stay = this.validateQuery(checkInStr, checkOutStr, {
+      checkInTime: opts?.checkInTime,
+      checkOutTime: opts?.checkOutTime,
+    });
 
     const categories = await this.prisma.roomCategory.findMany({
       where: { isActive: true },
@@ -418,6 +472,7 @@ export class AvailabilityService {
 
     const includeRooms =
       opts?.categoryCode != null && opts?.guests != null;
+    const guests = opts?.guests;
 
     const categoryViews: CategoryAvailabilityView[] = categories
       .filter((c) =>
@@ -429,16 +484,34 @@ export class AvailabilityService {
         const rooms = this.sortByCottageThenNumber(
           available.filter((r) => r.categoryCode === cat.code),
         );
+        const bookableNow =
+          guests != null
+            ? rooms.filter((r) => r.remainingBeds >= guests)
+            : rooms;
         const view: CategoryAvailabilityView = {
           id: cat.id,
           code: cat.code,
           name: cat.name,
           depositPercent: cat.depositPercent,
-          availableBeds: rooms.reduce((sum, r) => sum + r.remainingBeds, 0),
-          availableRoomsCount: rooms.length,
+          availableBeds: bookableNow.reduce(
+            (sum, r) => sum + r.remainingBeds,
+            0,
+          ),
+          availableRoomsCount: bookableNow.length,
         };
-        if (includeRooms) {
-          view.availableRooms = rooms.map((r) => this.toRoomView(r));
+        if (includeRooms && guests != null) {
+          view.availableRooms = bookableNow.map((r) => this.toRoomView(r));
+          const alts = rooms
+            .filter(
+              (r) =>
+                r.remainingBeds < guests && r.availableFrom != null,
+            )
+            .sort(
+              (a, b) =>
+                (a.availableFrom?.getTime() ?? 0) -
+                (b.availableFrom?.getTime() ?? 0),
+            );
+          view.alternatives = alts.map((r) => this.toRoomView(r));
         }
         return view;
       });
@@ -459,9 +532,16 @@ export class AvailabilityService {
   async getAdminAvailability(
     checkInStr: string,
     checkOutStr: string,
-    options?: { excludeBookingId?: string },
+    options?: {
+      excludeBookingId?: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
   ) {
-    const stay = this.validateQuery(checkInStr, checkOutStr);
+    const stay = this.validateQuery(checkInStr, checkOutStr, {
+      checkInTime: options?.checkInTime,
+      checkOutTime: options?.checkOutTime,
+    });
 
     const categories = await this.prisma.roomCategory.findMany({
       orderBy: { code: 'asc' },
@@ -514,8 +594,9 @@ export class AvailabilityService {
     checkOutStr: string,
     categoryCode: string,
     guests: number,
+    times?: { checkInTime?: string; checkOutTime?: string },
   ): Promise<AvailableRoomView[]> {
-    const stay = this.validateQuery(checkInStr, checkOutStr);
+    const stay = this.validateQuery(checkInStr, checkOutStr, times);
     const bookable = await this.resolveBookableRooms({
       categoryCode: categoryCode.toLowerCase(),
       minCapacity: guests,
@@ -526,9 +607,9 @@ export class AvailabilityService {
       stay.checkOut,
       guests,
     );
-    return this.sortByCottageThenNumber(available).map((r) =>
-      this.toRoomView(r),
-    );
+    return this.sortByCottageThenNumber(
+      available.filter((r) => r.remainingBeds >= guests),
+    ).map((r) => this.toRoomView(r));
   }
 
   /** @deprecated Prefer assertRoomAcceptsGuests — kept for lock overlap helpers. */
@@ -540,10 +621,21 @@ export class AvailabilityService {
     return hasOverlappingLock(checkIn, checkOut, locks);
   }
 
-  private toRoomView(
-    r: RoomWithPrice & { remainingBeds: number },
-  ): AvailableRoomView {
+  private toAvailableFromHint(at: Date): AvailableFromHint {
     return {
+      at: at.toISOString(),
+      date: formatLocalDate(at),
+      time: formatLocalTime(at),
+    };
+  }
+
+  private toRoomView(
+    r: RoomWithPrice & {
+      remainingBeds: number;
+      availableFrom?: Date | null;
+    },
+  ): AvailableRoomView {
+    const view: AvailableRoomView = {
       id: r.id,
       number: r.number,
       capacity: r.capacity,
@@ -553,5 +645,9 @@ export class AvailabilityService {
       cottageName: r.cottageName,
       pricePerNight: decimalToString(r.pricePerNight),
     };
+    if (r.availableFrom) {
+      view.availableFrom = this.toAvailableFromHint(r.availableFrom);
+    }
+    return view;
   }
 }

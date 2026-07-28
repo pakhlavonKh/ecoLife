@@ -20,6 +20,8 @@ export class AvailabilityController {
       {
         categoryCode: query.category_code,
         guests: query.guests,
+        checkInTime: query.check_in_time,
+        checkOutTime: query.check_out_time,
       },
     );
   }

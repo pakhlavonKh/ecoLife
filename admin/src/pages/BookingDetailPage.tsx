@@ -9,6 +9,7 @@ import {
 import { getErrorMessage } from '../api/client';
 import type { AvailableRoom, Booking, RoomLock } from '../api/types';
 import { DateField } from '../components/DateField';
+import { TimeField } from '../components/TimeField';
 import {
   Button,
   Card,
@@ -24,6 +25,9 @@ import {
 import {
   calcBedTotal,
   calcDeposit,
+  cleaningBlockedUntil,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
   formatDate,
   formatDateTime,
   formatMoney,
@@ -50,10 +54,11 @@ export function BookingDetailPage() {
   const [depositByCategory, setDepositByCategory] = useState<
     Record<string, number>
   >({});
+  const [bufferMinutes, setBufferMinutes] = useState(60);
   const [cashAmount, setCashAmount] = useState('');
   const [locks, setLocks] = useState<RoomLock[]>([]);
   const [lockReason, setLockReason] = useState('');
-  /** Snapshot of guests|checkIn|checkOut|roomId from last load — used to skip price sync until user edits inventory. */
+  /** Snapshot of guests|dates|times|roomId from last load — used to skip price sync until user edits inventory. */
   const inventoryBaseline = useRef('');
   /** Shown when a bargained total was wiped by guests/dates/room change. */
   const [priceResetNotice, setPriceResetNotice] = useState<{
@@ -66,6 +71,8 @@ export function BookingDetailPage() {
     phone: '',
     checkIn: '',
     checkOut: '',
+    checkInTime: DEFAULT_CHECK_IN_TIME,
+    checkOutTime: DEFAULT_CHECK_OUT_TIME,
     roomId: '',
     guests: 1,
     notes: '',
@@ -76,7 +83,9 @@ export function BookingDetailPage() {
     const { data } = await bookingsApi.get(id);
     const roomId = data.rooms[0]?.roomId ?? '';
     const guests = data.rooms[0]?.bedsBooked ?? data.bedsTotal;
-    inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${roomId}`;
+    const checkInTime = data.checkInTime || DEFAULT_CHECK_IN_TIME;
+    const checkOutTime = data.checkOutTime || DEFAULT_CHECK_OUT_TIME;
+    inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
     setPriceResetNotice(null);
     setBooking(data);
     setForm({
@@ -87,6 +96,8 @@ export function BookingDetailPage() {
       phone: data.customer.phone,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
+      checkInTime,
+      checkOutTime,
       roomId,
       guests,
       notes: data.notes ?? '',
@@ -144,7 +155,11 @@ export function BookingDetailPage() {
         const { data } = await availabilityApi.admin(
           form.checkIn,
           form.checkOut,
-          { excludeBookingId: id || undefined },
+          {
+            excludeBookingId: id || undefined,
+            checkInTime: form.checkInTime,
+            checkOutTime: form.checkOutTime,
+          },
         );
         const deposits: Record<string, number> = {};
         for (const c of data.categories) {
@@ -153,6 +168,9 @@ export function BookingDetailPage() {
         const list = data.categories.flatMap((c) => c.availableRooms ?? []);
         if (!cancelled) {
           setDepositByCategory(deposits);
+          if (typeof data.cleaningBufferMinutes === 'number') {
+            setBufferMinutes(data.cleaningBufferMinutes);
+          }
           const current = booking?.rooms[0];
           if (
             current &&
@@ -178,10 +196,24 @@ export function BookingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [form.checkIn, form.checkOut, booking, id]);
+  }, [
+    form.checkIn,
+    form.checkOut,
+    form.checkInTime,
+    form.checkOutTime,
+    booking,
+    id,
+  ]);
 
   const selected = rooms.find((r) => r.id === form.roomId);
   const nights = nightsBetween(form.checkIn, form.checkOut);
+  const bufferUntil = form.checkOut
+    ? cleaningBlockedUntil(
+        form.checkOut,
+        form.checkOutTime,
+        bufferMinutes,
+      )
+    : null;
 
   const calculated = useMemo(() => {
     if (!selected || nights < 1 || form.guests < 1) return null;
@@ -193,17 +225,25 @@ export function BookingDetailPage() {
     return { total, deposit, depositPercent, pricePerBed: selected.pricePerNight };
   }, [selected, nights, form.guests, depositByCategory]);
 
-  // On guests / dates / room change: always reset bargained total to per-bed auto-calc.
+  // On guests / dates / times / room change: always reset bargained total to per-bed auto-calc.
   useEffect(() => {
     if (!calculated) return;
-    const key = `${form.guests}|${form.checkIn}|${form.checkOut}|${form.roomId}`;
+    const key = `${form.guests}|${form.checkIn}|${form.checkOut}|${form.checkInTime}|${form.checkOutTime}|${form.roomId}`;
     if (key === inventoryBaseline.current) return;
     const next = String(calculated.total);
     const prev = form.totalAmount;
     if (prev === next || Number(prev) === Number(next)) return;
     setPriceResetNotice({ from: prev, to: next });
     setForm((f) => ({ ...f, totalAmount: next }));
-  }, [form.guests, form.checkIn, form.checkOut, form.roomId, calculated?.total]);
+  }, [
+    form.guests,
+    form.checkIn,
+    form.checkOut,
+    form.checkInTime,
+    form.checkOutTime,
+    form.roomId,
+    calculated?.total,
+  ]);
 
   const previewRemaining = useMemo(() => {
     if (!booking) return null;
@@ -235,13 +275,28 @@ export function BookingDetailPage() {
         phone: form.phone,
         checkIn: form.checkIn,
         checkOut: form.checkOut,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         roomId: form.roomId,
         guests: form.guests,
         notes: form.notes,
         totalAmount: form.totalAmount,
       });
       setBooking(data);
-      setForm((f) => ({ ...f, totalAmount: data.totalAmount }));
+      const roomId = data.rooms[0]?.roomId ?? form.roomId;
+      const guests = data.rooms[0]?.bedsBooked ?? form.guests;
+      const checkInTime = data.checkInTime || form.checkInTime;
+      const checkOutTime = data.checkOutTime || form.checkOutTime;
+      inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
+      setPriceResetNotice(null);
+      setForm((f) => ({
+        ...f,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+        checkInTime,
+        checkOutTime,
+        totalAmount: data.totalAmount,
+      }));
       setCashAmount(data.remainingAmount);
       setMessage(t('common.saved'));
     } catch (err) {
@@ -299,6 +354,8 @@ export function BookingDetailPage() {
         roomId: form.roomId,
         checkIn: form.checkIn,
         checkOut: form.checkOut,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         bookingId: id,
         reason:
           lockReason.trim() ||
@@ -437,20 +494,46 @@ export function BookingDetailPage() {
               />
             </Field>
             <Field label={t('common.checkIn')}>
-              <DateField
-                value={form.checkIn}
-                onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
-                required
-              />
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <DateField
+                  value={form.checkIn}
+                  onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
+                  required
+                />
+                <TimeField
+                  value={form.checkInTime}
+                  onChange={(checkInTime) =>
+                    setForm((f) => ({ ...f, checkInTime }))
+                  }
+                  required
+                />
+              </div>
             </Field>
             <Field label={t('common.checkOut')}>
-              <DateField
-                value={form.checkOut}
-                min={form.checkIn || undefined}
-                onChange={(checkOut) => setForm((f) => ({ ...f, checkOut }))}
-                required
-              />
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <DateField
+                  value={form.checkOut}
+                  min={form.checkIn || undefined}
+                  onChange={(checkOut) => setForm((f) => ({ ...f, checkOut }))}
+                  required
+                />
+                <TimeField
+                  value={form.checkOutTime}
+                  onChange={(checkOutTime) =>
+                    setForm((f) => ({ ...f, checkOutTime }))
+                  }
+                  required
+                />
+              </div>
             </Field>
+            {bufferUntil && bufferMinutes > 0 ? (
+              <p className="sm:col-span-2 -mt-1 text-xs text-[var(--muted)]">
+                {t('bookingDetail.cleaningBufferHint', {
+                  until: bufferUntil.label,
+                  minutes: bufferMinutes,
+                })}
+              </p>
+            ) : null}
             <Field label={t('common.room')}>
               <Select
                 value={form.roomId}

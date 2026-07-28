@@ -1,6 +1,10 @@
 import dayjs from 'dayjs';
 import i18n, { numberLocale } from '../i18n';
 
+/** Resort defaults — match API CHECK_IN_TIME / CHECK_OUT_TIME. */
+export const DEFAULT_CHECK_IN_TIME = '14:00';
+export const DEFAULT_CHECK_OUT_TIME = '12:00';
+
 export function formatMoney(value: string | number | null | undefined): string {
   if (value == null || value === '') return i18n.t('common.emDash');
   const n = typeof value === 'number' ? value : Number(value);
@@ -36,11 +40,70 @@ export function addDaysIso(days: number, from = todayIso()): string {
   return dayjs(from).add(days, 'day').format('YYYY-MM-DD');
 }
 
-/** Half-open stay nights: checkOut − checkIn (days). */
+/**
+ * Calendar nights between local dates (HOURLY.md §5).
+ * Same-day day-use (dates equal, stay still valid) = 1 night.
+ */
 export function nightsBetween(checkIn: string, checkOut: string): number {
   if (!checkIn || !checkOut) return 0;
-  const n = dayjs(checkOut).diff(dayjs(checkIn), 'day');
-  return n > 0 ? n : 0;
+  const inDate = checkIn.slice(0, 10);
+  const outDate = checkOut.slice(0, 10);
+  const n = dayjs(outDate).diff(dayjs(inDate), 'day');
+  if (n > 0) return n;
+  if (n === 0) return 1;
+  return 0;
+}
+
+/** Add minutes to HH:mm; returns { dateOffset, time } where dateOffset is days spilled. */
+export function addMinutesToTime(
+  hhmm: string,
+  minutes: number,
+): { dateOffset: number; time: string } {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!match) return { dateOffset: 0, time: hhmm };
+  const total = Number(match[1]) * 60 + Number(match[2]) + minutes;
+  const dateOffset = Math.floor(total / (24 * 60));
+  const rem = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(rem / 60);
+  const m = rem % 60;
+  return {
+    dateOffset,
+    time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+  };
+}
+
+/** Beds blocked until this local time after check-out (+ cleaning buffer). */
+export function cleaningBlockedUntil(
+  checkOutDate: string,
+  checkOutTime: string,
+  bufferMinutes: number,
+): { date: string; time: string; label: string } {
+  const { dateOffset, time } = addMinutesToTime(checkOutTime, bufferMinutes);
+  const date = dayjs(checkOutDate.slice(0, 10))
+    .add(dateOffset, 'day')
+    .format('YYYY-MM-DD');
+  const label =
+    dateOffset === 0
+      ? time
+      : `${dayjs(date).format('DD/MM')} ${time}`;
+  return { date, time, label };
+}
+
+/**
+ * Local day D overlaps stay [checkInDate checkInTime, checkOutDate checkOutTime).
+ */
+export function dayOverlapsInterval(
+  day: string,
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string,
+): boolean {
+  const dayStart = `${day}T00:00`;
+  const dayEnd = `${dayjs(day).add(1, 'day').format('YYYY-MM-DD')}T00:00`;
+  const start = `${startDate.slice(0, 10)}T${startTime || '00:00'}`;
+  const end = `${endDate.slice(0, 10)}T${endTime || '00:00'}`;
+  return start < dayEnd && end > dayStart;
 }
 
 /** total = pricePerBed × guests × nights (rounded to 2 dp as number). */

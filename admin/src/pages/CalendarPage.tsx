@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { calendarApi } from '../api/adminApi';
@@ -13,7 +13,15 @@ import {
   Field,
   PageHeader,
 } from '../components/ui';
-import { addDaysIso, formatDate, todayIso } from '../lib/format';
+import {
+  addDaysIso,
+  addMinutesToTime,
+  dayOverlapsInterval,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
+  formatDate,
+  todayIso,
+} from '../lib/format';
 import { statusLabel } from '../lib/labels';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -28,12 +36,49 @@ const STATUS_COLOR: Record<string, string> = {
 const LOCK_COLOR = '#78716c';
 const DAY_WIDTH = 44;
 
-function occupiesDay(
+const BUFFER_STYLE: CSSProperties = {
+  backgroundImage:
+    'repeating-linear-gradient(-45deg, #a8a29e 0 2px, transparent 2px 5px)',
+  backgroundColor: '#e7e5e4',
+  color: '#57534e',
+};
+
+function stayTimes(item: {
+  checkInTime?: string;
+  checkOutTime?: string;
+}): { inTime: string; outTime: string } {
+  return {
+    inTime: item.checkInTime || DEFAULT_CHECK_IN_TIME,
+    outTime: item.checkOutTime || DEFAULT_CHECK_OUT_TIME,
+  };
+}
+
+function occupiesStayDay(
   checkIn: string,
   checkOut: string,
+  checkInTime: string,
+  checkOutTime: string,
   day: string,
 ): boolean {
-  return checkIn <= day && day < checkOut;
+  return dayOverlapsInterval(day, checkIn, checkInTime, checkOut, checkOutTime);
+}
+
+/** Cleaning buffer [checkOut, checkOut+buffer) overlaps the day column. */
+function occupiesBufferDay(
+  checkOut: string,
+  checkOutTime: string,
+  bufferMinutes: number,
+  day: string,
+): boolean {
+  if (bufferMinutes <= 0) return false;
+  const { dateOffset, time: endTime } = addMinutesToTime(
+    checkOutTime,
+    bufferMinutes,
+  );
+  const endDate = dayjs(checkOut.slice(0, 10))
+    .add(dateOffset, 'day')
+    .format('YYYY-MM-DD');
+  return dayOverlapsInterval(day, checkOut, checkOutTime, endDate, endTime);
 }
 
 export function CalendarPage() {
@@ -61,6 +106,8 @@ export function CalendarPage() {
     };
   }, [from, to]);
 
+  const bufferMinutes = data?.cleaningBufferMinutes ?? 60;
+
   const days = useMemo(() => {
     if (!data) return [] as string[];
     const list: string[] = [];
@@ -78,24 +125,32 @@ export function CalendarPage() {
     let maxSegments = 1;
     for (const room of data.rooms) {
       for (const day of days) {
-        const n =
-          (data.bookings ?? []).filter(
-            (b) =>
-              b.roomId === room.id &&
-              occupiesDay(b.checkIn, b.checkOut, day),
-          ).length +
-          ((data.locks ?? []).some(
-            (l) =>
-              l.roomId === room.id &&
-              occupiesDay(l.checkIn, l.checkOut, day),
-          )
-            ? 1
-            : 0);
+        let n = 0;
+        for (const b of data.bookings ?? []) {
+          if (b.roomId !== room.id) continue;
+          const { inTime, outTime } = stayTimes(b);
+          if (occupiesStayDay(b.checkIn, b.checkOut, inTime, outTime, day)) {
+            n += 1;
+          } else if (
+            occupiesBufferDay(b.checkOut, outTime, bufferMinutes, day)
+          ) {
+            n += 1;
+          }
+        }
+        if (
+          (data.locks ?? []).some((l) => {
+            if (l.roomId !== room.id) return false;
+            const { inTime, outTime } = stayTimes(l);
+            return occupiesStayDay(l.checkIn, l.checkOut, inTime, outTime, day);
+          })
+        ) {
+          n += 1;
+        }
         if (n > maxSegments) maxSegments = n;
       }
     }
     return Math.max(56, 18 + maxSegments * 18 + 16);
-  }, [data, days]);
+  }, [data, days, bufferMinutes]);
 
   return (
     <div>
@@ -122,6 +177,13 @@ export function CalendarPage() {
               style={{ background: STATUS_COLOR.confirmed }}
             />
             {t('calendar.legendBooking')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span
+              className="inline-block h-2.5 w-4 rounded-sm border border-stone-400"
+              style={BUFFER_STYLE}
+            />
+            {t('calendar.legendBuffer')}
           </span>
           <span className="inline-flex items-center gap-1">
             <span
@@ -191,12 +253,46 @@ export function CalendarPage() {
                 </div>
 
                 {days.map((day) => {
-                  const dayBookings = roomBookings.filter((b) =>
-                    occupiesDay(b.checkIn, b.checkOut, day),
-                  );
-                  const dayLocks = roomLocks.filter((l) =>
-                    occupiesDay(l.checkIn, l.checkOut, day),
-                  );
+                  const dayBookings = roomBookings.filter((b) => {
+                    const { inTime, outTime } = stayTimes(b);
+                    return occupiesStayDay(
+                      b.checkIn,
+                      b.checkOut,
+                      inTime,
+                      outTime,
+                      day,
+                    );
+                  });
+                  const bufferOnly = roomBookings.filter((b) => {
+                    const { inTime, outTime } = stayTimes(b);
+                    if (
+                      occupiesStayDay(
+                        b.checkIn,
+                        b.checkOut,
+                        inTime,
+                        outTime,
+                        day,
+                      )
+                    ) {
+                      return false;
+                    }
+                    return occupiesBufferDay(
+                      b.checkOut,
+                      outTime,
+                      bufferMinutes,
+                      day,
+                    );
+                  });
+                  const dayLocks = roomLocks.filter((l) => {
+                    const { inTime, outTime } = stayTimes(l);
+                    return occupiesStayDay(
+                      l.checkIn,
+                      l.checkOut,
+                      inTime,
+                      outTime,
+                      day,
+                    );
+                  });
                   const occupied = dayBookings.reduce(
                     (sum, b) => sum + (b.bedsBooked ?? 0),
                     0,
@@ -209,50 +305,101 @@ export function CalendarPage() {
                       className="flex flex-col gap-0.5 border-l border-[var(--line)] bg-white p-0.5"
                     >
                       {locked
-                        ? dayLocks.map((lock) => (
-                            <div
-                              key={lock.id}
-                              className="w-full truncate rounded px-0.5 text-center text-[9px] font-medium leading-4 text-white"
-                              style={{ background: LOCK_COLOR }}
-                              title={t('calendar.lockTitle', {
-                                checkIn: formatDate(lock.checkIn),
-                                checkOut: formatDate(lock.checkOut),
-                                reason: lock.reason ?? t('common.emDash'),
-                              })}
-                            >
-                              {t('calendar.lockLabel')}
-                            </div>
-                          ))
+                        ? dayLocks.map((lock) => {
+                            const { inTime, outTime } = stayTimes(lock);
+                            return (
+                              <div
+                                key={lock.id}
+                                className="w-full truncate rounded px-0.5 text-center text-[9px] font-medium leading-4 text-white"
+                                style={{ background: LOCK_COLOR }}
+                                title={t('calendar.lockTitle', {
+                                  checkIn: `${formatDate(lock.checkIn)} ${inTime}`,
+                                  checkOut: `${formatDate(lock.checkOut)} ${outTime}`,
+                                  reason: lock.reason ?? t('common.emDash'),
+                                })}
+                              >
+                                {t('calendar.lockLabel')}
+                              </div>
+                            );
+                          })
                         : null}
 
-                      {dayBookings.map((bar) => (
-                        <Link
-                          key={`${bar.bookingId}-${day}`}
-                          to={`/bookings/${bar.bookingId}`}
-                          className="block w-full truncate rounded px-0.5 text-center text-[9px] font-medium leading-4 text-white shadow-sm"
-                          style={{
-                            background:
-                              STATUS_COLOR[bar.status] ??
-                              STATUS_COLOR.confirmed,
-                          }}
-                          title={t('calendar.segmentTitle', {
-                            code: bar.publicCode,
-                            customerName: bar.customerName,
-                            beds: bar.bedsBooked,
-                            capacity: room.capacity,
-                            checkIn: formatDate(bar.checkIn),
-                            checkOut: formatDate(bar.checkOut),
-                            status: statusLabel(bar.status),
-                          })}
-                        >
-                          {t('calendar.segmentLabel', {
-                            beds: bar.bedsBooked,
-                            capacity: room.capacity,
-                          })}
-                        </Link>
-                      ))}
+                      {dayBookings.map((bar) => {
+                        const { inTime, outTime } = stayTimes(bar);
+                        const showBufferTail =
+                          bufferMinutes > 0 &&
+                          occupiesBufferDay(
+                            bar.checkOut,
+                            outTime,
+                            bufferMinutes,
+                            day,
+                          );
+                        return (
+                          <div
+                            key={`${bar.bookingId}-${day}`}
+                            className="flex w-full items-stretch gap-px"
+                          >
+                            <Link
+                              to={`/bookings/${bar.bookingId}`}
+                              className={`block min-w-0 flex-1 truncate rounded-l px-0.5 text-center text-[9px] font-medium leading-4 text-white shadow-sm ${
+                                showBufferTail ? '' : 'rounded-r'
+                              }`}
+                              style={{
+                                background:
+                                  STATUS_COLOR[bar.status] ??
+                                  STATUS_COLOR.confirmed,
+                              }}
+                              title={t('calendar.segmentTitle', {
+                                code: bar.publicCode,
+                                customerName: bar.customerName,
+                                beds: bar.bedsBooked,
+                                capacity: room.capacity,
+                                checkIn: `${formatDate(bar.checkIn)} ${inTime}`,
+                                checkOut: `${formatDate(bar.checkOut)} ${outTime}`,
+                                status: statusLabel(bar.status),
+                              })}
+                            >
+                              {t('calendar.segmentLabel', {
+                                roomNumber: bar.roomNumber,
+                                beds: bar.bedsBooked,
+                                capacity: room.capacity,
+                                checkInTime: inTime,
+                                checkOutTime: outTime,
+                              })}
+                            </Link>
+                            {showBufferTail ? (
+                              <span
+                                className="w-2 shrink-0 rounded-r"
+                                style={BUFFER_STYLE}
+                                title={t('calendar.bufferTitle', {
+                                  from: outTime,
+                                  minutes: bufferMinutes,
+                                })}
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })}
 
-                      {(occupied > 0 || locked) && (
+                      {bufferOnly.map((bar) => {
+                        const { outTime } = stayTimes(bar);
+                        return (
+                          <Link
+                            key={`buf-${bar.bookingId}-${day}`}
+                            to={`/bookings/${bar.bookingId}`}
+                            className="block w-full truncate rounded px-0.5 text-center text-[8px] font-medium leading-4 shadow-sm"
+                            style={BUFFER_STYLE}
+                            title={t('calendar.bufferTitle', {
+                              from: outTime,
+                              minutes: bufferMinutes,
+                            })}
+                          >
+                            {t('calendar.bufferLabel')}
+                          </Link>
+                        );
+                      })}
+
+                      {(occupied > 0 || locked || bufferOnly.length > 0) && (
                         <div className="mt-auto text-center text-[8px] leading-3 text-[var(--muted)]">
                           {locked
                             ? t('calendar.fullLockHint')

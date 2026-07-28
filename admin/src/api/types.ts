@@ -30,6 +30,10 @@ export type Booking = {
   publicCode: string;
   checkIn: string;
   checkOut: string;
+  checkInTime: string;
+  checkOutTime: string;
+  checkInAt?: string;
+  checkOutAt?: string;
   bedsTotal: number;
   priceOriginal: string;
   totalAmount: string;
@@ -110,6 +114,10 @@ export type RoomLock = {
   bookingId: string | null;
   checkIn: string;
   checkOut: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  checkInAt?: string;
+  checkOutAt?: string;
   reason: string | null;
   createdAt?: string;
 };
@@ -136,6 +144,10 @@ export type DashboardStats = {
     rooms: string[];
     checkIn: string;
     checkOut: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    checkInAt?: string;
+    checkOutAt?: string;
   }>;
   departuresList: Array<{
     id: string;
@@ -146,6 +158,10 @@ export type DashboardStats = {
     rooms: string[];
     checkIn: string;
     checkOut: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    checkInAt?: string;
+    checkOutAt?: string;
   }>;
 };
 
@@ -199,6 +215,7 @@ export type AuditEntry = {
 export type CalendarData = {
   from: string;
   to: string;
+  cleaningBufferMinutes?: number;
   rooms: Array<{
     id: string;
     number: string;
@@ -214,6 +231,10 @@ export type CalendarData = {
     paymentStatus: string;
     checkIn: string;
     checkOut: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    checkInAt?: string;
+    checkOutAt?: string;
     customerName: string;
     roomId: string;
     roomNumber: string;
@@ -226,6 +247,10 @@ export type CalendarData = {
     bookingId: string | null;
     checkIn: string;
     checkOut: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    checkInAt?: string;
+    checkOutAt?: string;
     reason: string | null;
   }>;
 };

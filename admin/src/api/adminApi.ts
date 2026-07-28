@@ -51,10 +51,17 @@ export const availabilityApi = {
   admin: (
     check_in: string,
     check_out: string,
-    opts?: { excludeBookingId?: string },
+    opts?: {
+      excludeBookingId?: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
   ) =>
     api.get<{
       nights: number;
+      cleaningBufferMinutes?: number;
+      checkInTime?: string;
+      checkOutTime?: string;
       categories: Array<{
         code: string;
         name: string;
@@ -65,6 +72,8 @@ export const availabilityApi = {
       params: {
         check_in,
         check_out,
+        ...(opts?.checkInTime ? { check_in_time: opts.checkInTime } : {}),
+        ...(opts?.checkOutTime ? { check_out_time: opts.checkOutTime } : {}),
         ...(opts?.excludeBookingId
           ? { exclude_booking_id: opts.excludeBookingId }
           : {}),
@@ -83,6 +92,8 @@ export const roomLocksApi = {
     roomId: string;
     checkIn: string;
     checkOut: string;
+    checkInTime?: string;
+    checkOutTime?: string;
     reason?: string;
     bookingId?: string;
   }) => api.post<RoomLock>('/api/v1/admin/room-locks', body),

@@ -90,6 +90,10 @@ export function fallbackCategories() {
   });
 }
 
+/** Default local check-in / check-out times (HOURLY.md). */
+export const DEFAULT_CHECK_IN_TIME = '14:00';
+export const DEFAULT_CHECK_OUT_TIME = '12:00';
+
 export function todayStr() {
   return dayjs().format('YYYY-MM-DD');
 }
@@ -102,11 +106,31 @@ export function defaultCheckOut() {
   return dayjs().add(2, 'day').format('YYYY-MM-DD');
 }
 
+/** Calendar nights between local dates (times ignored). */
 export function nightsBetween(checkIn, checkOut) {
   const a = dayjs(checkIn);
   const b = dayjs(checkOut);
   if (!a.isValid() || !b.isValid()) return 0;
   return Math.max(0, b.diff(a, 'day'));
+}
+
+/**
+ * Billed nights: calendar nights, minimum 1 for same-day day-use
+ * (mirrors api nightsBetween / HOURLY.md §5).
+ */
+export function billedNights(checkIn, checkOut) {
+  const nights = nightsBetween(checkIn, checkOut);
+  return nights === 0 ? 1 : nights;
+}
+
+/** True when date+time form a valid half-open stay. */
+export function isValidStay(checkIn, checkOut, checkInTime, checkOutTime) {
+  if (!checkIn || !checkOut) return false;
+  if (checkOut > checkIn) return true;
+  if (checkOut < checkIn) return false;
+  const tin = checkInTime || DEFAULT_CHECK_IN_TIME;
+  const tout = checkOutTime || DEFAULT_CHECK_OUT_TIME;
+  return tin < tout;
 }
 
 /** YYYY-MM-DD → DD/MM/YYYY */
@@ -184,6 +208,15 @@ export function normalizeAvailableRoom(raw) {
     raw.pricePerBedPerNight ??
     raw.price_per_bed_per_night ??
     null;
+  const fromRaw = raw.availableFrom ?? raw.available_from ?? null;
+  let availableFrom = null;
+  if (fromRaw && typeof fromRaw === 'object') {
+    const date = fromRaw.date != null ? String(fromRaw.date) : '';
+    const time = fromRaw.time != null ? String(fromRaw.time) : '';
+    if (date && time) {
+      availableFrom = { date, time, at: fromRaw.at ? String(fromRaw.at) : '' };
+    }
+  }
   return {
     id,
     number: String(raw.number ?? ''),
@@ -194,6 +227,7 @@ export function normalizeAvailableRoom(raw) {
       raw.categoryCode ?? raw.category_code ?? '',
     ).toLowerCase(),
     pricePerNight: price != null ? String(price) : null,
+    availableFrom,
   };
 }
 

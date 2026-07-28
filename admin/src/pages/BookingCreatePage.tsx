@@ -5,6 +5,7 @@ import { availabilityApi, bookingsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { AvailableRoom } from '../api/types';
 import { DateField } from '../components/DateField';
+import { TimeField } from '../components/TimeField';
 import {
   Button,
   Card,
@@ -19,6 +20,9 @@ import {
   addDaysIso,
   calcBedTotal,
   calcDeposit,
+  cleaningBlockedUntil,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
   formatMoney,
   nightsBetween,
   todayIso,
@@ -33,6 +37,8 @@ export function BookingCreatePage() {
     phone: '+998',
     checkIn: todayIso(),
     checkOut: addDaysIso(2),
+    checkInTime: DEFAULT_CHECK_IN_TIME,
+    checkOutTime: DEFAULT_CHECK_OUT_TIME,
     guests: 2,
     roomId: '',
     notes: '',
@@ -41,6 +47,7 @@ export function BookingCreatePage() {
   const [depositByCategory, setDepositByCategory] = useState<
     Record<string, number>
   >({});
+  const [bufferMinutes, setBufferMinutes] = useState(60);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -51,6 +58,10 @@ export function BookingCreatePage() {
         const { data } = await availabilityApi.admin(
           form.checkIn,
           form.checkOut,
+          {
+            checkInTime: form.checkInTime,
+            checkOutTime: form.checkOutTime,
+          },
         );
         const deposits: Record<string, number> = {};
         for (const c of data.categories) {
@@ -68,6 +79,9 @@ export function BookingCreatePage() {
         if (!cancelled) {
           setDepositByCategory(deposits);
           setRooms(list);
+          if (typeof data.cleaningBufferMinutes === 'number') {
+            setBufferMinutes(data.cleaningBufferMinutes);
+          }
           setForm((f) => ({
             ...f,
             roomId: list.some((r) => r.id === f.roomId)
@@ -86,10 +100,21 @@ export function BookingCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [form.checkIn, form.checkOut, form.guests]);
+  }, [
+    form.checkIn,
+    form.checkOut,
+    form.checkInTime,
+    form.checkOutTime,
+    form.guests,
+  ]);
 
   const selected = rooms.find((r) => r.id === form.roomId);
   const nights = nightsBetween(form.checkIn, form.checkOut);
+  const bufferUntil = cleaningBlockedUntil(
+    form.checkOut,
+    form.checkOutTime,
+    bufferMinutes,
+  );
 
   const pricePreview = useMemo(() => {
     if (!selected || nights < 1 || form.guests < 1) return null;
@@ -125,6 +150,8 @@ export function BookingCreatePage() {
         roomId: form.roomId,
         checkIn: form.checkIn,
         checkOut: form.checkOut,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         guests: form.guests,
         notes: form.notes.trim() || undefined,
       });
@@ -178,21 +205,48 @@ export function BookingCreatePage() {
               }
             />
           </Field>
+          <div className="hidden sm:block" />
           <Field label={t('common.checkIn')}>
-            <DateField
-              value={form.checkIn}
-              onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
-              required
-            />
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <DateField
+                value={form.checkIn}
+                onChange={(checkIn) => setForm((f) => ({ ...f, checkIn }))}
+                required
+              />
+              <TimeField
+                value={form.checkInTime}
+                onChange={(checkInTime) =>
+                  setForm((f) => ({ ...f, checkInTime }))
+                }
+                required
+              />
+            </div>
           </Field>
           <Field label={t('common.checkOut')}>
-            <DateField
-              value={form.checkOut}
-              min={form.checkIn || undefined}
-              onChange={(checkOut) => setForm((f) => ({ ...f, checkOut }))}
-              required
-            />
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <DateField
+                value={form.checkOut}
+                min={form.checkIn || undefined}
+                onChange={(checkOut) => setForm((f) => ({ ...f, checkOut }))}
+                required
+              />
+              <TimeField
+                value={form.checkOutTime}
+                onChange={(checkOutTime) =>
+                  setForm((f) => ({ ...f, checkOutTime }))
+                }
+                required
+              />
+            </div>
           </Field>
+          {bufferMinutes > 0 ? (
+            <p className="sm:col-span-2 -mt-1 text-xs text-[var(--muted)]">
+              {t('bookingCreate.cleaningBufferHint', {
+                until: bufferUntil.label,
+                minutes: bufferMinutes,
+              })}
+            </p>
+          ) : null}
           <div className="sm:col-span-2">
             <Field label={t('bookingCreate.freeRoom')}>
               <Select

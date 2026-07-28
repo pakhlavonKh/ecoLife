@@ -8,6 +8,8 @@ import { api } from './client';
  *   roomId: string,
  *   checkIn: string,
  *   checkOut: string,
+ *   checkInTime?: string,
+ *   checkOutTime?: string,
  *   guests: number,
  *   provider?: 'mock'|'payme'|'click',
  *   notes?: string,

@@ -78,7 +78,10 @@
     "bedsHint": "{{occupied}} / {{total}} o‘rin",
     "revenuePeriod": "Davr bo‘yicha tushum",
     "pendingPayments": "To‘lov kutilmoqda",
-    "emptyList": "Yozuvlar yo‘q"
+    "emptyList": "Yozuvlar yo‘q",
+    "sortByTime": "Vaqt bo‘yicha ({{dir}})",
+    "sortAsc": "erta → kech",
+    "sortDesc": "kech → erta"
   },
   "bookings": {
     "title": "Bronlar",
@@ -110,6 +113,7 @@
     "priceTotal": "Jami",
     "priceDeposit": "Depozit {{percent}}%",
     "priceRemaining": "Qoldiq",
+    "cleaningBufferHint": "O‘rinlar tozalash tufayli {{until}} gacha band (+{{minutes}} daq chiqishdan keyin)",
     "create": "Bron yaratish",
     "creating": "Yaratilmoqda…"
   },
@@ -122,6 +126,7 @@
     "totalAmountHint": "Depozit allaqachon to‘langan: {{deposit}}. Qo‘shimcha to‘lov: {{remaining}}",
     "totalAmountHintUnpaid": "Depozit: {{deposit}}. Qoldiq: {{remaining}} (yakuniy summa − to‘langan)",
     "livePrice": "Hisob: {{price}} × {{guests}} × {{nights}} kecha = {{total}} (depozit {{percent}}% = {{deposit}})",
+    "cleaningBufferHint": "O‘rinlar tozalash tufayli {{until}} gacha band (+{{minutes}} daq chiqishdan keyin)",
     "priceResetNotice": "Bron tarkibi o‘zgardi — qo‘lda belgilangan summa qayta hisoblandi: {{from}} → {{to}}. Kerak bo‘lsa, qayta kelishing.",
     "roomOption": "{{number}} · {{cottage}} · qoldi {{remaining}}/{{capacity}} · {{category}}",
     "saveChanges": "O‘zgarishlarni saqlash",
@@ -197,13 +202,16 @@
     "colRoom": "Xona",
     "roomMeta": "{{cottage}} · {{category}}",
     "capacityLabel": "{{capacity}} o‘rin",
-    "segmentLabel": "{{beds}}/{{capacity}}",
+    "segmentLabel": "{{roomNumber}} · {{beds}}/{{capacity}} · {{checkInTime}}–{{checkOutTime}}",
     "segmentTitle": "{{code}} · {{customerName}} · {{beds}}/{{capacity}} · {{checkIn}}–{{checkOut}} · {{status}}",
     "occupiedHint": "{{occupied}}/{{capacity}} band",
     "fullLockHint": "yopiq",
     "lockLabel": "lock",
     "lockTitle": "Yopiq {{checkIn}}–{{checkOut}} · {{reason}}",
+    "bufferLabel": "tozalash",
+    "bufferTitle": "Tozalash {{from}} dan (+{{minutes}} daq) — o‘rinlar hali band",
     "legendBooking": "Bron (o‘rinlar)",
+    "legendBuffer": "Tozalash buferi",
     "legendLock": "Butun xona lock",
     "barLabel": "{{code}} {{customerName}}",
     "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}"

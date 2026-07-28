@@ -22,6 +22,28 @@ export class CreateRoomLockDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   checkOut!: string;
 
+  @ApiPropertyOptional({
+    example: '14:00',
+    description: 'Local lock start time HH:mm (default CHECK_IN_TIME / 14:00)',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'checkInTime must be HH:mm',
+  })
+  checkInTime?: string;
+
+  @ApiPropertyOptional({
+    example: '12:00',
+    description: 'Local lock end time HH:mm (default CHECK_OUT_TIME / 12:00)',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'checkOutTime must be HH:mm',
+  })
+  checkOutTime?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

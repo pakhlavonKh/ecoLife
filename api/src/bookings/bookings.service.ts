@@ -98,7 +98,10 @@ export class BookingsService {
       );
     }
 
-    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
+    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut, {
+      checkInTime: dto.checkInTime,
+      checkOutTime: dto.checkOutTime,
+    });
     const paymentsEnabled = isPaymentsEnabled(this.config);
     // Pre-requests get a longer hold so the operator can call the guest.
     const holdMs = paymentsEnabled
@@ -451,7 +454,10 @@ export class BookingsService {
       );
     }
 
-    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
+    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut, {
+      checkInTime: dto.checkInTime,
+      checkOutTime: dto.checkOutTime,
+    });
 
     try {
       const booking = await this.prisma.$transaction(
@@ -715,13 +721,13 @@ export class BookingsService {
 
           const checkInStr = dto.checkIn ?? before.checkIn;
           const checkOutStr = dto.checkOut ?? before.checkOut;
-          // Editing only the dates must not silently reset the booking's times.
+          // Keep existing times unless the admin explicitly sends new ones.
           const stay = validateStayDates(checkInStr, checkOutStr, {
             minNights: Number(this.config.get('MIN_STAY_NIGHTS') ?? 1),
             maxNights: Number(this.config.get('MAX_STAY_NIGHTS') ?? 30),
             allowPast: true,
-            checkInTime: before.checkInTime,
-            checkOutTime: before.checkOutTime,
+            checkInTime: dto.checkInTime ?? before.checkInTime,
+            checkOutTime: dto.checkOutTime ?? before.checkOutTime,
           });
 
           const roomId = dto.roomId ?? currentRoom.roomId;

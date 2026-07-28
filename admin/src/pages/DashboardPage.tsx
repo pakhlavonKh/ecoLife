@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { dashboardApi } from '../api/adminApi';
@@ -6,7 +6,15 @@ import { getErrorMessage } from '../api/client';
 import type { DashboardStats } from '../api/types';
 import { DateField } from '../components/DateField';
 import { Card, ErrorBox, Field, PageHeader, StatusBadge } from '../components/ui';
-import { formatDate, formatMoney, todayIso } from '../lib/format';
+import {
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
+  formatDate,
+  formatMoney,
+  todayIso,
+} from '../lib/format';
+
+type SortDir = 'asc' | 'desc';
 
 export function DashboardPage() {
   const { t } = useTranslation();
@@ -17,6 +25,8 @@ export function DashboardPage() {
   const [to, setTo] = useState(todayIso());
   const [data, setData] = useState<DashboardStats | null>(null);
   const [error, setError] = useState('');
+  const [arrivalSort, setArrivalSort] = useState<SortDir>('asc');
+  const [departureSort, setDepartureSort] = useState<SortDir>('asc');
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +45,28 @@ export function DashboardPage() {
       cancelled = true;
     };
   }, [from, to]);
+
+  const arrivals = useMemo(() => {
+    const list = [...(data?.arrivalsList ?? [])];
+    list.sort((a, b) => {
+      const ta = a.checkInAt ?? `${a.checkIn}T${a.checkInTime ?? '00:00'}`;
+      const tb = b.checkInAt ?? `${b.checkIn}T${b.checkInTime ?? '00:00'}`;
+      const cmp = ta.localeCompare(tb);
+      return arrivalSort === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [data?.arrivalsList, arrivalSort]);
+
+  const departures = useMemo(() => {
+    const list = [...(data?.departuresList ?? [])];
+    list.sort((a, b) => {
+      const ta = a.checkOutAt ?? `${a.checkOut}T${a.checkOutTime ?? '00:00'}`;
+      const tb = b.checkOutAt ?? `${b.checkOut}T${b.checkOutTime ?? '00:00'}`;
+      const cmp = ta.localeCompare(tb);
+      return departureSort === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [data?.departuresList, departureSort]);
 
   const cards = data
     ? [
@@ -108,16 +140,44 @@ export function DashboardPage() {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
-          <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-            {t('dashboard.arrivalsToday')}
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
+            <span className="font-medium">{t('dashboard.arrivalsToday')}</span>
+            <button
+              type="button"
+              className="text-xs text-[var(--accent)] hover:underline"
+              onClick={() =>
+                setArrivalSort((s) => (s === 'asc' ? 'desc' : 'asc'))
+              }
+            >
+              {t('dashboard.sortByTime', {
+                dir:
+                  arrivalSort === 'asc'
+                    ? t('dashboard.sortAsc')
+                    : t('dashboard.sortDesc'),
+              })}
+            </button>
           </div>
-          <List items={data?.arrivalsList ?? []} />
+          <List items={arrivals} mode="arrival" />
         </Card>
         <Card>
-          <div className="border-b border-[var(--line)] px-4 py-3 font-medium">
-            {t('dashboard.departuresToday')}
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
+            <span className="font-medium">{t('dashboard.departuresToday')}</span>
+            <button
+              type="button"
+              className="text-xs text-[var(--accent)] hover:underline"
+              onClick={() =>
+                setDepartureSort((s) => (s === 'asc' ? 'desc' : 'asc'))
+              }
+            >
+              {t('dashboard.sortByTime', {
+                dir:
+                  departureSort === 'asc'
+                    ? t('dashboard.sortAsc')
+                    : t('dashboard.sortDesc'),
+              })}
+            </button>
           </div>
-          <List items={data?.departuresList ?? []} />
+          <List items={departures} mode="departure" />
         </Card>
       </div>
     </div>
@@ -126,8 +186,10 @@ export function DashboardPage() {
 
 function List({
   items,
+  mode,
 }: {
   items: DashboardStats['arrivalsList'];
+  mode: 'arrival' | 'departure';
 }) {
   const { t } = useTranslation();
   if (items.length === 0) {
@@ -139,25 +201,36 @@ function List({
   }
   return (
     <ul className="divide-y divide-[var(--line)]">
-      {items.map((item) => (
-        <li key={item.id} className="px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Link
-              to={`/bookings/${item.id}`}
-              className="font-medium text-[var(--accent)] hover:underline"
-            >
-              {item.publicCode}
-            </Link>
-            <StatusBadge status={item.status} />
-          </div>
-          <div className="mt-1 text-sm">
-            {item.customerName} · {item.phone}
-          </div>
-          <div className="text-xs text-[var(--muted)]">
-            {item.rooms.join(', ')}
-          </div>
-        </li>
-      ))}
+      {items.map((item) => {
+        const time =
+          mode === 'arrival'
+            ? item.checkInTime || DEFAULT_CHECK_IN_TIME
+            : item.checkOutTime || DEFAULT_CHECK_OUT_TIME;
+        return (
+          <li key={item.id} className="px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-stone-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-stone-800">
+                  {time}
+                </span>
+                <Link
+                  to={`/bookings/${item.id}`}
+                  className="font-medium text-[var(--accent)] hover:underline"
+                >
+                  {item.publicCode}
+                </Link>
+              </div>
+              <StatusBadge status={item.status} />
+            </div>
+            <div className="mt-1 text-sm">
+              {item.customerName} · {item.phone}
+            </div>
+            <div className="text-xs text-[var(--muted)]">
+              {item.rooms.join(', ')}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

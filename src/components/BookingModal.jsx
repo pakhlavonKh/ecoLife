@@ -8,13 +8,17 @@ import {
   paymentsEnabledFromEnv,
 } from '../api/config';
 import DateField from './DateField';
+import TimeField from './TimeField';
 import {
+  billedNights,
   calcPreview,
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
   DEFAULT_DEPOSIT,
   formatMoney,
   formatPhoneMask,
+  isValidStay,
   isValidUzPhone,
-  nightsBetween,
   normalizeAvailableRoom,
   OPERATOR_PHONES,
   operatorPhonesDisplay,
@@ -26,13 +30,15 @@ import {
 } from '../utils/booking';
 
 /**
- * Shared-room (per-bed) booking modal — BED_MODE §6.
- * Guest sees remaining beds only; never co-occupant identities.
+ * Shared-room (per-bed) booking modal — bed mode + datetime stay (HOURLY.md §6).
+ * Guest sees remaining beds and available-from times only; never co-occupant identities.
  */
 function BookingModal({
   category,
   initialCheckIn,
   initialCheckOut,
+  initialCheckInTime = DEFAULT_CHECK_IN_TIME,
+  initialCheckOutTime = DEFAULT_CHECK_OUT_TIME,
   onClose,
   onBooked,
 }) {
@@ -46,8 +52,15 @@ function BookingModal({
   const [phone, setPhone] = useState('+998 ');
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [checkOut, setCheckOut] = useState(initialCheckOut);
+  const [checkInTime, setCheckInTime] = useState(
+    initialCheckInTime || DEFAULT_CHECK_IN_TIME,
+  );
+  const [checkOutTime, setCheckOutTime] = useState(
+    initialCheckOutTime || DEFAULT_CHECK_OUT_TIME,
+  );
   const [guests, setGuests] = useState(2);
   const [rooms, setRooms] = useState([]);
+  const [alternatives, setAlternatives] = useState([]);
   const [roomId, setRoomId] = useState('');
   const [provider, setProvider] = useState(providers[0] || 'mock');
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -90,10 +103,17 @@ function BookingModal({
     };
   }, []);
 
+  const applyAvailableFrom = (hint) => {
+    if (!hint?.date || !hint?.time) return;
+    setCheckIn(hint.date);
+    setCheckInTime(hint.time);
+  };
+
   const loadRooms = useCallback(async () => {
     if (!checkIn || !checkOut || !category?.code) return;
-    if (nightsBetween(checkIn, checkOut) < 1) {
+    if (!isValidStay(checkIn, checkOut, checkInTime, checkOutTime)) {
       setRooms([]);
+      setAlternatives([]);
       setRoomId('');
       setNights(0);
       setError(t('bookingModal.invalidDates'));
@@ -106,28 +126,52 @@ function BookingModal({
       const data = await fetchAvailability({
         checkIn,
         checkOut,
+        checkInTime,
+        checkOutTime,
         categoryCode: category.code,
         guests: guestCount,
       });
-      setNights(data.nights);
-      const list = (data.categories?.[0]?.availableRooms ?? [])
+      setNights(
+        data.nights != null
+          ? Number(data.nights)
+          : billedNights(checkIn, checkOut),
+      );
+      const cat = data.categories?.[0];
+      const list = (cat?.availableRooms ?? [])
         .map(normalizeAvailableRoom)
         .filter(Boolean);
+      const alts = (cat?.alternatives ?? [])
+        .map(normalizeAvailableRoom)
+        .filter((r) => r && r.availableFrom);
       setRooms(list);
+      setAlternatives(alts);
       setRoomId((prev) =>
         list.some((r) => r.id === prev) ? prev : list[0]?.id || '',
       );
       if (list.length === 0) {
-        setError(t('bookingModal.noRooms'));
+        setError(
+          alts.length > 0
+            ? t('bookingModal.noRoomsTryAlt')
+            : t('bookingModal.noRooms'),
+        );
       }
     } catch (err) {
       setRooms([]);
+      setAlternatives([]);
       setRoomId('');
       setError(getErrorMessage(err, t('networkError')));
     } finally {
       setLoadingRooms(false);
     }
-  }, [checkIn, checkOut, category?.code, guestCount, t]);
+  }, [
+    checkIn,
+    checkOut,
+    checkInTime,
+    checkOutTime,
+    category?.code,
+    guestCount,
+    t,
+  ]);
 
   useEffect(() => {
     loadRooms();
@@ -173,6 +217,8 @@ function BookingModal({
         roomId,
         checkIn,
         checkOut,
+        checkInTime,
+        checkOutTime,
         guests: guestCount,
       };
       if (paymentsEnabled) {
@@ -213,6 +259,24 @@ function BookingModal({
     : i18n.language?.startsWith('en')
       ? 'en-US'
       : 'ru-RU';
+
+  const formatFromHint = (hint) => {
+    if (!hint) return '';
+    const dateLabel = (() => {
+      try {
+        return new Date(`${hint.date}T12:00:00`).toLocaleDateString(locale, {
+          day: 'numeric',
+          month: 'short',
+        });
+      } catch {
+        return hint.date;
+      }
+    })();
+    return t('bookingModal.availableFrom', {
+      date: dateLabel,
+      time: hint.time,
+    });
+  };
 
   return (
     <div
@@ -315,11 +379,27 @@ function BookingModal({
                 />
               </label>
               <label className="field">
+                <span>{t('bookingModal.checkInTime')}</span>
+                <TimeField
+                  value={checkInTime}
+                  onChange={setCheckInTime}
+                  required
+                />
+              </label>
+              <label className="field">
                 <span>{t('check-out')}</span>
                 <DateField
                   value={checkOut}
                   min={checkIn || todayStr()}
                   onChange={setCheckOut}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>{t('bookingModal.checkOutTime')}</span>
+                <TimeField
+                  value={checkOutTime}
+                  onChange={setCheckOutTime}
                   required
                 />
               </label>
@@ -383,6 +463,47 @@ function BookingModal({
                 </ul>
               )}
             </fieldset>
+
+            {alternatives.length > 0 ? (
+              <div className="booking-modal__alts">
+                <p className="booking-modal__alts-title">
+                  {t('bookingModal.alternativesTitle')}
+                </p>
+                <ul className="room-pick-list room-pick-list--alts">
+                  {alternatives.map((room) => (
+                    <li key={`alt-${room.id}`}>
+                      <div className="room-pick room-pick--alt">
+                        <span className="room-pick__body">
+                          <strong>
+                            {t('bookingModal.roomLabel', {
+                              number: room.number,
+                              cottage: translateCottageName(
+                                room.cottageName,
+                                t,
+                              ),
+                            })}
+                          </strong>
+                          <span className="room-pick__beds">
+                            {formatFromHint(room.availableFrom)}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn--outline room-pick__apply"
+                          onClick={() =>
+                            applyAvailableFrom(room.availableFrom)
+                          }
+                        >
+                          {t('bookingModal.useAvailableFrom', {
+                            time: room.availableFrom?.time,
+                          })}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {preview && (
               <div className="booking-modal__summary">
