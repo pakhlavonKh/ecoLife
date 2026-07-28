@@ -127,10 +127,11 @@ describe('calendarNightsBetween (pricing is night-based, times do not matter)', 
 });
 
 describe('validateStayDates with wall-clock times', () => {
-  const today = parseLocalDateTime('2026-07-24');
+  // Morning of 2026-07-24 — a default 14:00 check-in is still in the future.
+  const now = parseLocalDateTime('2026-07-24', '10:00');
 
   it('applies the 14:00 / 12:00 defaults', () => {
-    const stay = validateStayDates('2026-08-01', '2026-08-03', { today });
+    const stay = validateStayDates('2026-08-01', '2026-08-03', { now });
     expect(stay.checkIn.toISOString()).toBe('2026-08-01T09:00:00.000Z');
     expect(stay.checkOut.toISOString()).toBe('2026-08-03T07:00:00.000Z');
     expect(stay.checkInTime).toBe('14:00');
@@ -142,7 +143,7 @@ describe('validateStayDates with wall-clock times', () => {
 
   it('honours explicit times without changing the night count', () => {
     const stay = validateStayDates('2026-08-01', '2026-08-03', {
-      today,
+      now,
       checkInTime: '20:30',
       checkOutTime: '09:15',
     });
@@ -152,25 +153,44 @@ describe('validateStayDates with wall-clock times', () => {
   });
 
   it('accepts a check-in later today', () => {
-    const stay = validateStayDates('2026-07-24', '2026-07-25', { today });
+    const stay = validateStayDates('2026-07-24', '2026-07-25', { now });
     expect(stay.checkInTime).toBe('14:00');
+  });
+
+  it('rejects a same-day check-in whose time has already passed', () => {
+    const evening = parseLocalDateTime('2026-07-24', '17:30');
+    expect(() =>
+      validateStayDates('2026-07-24', '2026-07-25', {
+        now: evening,
+        checkInTime: '14:00',
+      }),
+    ).toThrow(/past/i);
+  });
+
+  it('accepts a same-day check-in at a still-future time', () => {
+    const evening = parseLocalDateTime('2026-07-24', '17:30');
+    const stay = validateStayDates('2026-07-24', '2026-07-25', {
+      now: evening,
+      checkInTime: '18:00',
+    });
+    expect(stay.checkInTime).toBe('18:00');
   });
 
   it('still rejects past, inverted and over-long stays', () => {
     expect(() =>
-      validateStayDates('2026-07-20', '2026-07-22', { today }),
+      validateStayDates('2026-07-20', '2026-07-22', { now }),
     ).toThrow(/past/i);
     expect(() =>
-      validateStayDates('2026-08-01', '2026-08-01', { today }),
+      validateStayDates('2026-08-01', '2026-08-01', { now }),
     ).toThrow(/before/i);
     expect(() =>
-      validateStayDates('2026-08-01', '2026-09-05', { today, maxNights: 30 }),
+      validateStayDates('2026-08-01', '2026-09-05', { now, maxNights: 30 }),
     ).toThrow(/30/);
   });
 
   it('charges same-day day-use as 1 night when times are valid', () => {
     const stay = validateStayDates('2026-08-05', '2026-08-05', {
-      today,
+      now,
       checkInTime: '09:00',
       checkOutTime: '20:00',
     });

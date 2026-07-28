@@ -7,7 +7,6 @@ import {
   formatLocalTime,
   parseLocalDateTime,
   parseTimeOfDay,
-  startOfLocalDay,
 } from './datetime';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,7 +65,12 @@ export function rangesOverlap(
 export type StayValidationOptions = {
   minNights?: number;
   maxNights?: number;
-  /** Start of "today" as an instant. Defaults to local midnight. */
+  /**
+   * Reference "now" for past checks. Defaults to the current instant.
+   * Check-in must be >= now (same calendar day with a future time is OK).
+   */
+  now?: Date;
+  /** @deprecated Prefer `now`. Kept so existing tests can pass a frozen clock. */
   today?: Date;
   /** Admin edits of existing stays may keep a past check-in. */
   allowPast?: boolean;
@@ -101,7 +105,9 @@ export function validateStayDates(
 ): ValidatedStay {
   const minNights = options.minNights ?? 1;
   const maxNights = options.maxNights ?? 30;
-  const today = options.today ?? startOfLocalDay(new Date());
+  // Compare against the current instant (not local midnight) so a same-day
+  // check-in at 14:00 is rejected when it is already 17:30.
+  const now = options.now ?? options.today ?? new Date();
 
   const checkInTime = parseTimeOfDay(
     options.checkInTime ?? DEFAULT_CHECK_IN_TIME,
@@ -115,7 +121,7 @@ export function validateStayDates(
   const checkIn = parseLocalDateTime(checkInStr, checkInTime, 'check_in');
   const checkOut = parseLocalDateTime(checkOutStr, checkOutTime, 'check_out');
 
-  if (!options.allowPast && checkIn.getTime() < today.getTime()) {
+  if (!options.allowPast && checkIn.getTime() < now.getTime()) {
     throw new BadRequestException('check_in must not be in the past');
   }
 

@@ -49,7 +49,7 @@ describe('nightsBetween', () => {
 
   it('charges same-day day-use as 1 night (HOURLY.md §5)', () => {
     const stay = validateStayDates('2026-08-05', '2026-08-05', {
-      today: parseIsoDate('2026-07-24'),
+      now: parseIsoDate('2026-07-24'),
       checkInTime: '09:00',
       checkOutTime: '20:00',
     });
@@ -60,18 +60,29 @@ describe('nightsBetween', () => {
 });
 
 describe('validateStayDates', () => {
-  const today = parseIsoDate('2026-07-24');
+  const now = parseIsoDate('2026-07-24');
 
   it('rejects check_in in the past', () => {
     expect(() =>
-      validateStayDates('2026-07-20', '2026-07-22', { today }),
+      validateStayDates('2026-07-20', '2026-07-22', { now }),
+    ).toThrow(/past/i);
+  });
+
+  it('rejects same-day check_in when the time has already passed', () => {
+    // 17:30 local on 2026-07-24 — default 14:00 check-in is already past.
+    const evening = new Date('2026-07-24T12:30:00.000Z'); // 17:30 UZT
+    expect(() =>
+      validateStayDates('2026-07-24', '2026-07-25', {
+        now: evening,
+        checkInTime: '14:00',
+      }),
     ).toThrow(/past/i);
   });
 
   it('rejects check_in >= check_out by instant', () => {
     expect(() =>
       validateStayDates('2026-08-01', '2026-08-01', {
-        today,
+        now,
         checkInTime: '14:00',
         checkOutTime: '14:00',
       }),
@@ -81,14 +92,14 @@ describe('validateStayDates', () => {
   it('rejects stays longer than max nights', () => {
     expect(() =>
       validateStayDates('2026-08-01', '2026-09-05', {
-        today,
+        now,
         maxNights: 30,
       }),
     ).toThrow(/30/);
   });
 
   it('accepts a valid stay', () => {
-    const stay = validateStayDates('2026-08-01', '2026-08-03', { today });
+    const stay = validateStayDates('2026-08-01', '2026-08-03', { now });
     expect(stay.nights).toBe(2);
     expect(formatIsoDate(stay.checkIn)).toBe('2026-08-01');
   });
