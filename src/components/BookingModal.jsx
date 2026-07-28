@@ -15,6 +15,7 @@ import {
   formatPhoneMask,
   isValidUzPhone,
   nightsBetween,
+  normalizeAvailableRoom,
   OPERATOR_PHONES,
   operatorPhonesDisplay,
   paymentProviders,
@@ -25,8 +26,8 @@ import {
 } from '../utils/booking';
 
 /**
- * Whole-room booking modal (AGENTS §6).
- * When PAYMENTS_ENABLED=false: pre-request (no payment redirect).
+ * Shared-room (per-bed) booking modal — BED_MODE §6.
+ * Guest sees remaining beds only; never co-occupant identities.
  */
 function BookingModal({
   category,
@@ -60,10 +61,16 @@ function BookingModal({
     DEFAULT_DEPOSIT[category.code] ??
     30;
 
+  const guestCount = Math.max(1, Number(guests) || 1);
   const selectedRoom = rooms.find((r) => r.id === roomId) || null;
+  const pricePerBed =
+    selectedRoom?.pricePerNight ??
+    category.pricePerBedPerNight ??
+    category.priceFrom ??
+    null;
   const preview =
-    selectedRoom && nights > 0
-      ? calcPreview(selectedRoom.pricePerNight, nights, depositPercent)
+    pricePerBed != null && nights > 0
+      ? calcPreview(pricePerBed, guestCount, nights, depositPercent)
       : null;
 
   useEffect(() => {
@@ -100,10 +107,12 @@ function BookingModal({
         checkIn,
         checkOut,
         categoryCode: category.code,
-        guests: Number(guests) || 1,
+        guests: guestCount,
       });
       setNights(data.nights);
-      const list = data.categories?.[0]?.availableRooms ?? [];
+      const list = (data.categories?.[0]?.availableRooms ?? [])
+        .map(normalizeAvailableRoom)
+        .filter(Boolean);
       setRooms(list);
       setRoomId((prev) =>
         list.some((r) => r.id === prev) ? prev : list[0]?.id || '',
@@ -118,7 +127,7 @@ function BookingModal({
     } finally {
       setLoadingRooms(false);
     }
-  }, [checkIn, checkOut, category?.code, guests, t]);
+  }, [checkIn, checkOut, category?.code, guestCount, t]);
 
   useEffect(() => {
     loadRooms();
@@ -164,7 +173,7 @@ function BookingModal({
         roomId,
         checkIn,
         checkOut,
-        guests: Number(guests),
+        guests: guestCount,
       };
       if (paymentsEnabled) {
         payload.provider = provider;
@@ -187,7 +196,9 @@ function BookingModal({
       setError(t('bookingError'));
     } catch (err) {
       if (isConflictError(err)) {
-        setError(t('bookingModal.roomTaken'));
+        setError(
+          getErrorMessage(err, t('bookingModal.bedsUnavailable')),
+        );
         await loadRooms();
       } else {
         setError(getErrorMessage(err, t('bookingError')));
@@ -355,13 +366,15 @@ function BookingModal({
                               ),
                             })}
                           </strong>
-                          <span>
-                            {t('bookingModal.capacity', {
-                              count: room.capacity,
+                          <span className="room-pick__beds">
+                            {t('bookingModal.remainingBeds', {
+                              remaining: room.remainingBeds,
+                              capacity: room.capacity,
                             })}
-                            {' · '}
+                          </span>
+                          <span>
                             {formatMoney(room.pricePerNight, locale)}
-                            {t('bookingModal.perNight')}
+                            {t('bookingModal.perBedNight')}
                           </span>
                         </span>
                       </label>
@@ -376,8 +389,10 @@ function BookingModal({
                 <p>
                   {t('bookingModal.nights', { count: preview.nights })}
                   {' · '}
-                  {formatMoney(preview.pricePerNight, locale)}
-                  {t('bookingModal.perNight')}
+                  {t('bookingModal.guestsLine', { count: preview.guests })}
+                  {' · '}
+                  {formatMoney(preview.pricePerBedPerNight, locale)}
+                  {t('bookingModal.perBedNight')}
                 </p>
                 <dl>
                   <div>

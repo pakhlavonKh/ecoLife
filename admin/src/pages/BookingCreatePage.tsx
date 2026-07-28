@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { availabilityApi, bookingsApi } from '../api/adminApi';
@@ -15,7 +15,14 @@ import {
   Select,
   TextArea,
 } from '../components/ui';
-import { addDaysIso, formatMoney, todayIso } from '../lib/format';
+import {
+  addDaysIso,
+  calcBedTotal,
+  calcDeposit,
+  formatMoney,
+  nightsBetween,
+  todayIso,
+} from '../lib/format';
 import { splitGuestName } from '../lib/guest-name';
 
 export function BookingCreatePage() {
@@ -31,6 +38,9 @@ export function BookingCreatePage() {
     notes: '',
   });
   const [rooms, setRooms] = useState<AvailableRoom[]>([]);
+  const [depositByCategory, setDepositByCategory] = useState<
+    Record<string, number>
+  >({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -42,11 +52,21 @@ export function BookingCreatePage() {
           form.checkIn,
           form.checkOut,
         );
+        const deposits: Record<string, number> = {};
+        for (const c of data.categories) {
+          deposits[c.code] = c.depositPercent;
+        }
         const list = data.categories
           .flatMap((c) => c.availableRooms ?? [])
-          .filter((r) => r.capacity >= form.guests)
-          .sort((a, b) => a.capacity - b.capacity);
+          .filter((r) => (r.remainingBeds ?? 0) >= form.guests)
+          .sort((a, b) => {
+            if (a.capacity !== b.capacity) return a.capacity - b.capacity;
+            return a.number.localeCompare(b.number, undefined, {
+              numeric: true,
+            });
+          });
         if (!cancelled) {
+          setDepositByCategory(deposits);
           setRooms(list);
           setForm((f) => ({
             ...f,
@@ -69,6 +89,28 @@ export function BookingCreatePage() {
   }, [form.checkIn, form.checkOut, form.guests]);
 
   const selected = rooms.find((r) => r.id === form.roomId);
+  const nights = nightsBetween(form.checkIn, form.checkOut);
+
+  const pricePreview = useMemo(() => {
+    if (!selected || nights < 1 || form.guests < 1) return null;
+    const total = calcBedTotal(
+      selected.pricePerNight,
+      form.guests,
+      nights,
+    );
+    const depositPercent =
+      depositByCategory[selected.categoryCode] ?? 0;
+    const deposit = calcDeposit(total, depositPercent);
+    return {
+      pricePerBed: selected.pricePerNight,
+      nights,
+      guests: form.guests,
+      total,
+      depositPercent,
+      deposit,
+      remaining: Math.max(0, total - deposit),
+    };
+  }, [selected, nights, form.guests, depositByCategory]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -170,6 +212,7 @@ export function BookingCreatePage() {
                     {t('bookingCreate.roomOption', {
                       number: r.number,
                       cottage: r.cottageName,
+                      remaining: r.remainingBeds,
                       capacity: r.capacity,
                       category: r.categoryCode,
                       price: formatMoney(r.pricePerNight),
@@ -183,12 +226,45 @@ export function BookingCreatePage() {
                 {t('bookingCreate.selectedSummary', {
                   number: selected.number,
                   cottage: selected.cottageName,
+                  remaining: selected.remainingBeds,
                   capacity: selected.capacity,
                   price: formatMoney(selected.pricePerNight),
                 })}
               </p>
             ) : null}
           </div>
+
+          {pricePreview ? (
+            <div className="sm:col-span-2 rounded-md border border-stone-200 bg-stone-50 p-3 text-sm">
+              <div className="font-medium text-stone-800">
+                {t('bookingCreate.pricePreviewTitle')}
+              </div>
+              <div className="mt-1 text-[var(--muted)]">
+                {t('bookingCreate.pricePreviewFormula', {
+                  price: formatMoney(pricePreview.pricePerBed),
+                  guests: pricePreview.guests,
+                  nights: pricePreview.nights,
+                })}
+              </div>
+              <div className="mt-2 grid gap-1 sm:grid-cols-3">
+                <div>
+                  {t('bookingCreate.priceTotal')}:{' '}
+                  <strong>{formatMoney(pricePreview.total)}</strong>
+                </div>
+                <div>
+                  {t('bookingCreate.priceDeposit', {
+                    percent: pricePreview.depositPercent,
+                  })}
+                  : <strong>{formatMoney(pricePreview.deposit)}</strong>
+                </div>
+                <div>
+                  {t('bookingCreate.priceRemaining')}:{' '}
+                  <strong>{formatMoney(pricePreview.remaining)}</strong>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="sm:col-span-2">
             <Field label={t('common.notes')}>
               <TextArea

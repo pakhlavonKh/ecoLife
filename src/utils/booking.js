@@ -14,9 +14,12 @@ export function sortCategories(categories) {
   );
 }
 
+/** Confirmed per-bed prices (UZS / bed / night) when API is down. */
+export const DEFAULT_PRICE_PER_BED = { standart: 600000, lux: 800000 };
+
 /**
  * Normalize API category (camelCase or snake_case) and keep only standart/lux.
- * @returns {null | {id:string,code:string,name:string,description:string,depositPercent:number,images:string[],priceFrom:string|null,priceTo:string|null}}
+ * @returns {null | {id:string,code:string,name:string,description:string,depositPercent:number,images:string[],pricePerBedPerNight:string|null,priceFrom:string|null,priceTo:string|null}}
  */
 export function normalizeCategory(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -30,8 +33,14 @@ export function normalizeCategory(raw) {
   const depositRaw =
     raw.depositPercent ?? raw.deposit_percent ?? DEFAULT_DEPOSIT[code];
   const depositPercent = Number(depositRaw);
-  const priceFrom = raw.priceFrom ?? raw.price_from ?? null;
-  const priceTo = raw.priceTo ?? raw.price_to ?? null;
+  const pricePerBed =
+    raw.pricePerBedPerNight ??
+    raw.price_per_bed_per_night ??
+    raw.priceFrom ??
+    raw.price_from ??
+    null;
+  const priceFrom = pricePerBed ?? raw.priceFrom ?? raw.price_from ?? null;
+  const priceTo = raw.priceTo ?? raw.price_to ?? priceFrom;
 
   return {
     id: String(raw.id || code),
@@ -42,6 +51,7 @@ export function normalizeCategory(raw) {
       ? depositPercent
       : DEFAULT_DEPOSIT[code],
     images: Array.isArray(raw.images) ? raw.images.filter(Boolean) : [],
+    pricePerBedPerNight: pricePerBed != null ? String(pricePerBed) : null,
     priceFrom: priceFrom != null ? String(priceFrom) : null,
     priceTo: priceTo != null ? String(priceTo) : null,
   };
@@ -64,16 +74,20 @@ export function normalizeCategories(data) {
 
 /** Offline / API-down fallback so the page still shows Стандарт / Люкс. */
 export function fallbackCategories() {
-  return PUBLIC_CATEGORY_CODES.map((code) => ({
-    id: code,
-    code,
-    name: '',
-    description: '',
-    depositPercent: DEFAULT_DEPOSIT[code],
-    images: [],
-    priceFrom: null,
-    priceTo: null,
-  }));
+  return PUBLIC_CATEGORY_CODES.map((code) => {
+    const price = String(DEFAULT_PRICE_PER_BED[code]);
+    return {
+      id: code,
+      code,
+      name: '',
+      description: '',
+      depositPercent: DEFAULT_DEPOSIT[code],
+      images: [],
+      pricePerBedPerNight: price,
+      priceFrom: price,
+      priceTo: price,
+    };
+  });
 }
 
 export function todayStr() {
@@ -134,12 +148,53 @@ export function formatMoney(amount, locale = 'ru-RU') {
   })} UZS`;
 }
 
-export function calcPreview(pricePerNight, nights, depositPercent) {
-  const price = Number(pricePerNight);
-  const total = Math.round(price * nights);
+/**
+ * Bed-mode preview: total = pricePerBedPerNight × guests × nights.
+ * Mirrors api/src/common/utils/money.ts (rounded to whole UZS for display).
+ */
+export function calcPreview(pricePerBedPerNight, guests, nights, depositPercent) {
+  const price = Number(pricePerBedPerNight);
+  const guestCount = Math.max(1, Number(guests) || 1);
+  const nightCount = Math.max(0, Number(nights) || 0);
+  const total = Math.round(price * guestCount * nightCount);
   const deposit = Math.round((total * Number(depositPercent)) / 100);
   const remaining = total - deposit;
-  return { total, deposit, remaining, nights, pricePerNight: price };
+  return {
+    total,
+    deposit,
+    remaining,
+    nights: nightCount,
+    guests: guestCount,
+    pricePerBedPerNight: price,
+  };
+}
+
+/** Normalize availability room row (remaining beds for shared-room UI). */
+export function normalizeAvailableRoom(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = raw.id != null ? String(raw.id) : '';
+  if (!id) return null;
+  const capacity = Number(raw.capacity ?? 0);
+  const remainingBeds = Number(
+    raw.remainingBeds ?? raw.remaining_beds ?? capacity,
+  );
+  const price =
+    raw.pricePerNight ??
+    raw.price_per_night ??
+    raw.pricePerBedPerNight ??
+    raw.price_per_bed_per_night ??
+    null;
+  return {
+    id,
+    number: String(raw.number ?? ''),
+    capacity: Number.isFinite(capacity) ? capacity : 0,
+    remainingBeds: Number.isFinite(remainingBeds) ? remainingBeds : 0,
+    cottageName: String(raw.cottageName ?? raw.cottage_name ?? ''),
+    categoryCode: String(
+      raw.categoryCode ?? raw.category_code ?? '',
+    ).toLowerCase(),
+    pricePerNight: price != null ? String(price) : null,
+  };
 }
 
 /** Digits-only national part (9) from any input; display as +998 XX XXX XX XX */

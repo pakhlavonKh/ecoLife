@@ -165,19 +165,19 @@ function BookingPage() {
               const description =
                 cat.description?.trim() ||
                 t(`roomsData.${cat.code}.description`);
+              const bedPrice =
+                cat.pricePerBedPerNight ?? cat.priceFrom ?? null;
               const priceLabel =
-                cat.priceFrom != null
-                  ? cat.priceFrom === cat.priceTo
-                    ? formatMoney(cat.priceFrom, locale)
-                    : t('priceFrom', {
-                        price: formatMoney(cat.priceFrom, locale),
-                      })
+                bedPrice != null
+                  ? `${formatMoney(bedPrice, locale)}${t('pricePerBedNight')}`
                   : t('priceUnavailable');
-              const roomsCount = avail?.availableRoomsCount;
+              const bedsCount = Number(
+                avail?.availableBeds ?? avail?.available_beds ?? 0,
+              );
               const canBook =
                 Boolean(availability) &&
                 Boolean(avail) &&
-                Number(roomsCount) > 0 &&
+                bedsCount > 0 &&
                 nights > 0;
 
               return (
@@ -202,8 +202,8 @@ function BookingPage() {
                         <>
                           <span aria-hidden="true">·</span>
                           <span>
-                            {t('availableRoomsCount', {
-                              count: avail.availableRoomsCount,
+                            {t('availableBedsCount', {
+                              count: bedsCount,
                             })}
                           </span>
                         </>

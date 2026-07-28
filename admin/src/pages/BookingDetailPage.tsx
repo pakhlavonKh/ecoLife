@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
-import { availabilityApi, bookingsApi } from '../api/adminApi';
+import {
+  availabilityApi,
+  bookingsApi,
+  roomLocksApi,
+} from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
-import type { AvailableRoom, Booking } from '../api/types';
+import type { AvailableRoom, Booking, RoomLock } from '../api/types';
 import { DateField } from '../components/DateField';
 import {
   Button,
@@ -17,7 +21,14 @@ import {
   StatusBadge,
   TextArea,
 } from '../components/ui';
-import { formatDateTime, formatMoney } from '../lib/format';
+import {
+  calcBedTotal,
+  calcDeposit,
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  nightsBetween,
+} from '../lib/format';
 import { formatGuestName, splitGuestName } from '../lib/guest-name';
 import { sourceLabel, statusActionLabel } from '../lib/labels';
 
@@ -36,7 +47,19 @@ export function BookingDetailPage() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [rooms, setRooms] = useState<AvailableRoom[]>([]);
+  const [depositByCategory, setDepositByCategory] = useState<
+    Record<string, number>
+  >({});
   const [cashAmount, setCashAmount] = useState('');
+  const [locks, setLocks] = useState<RoomLock[]>([]);
+  const [lockReason, setLockReason] = useState('');
+  /** Snapshot of guests|checkIn|checkOut|roomId from last load — used to skip price sync until user edits inventory. */
+  const inventoryBaseline = useRef('');
+  /** Shown when a bargained total was wiped by guests/dates/room change. */
+  const [priceResetNotice, setPriceResetNotice] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
 
   const [form, setForm] = useState({
     guestName: '',
@@ -51,6 +74,10 @@ export function BookingDetailPage() {
 
   async function load() {
     const { data } = await bookingsApi.get(id);
+    const roomId = data.rooms[0]?.roomId ?? '';
+    const guests = data.rooms[0]?.bedsBooked ?? data.bedsTotal;
+    inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${roomId}`;
+    setPriceResetNotice(null);
     setBooking(data);
     setForm({
       guestName: formatGuestName(
@@ -60,12 +87,21 @@ export function BookingDetailPage() {
       phone: data.customer.phone,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
-      roomId: data.rooms[0]?.roomId ?? '',
-      guests: data.rooms[0]?.bedsBooked ?? data.bedsTotal,
+      roomId,
+      guests,
       notes: data.notes ?? '',
       totalAmount: data.totalAmount,
     });
     setCashAmount(data.remainingAmount);
+  }
+
+  async function loadLocks(roomId?: string) {
+    if (!roomId) {
+      setLocks([]);
+      return;
+    }
+    const { data } = await roomLocksApi.list({ roomId });
+    setLocks(data);
   }
 
   useEffect(() => {
@@ -85,6 +121,22 @@ export function BookingDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    const roomId = booking?.rooms[0]?.roomId;
+    if (!roomId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadLocks(roomId);
+      } catch {
+        if (!cancelled) setLocks([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [booking?.rooms[0]?.roomId, booking?.id]);
+
+  useEffect(() => {
     if (!form.checkIn || !form.checkOut) return;
     let cancelled = false;
     (async () => {
@@ -92,10 +144,15 @@ export function BookingDetailPage() {
         const { data } = await availabilityApi.admin(
           form.checkIn,
           form.checkOut,
+          { excludeBookingId: id || undefined },
         );
+        const deposits: Record<string, number> = {};
+        for (const c of data.categories) {
+          deposits[c.code] = c.depositPercent;
+        }
         const list = data.categories.flatMap((c) => c.availableRooms ?? []);
         if (!cancelled) {
-          // Keep currently assigned room even if occupied by this booking
+          setDepositByCategory(deposits);
           const current = booking?.rooms[0];
           if (
             current &&
@@ -105,6 +162,7 @@ export function BookingDetailPage() {
               id: current.roomId,
               number: current.number,
               capacity: current.capacity,
+              remainingBeds: current.capacity,
               categoryCode: current.categoryCode,
               cottageId: current.cottageId ?? '',
               cottageName: current.cottageName,
@@ -120,7 +178,32 @@ export function BookingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [form.checkIn, form.checkOut, booking]);
+  }, [form.checkIn, form.checkOut, booking, id]);
+
+  const selected = rooms.find((r) => r.id === form.roomId);
+  const nights = nightsBetween(form.checkIn, form.checkOut);
+
+  const calculated = useMemo(() => {
+    if (!selected || nights < 1 || form.guests < 1) return null;
+    const price = Number(selected.pricePerNight);
+    if (!Number.isFinite(price) || price <= 0) return null;
+    const total = calcBedTotal(selected.pricePerNight, form.guests, nights);
+    const depositPercent = depositByCategory[selected.categoryCode] ?? 0;
+    const deposit = calcDeposit(total, depositPercent);
+    return { total, deposit, depositPercent, pricePerBed: selected.pricePerNight };
+  }, [selected, nights, form.guests, depositByCategory]);
+
+  // On guests / dates / room change: always reset bargained total to per-bed auto-calc.
+  useEffect(() => {
+    if (!calculated) return;
+    const key = `${form.guests}|${form.checkIn}|${form.checkOut}|${form.roomId}`;
+    if (key === inventoryBaseline.current) return;
+    const next = String(calculated.total);
+    const prev = form.totalAmount;
+    if (prev === next || Number(prev) === Number(next)) return;
+    setPriceResetNotice({ from: prev, to: next });
+    setForm((f) => ({ ...f, totalAmount: next }));
+  }, [form.guests, form.checkIn, form.checkOut, form.roomId, calculated?.total]);
 
   const previewRemaining = useMemo(() => {
     if (!booking) return null;
@@ -128,6 +211,16 @@ export function BookingDetailPage() {
     if (!Number.isFinite(rem)) return null;
     return rem;
   }, [booking, form.totalAmount]);
+
+  const roomAlreadyLocked = useMemo(() => {
+    if (!form.roomId || !form.checkIn || !form.checkOut) return false;
+    return locks.some(
+      (l) =>
+        l.roomId === form.roomId &&
+        l.checkIn < form.checkOut &&
+        l.checkOut > form.checkIn,
+    );
+  }, [locks, form.roomId, form.checkIn, form.checkOut]);
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -195,6 +288,34 @@ export function BookingDetailPage() {
     }
   }
 
+  async function onCloseRoom() {
+    if (!form.roomId) return;
+    if (!confirm(t('bookingDetail.confirmCloseRoom'))) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await roomLocksApi.create({
+        roomId: form.roomId,
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
+        bookingId: id,
+        reason:
+          lockReason.trim() ||
+          t('bookingDetail.closeRoomDefaultReason', {
+            code: booking?.publicCode ?? id,
+          }),
+      });
+      await loadLocks(form.roomId);
+      setLockReason('');
+      setMessage(t('bookingDetail.roomClosed'));
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!booking && !error) {
     return <div className="text-[var(--muted)]">{t('common.loading')}</div>;
   }
@@ -203,6 +324,13 @@ export function BookingDetailPage() {
     booking != null &&
     Number(booking.paidAmount) > 0 &&
     Number(booking.paidAmount) >= Number(booking.depositAmount);
+
+  const relevantLocks = locks.filter(
+    (l) =>
+      !form.checkIn ||
+      !form.checkOut ||
+      (l.checkIn < form.checkOut && l.checkOut > form.checkIn),
+  );
 
   return (
     <div>
@@ -331,6 +459,7 @@ export function BookingDetailPage() {
                     {t('bookingDetail.roomOption', {
                       number: r.number,
                       cottage: r.cottageName,
+                      remaining: r.remainingBeds,
                       capacity: r.capacity,
                       category: r.categoryCode,
                     })}
@@ -338,6 +467,28 @@ export function BookingDetailPage() {
                 ))}
               </Select>
             </Field>
+
+            {calculated ? (
+              <div className="sm:col-span-2 rounded-md border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900">
+                {t('bookingDetail.livePrice', {
+                  price: formatMoney(calculated.pricePerBed),
+                  guests: form.guests,
+                  nights,
+                  total: formatMoney(calculated.total),
+                  percent: calculated.depositPercent,
+                  deposit: formatMoney(calculated.deposit),
+                })}
+              </div>
+            ) : null}
+
+            {priceResetNotice ? (
+              <div className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {t('bookingDetail.priceResetNotice', {
+                  from: formatMoney(priceResetNotice.from),
+                  to: formatMoney(priceResetNotice.to),
+                })}
+              </div>
+            ) : null}
 
             {booking ? (
               <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2 rounded-md border border-stone-200 bg-stone-50 p-3">
@@ -351,9 +502,10 @@ export function BookingDetailPage() {
                 <Field label={t('bookingDetail.totalAmountLabel')}>
                   <Input
                     value={form.totalAmount}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, totalAmount: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setPriceResetNotice(null);
+                      setForm((f) => ({ ...f, totalAmount: e.target.value }));
+                    }}
                     inputMode="decimal"
                     required
                   />
@@ -415,6 +567,53 @@ export function BookingDetailPage() {
                 </div>
               ) : null}
             </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="mb-3 text-sm font-medium">
+              {t('bookingDetail.closeRoomTitle')}
+            </div>
+            <p className="mb-2 text-xs text-[var(--muted)]">
+              {t('bookingDetail.closeRoomHint')}
+            </p>
+            {relevantLocks.length > 0 ? (
+              <ul className="mb-3 space-y-1 text-xs">
+                {relevantLocks.map((l) => (
+                  <li
+                    key={l.id}
+                    className="rounded border border-stone-200 bg-stone-50 px-2 py-1"
+                  >
+                    {t('bookingDetail.lockLine', {
+                      room: l.roomNumber,
+                      checkIn: formatDate(l.checkIn),
+                      checkOut: formatDate(l.checkOut),
+                      reason: l.reason ?? t('common.emDash'),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mb-3 text-xs text-[var(--muted)]">
+                {t('bookingDetail.noLocks')}
+              </p>
+            )}
+            <Field label={t('bookingDetail.lockReasonLabel')}>
+              <Input
+                value={lockReason}
+                onChange={(e) => setLockReason(e.target.value)}
+                placeholder={t('bookingDetail.lockReasonPlaceholder')}
+              />
+            </Field>
+            <Button
+              className="mt-3 w-full"
+              variant="secondary"
+              disabled={busy || !form.roomId || roomAlreadyLocked}
+              onClick={() => void onCloseRoom()}
+            >
+              {roomAlreadyLocked
+                ? t('bookingDetail.alreadyLocked')
+                : t('bookingDetail.closeRoomAction')}
+            </Button>
           </Card>
 
           <Card className="p-4">

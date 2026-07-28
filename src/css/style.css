@@ -2141,6 +2141,11 @@ p {
   font-weight: 500;
 }
 
+.room-pick__beds {
+  color: var(--moss);
+  font-weight: 500;
+}
+
 .booking-modal__summary {
   padding: 1rem 1.1rem;
   background: var(--paper-raise);

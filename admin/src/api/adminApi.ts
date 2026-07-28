@@ -10,6 +10,7 @@ import type {
   DashboardStats,
   PriceMatrix,
   Room,
+  RoomLock,
   TelegramInvite,
   TelegramRecipient,
   TelegramStaffRole,
@@ -47,14 +48,44 @@ export const bookingsApi = {
 };
 
 export const availabilityApi = {
-  admin: (check_in: string, check_out: string) =>
+  admin: (
+    check_in: string,
+    check_out: string,
+    opts?: { excludeBookingId?: string },
+  ) =>
     api.get<{
+      nights: number;
       categories: Array<{
         code: string;
         name: string;
+        depositPercent: number;
         availableRooms?: AvailableRoom[];
       }>;
-    }>('/api/v1/admin/availability', { params: { check_in, check_out } }),
+    }>('/api/v1/admin/availability', {
+      params: {
+        check_in,
+        check_out,
+        ...(opts?.excludeBookingId
+          ? { exclude_booking_id: opts.excludeBookingId }
+          : {}),
+      },
+    }),
+};
+
+export const roomLocksApi = {
+  list: (params?: {
+    from?: string;
+    to?: string;
+    roomId?: string;
+    bookingId?: string;
+  }) => api.get<RoomLock[]>('/api/v1/admin/room-locks', { params }),
+  create: (body: {
+    roomId: string;
+    checkIn: string;
+    checkOut: string;
+    reason?: string;
+    bookingId?: string;
+  }) => api.post<RoomLock>('/api/v1/admin/room-locks', body),
 };
 
 export const dashboardApi = {
