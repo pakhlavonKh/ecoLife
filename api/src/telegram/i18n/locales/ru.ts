@@ -11,6 +11,7 @@ const ruSource = {
     emDash: '—',
     code: 'Код',
     guest: 'Гость',
+    guests: 'Гости',
     phone: 'Телефон',
     room: 'Номер',
     dates: 'Даты',
@@ -19,6 +20,7 @@ const ruSource = {
     checkOut: 'Выезд',
     reason: 'Причина',
     bookingStatus: 'Статус брони',
+    bedsInRoom: 'Мест в номере: {{booked}}/{{capacity}} занято',
     active: 'активен',
     name: 'Имя',
     role: 'Роль',
@@ -77,12 +79,16 @@ const ruSource = {
     paymentFailedHint:
       'Свяжитесь с гостем или проверьте у провайдера.',
     latePaymentReview: 'Поздняя оплата — проверка',
+    roomLocked: 'Номер {{number}} закрыт целиком на {{from}}–{{to}}',
   },
   cleaner: {
     freedGeneric: '🧹 Номер освободился.',
     checkoutDate: 'Дата выезда: {{date}}',
     canClean: 'Можно убирать.',
     freedRoom: '🧹 Освободился номер {{number}} ({{cottage}}). Можно убирать.',
+    digestTitle: 'Утренняя сводка {{date}}',
+    digestDepartures: 'Сегодня освобождаются ({{count}}):',
+    digestNoDepartures: 'Сегодня выездов нет.',
   },
   today: {
     title: 'Сегодня {{date}}',
@@ -90,6 +96,8 @@ const ruSource = {
     departures: 'Выезды ({{count}})',
     noArrivals: 'Нет заездов',
     noDepartures: 'Нет выездов',
+    cleanerTitle: 'Выезды сегодня {{date}}',
+    cleanerDepartures: 'Освобождаются ({{count}}):',
   },
   commands: {
     startStaffOnly:

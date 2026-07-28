@@ -19,6 +19,10 @@ import {
   PaymentLateManualReviewPayload,
   PaymentReceivedPayload,
 } from '../payments/events/payment.events';
+import {
+  ROOM_LOCK_CREATED_EVENT,
+  RoomLockCreatedPayload,
+} from '../room-locks/events/room-lock.events';
 import type { TelegramLang } from './i18n';
 import {
   formatBookingCancelled,
@@ -27,10 +31,13 @@ import {
   formatCheckOut,
   formatHoldExpired,
   formatLatePaymentReview,
+  formatMorningDigest,
   formatNewBooking,
   formatPaymentFailed,
   formatPaymentReceived,
+  formatRoomLocked,
   formatStatusChanged,
+  type TodayBrief,
 } from './telegram.messages';
 import { TelegramQueueService } from './telegram.queue.service';
 import { TelegramRouterService } from './telegram.router.service';
@@ -119,6 +126,24 @@ export class TelegramNotifyService {
     void this.dispatch(
       NotificationEvent.system_late_payment_review,
       (scope, lang) => formatLatePaymentReview(payload, scope, lang),
+    );
+  }
+
+  @OnEvent(ROOM_LOCK_CREATED_EVENT, { async: true })
+  handleRoomLockCreated(payload: RoomLockCreatedPayload): void {
+    void this.dispatch(NotificationEvent.system_room_locked, (scope, lang) =>
+      formatRoomLocked(payload, scope, lang),
+    );
+  }
+
+  /** Called by morning digest cron — never throws to the scheduler. */
+  sendMorningDigest(
+    date: string,
+    arrivals: TodayBrief[],
+    departures: TodayBrief[],
+  ): void {
+    void this.dispatch(NotificationEvent.digest_morning, (scope, lang) =>
+      formatMorningDigest(date, arrivals, departures, scope, lang),
     );
   }
 

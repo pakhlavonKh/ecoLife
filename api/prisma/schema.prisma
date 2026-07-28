@@ -97,6 +97,7 @@ enum NotificationEvent {
   system_hold_expired        @map("system.hold_expired")
   system_late_payment_review @map("system.late_payment_review")
   system_payment_failed      @map("system.payment_failed")
+  system_room_locked         @map("system.room_locked")
   digest_morning             @map("digest.morning")
 
   @@map("notification_event")

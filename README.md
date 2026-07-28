@@ -1,8 +1,8 @@
 # EcoLife — cottage resort booking platform
 
-Booking platform for a cottage resort: NestJS API + PostgreSQL, public React site (Netlify), admin SPA, mock/Payme/Click deposits, Telegram admin notifications.
+Booking platform for a cottage resort: NestJS API + PostgreSQL, public React site (Netlify), admin SPA, mock/Payme/Click deposits, Telegram staff notifications.
 
-Inventory model: **Cottage → Room** (whole-room booking, categories `lux` / `standart`). Overbooking is blocked by application locks and a PostgreSQL `EXCLUDE` constraint on `booking_rooms`.
+Inventory: **Cottage → Room** (capacity = beds). Booking is **per bed** (shared room): several bookings may occupy one room on overlapping dates as long as nightly occupancy ≤ capacity. Price is **per bed per night by category** (lux / standart). Admin can **lock** a room for specific dates (`room_locks`) so no further beds are sold. Overbooking is blocked by row locks + per-night occupancy checks in a transaction.
 
 ---
 
@@ -57,11 +57,12 @@ npm run dev            # http://localhost:5174
 ```bash
 cd api
 npm run test:unit      # unit specs (availability, payments, telegram, …)
-npm run test:e2e       # concurrency gate + happy-path e2e (needs DB up + seeded)
+npm run test:e2e       # bed concurrency gate + happy-path e2e (needs DB up + seeded)
 npm run test:gate      # unit + e2e
 ```
 
-Happy path covers: create booking → mock pay → `deposit_paid` → confirm → check-in → check-out (statuses and amounts asserted).
+Happy path: create booking → mock pay → `deposit_paid` → confirm → check-in → check-out.
+Concurrency gate: parallel bookings for remaining beds — never exceed capacity; overflow → 409.
 
 ---
 
@@ -114,7 +115,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml exec api npx prisma db seed
 ```
 
-Sanity: 6 cottages, 41 rooms (18 lux / 23 standart).
+Sanity: 6 cottages, 41 rooms (18 lux / 23 standart). Prices: lux **800 000** / standart **600 000** UZS per bed per night.
 
 ### 5. Verify
 
@@ -214,12 +215,21 @@ argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id}).then(h=>
 
 ## Pre-launch checklist
 
-- [ ] Replace **placeholder prices** in the admin price matrix (category × capacity) with real UZS amounts  
+### Bed-mode cutover (existing production DB)
+
+- [ ] **Backup DB** first (`pg_dump` / backup service volume)  
+- [ ] Deploy code + **apply Prisma migrations** (incl. `bed_mode_schema` + `notification_room_locked`) on the server  
+- [ ] **Preview** lock backfill: run the commented `SELECT` in `api/prisma/scripts/backfill-room-locks.sql` — confirm with owner  
+- [ ] **Apply** backfill INSERT (preserves whole-room exclusivity for pre-bed-mode bookings)  
+- [ ] **Confirm prices** on categories: lux **800 000** / standart **600 000** UZS per bed/night (re-enter if old tier values were different)  
+- [ ] Smoke-test: shared-room booking, room lock, public «осталось X из Y», Telegram new-booking + lock alerts  
+
+### General
+
 - [ ] Set real **Payme** (`PAYME_MERCHANT_ID`, `PAYME_KEY`) and **Click** (`CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY`) credentials  
 - [ ] Set `PAYMENT_PROVIDERS=payme,click` (no `mock` in production)  
 - [ ] Flip `PAYMENTS_ENABLED=true` (API) when ready — until then public bookings are operator pre-requests (`online_request`)  
 - [ ] Configure Netlify `VITE_API_URL` + `VITE_PAYMENT_PROVIDERS`  
-
 - [ ] **Revoke** any Telegram bot token that was ever committed or shared; put a fresh token in prod `.env`  
 - [ ] Change **ADMIN_PASSWORD** from the seed default  
 - [ ] Strong unique `JWT_*` and `POSTGRES_PASSWORD`  
@@ -240,7 +250,8 @@ argon2.hash(process.env.ADMIN_PASSWORD,{type:argon2.argon2id}).then(h=>
 │   └── backup/          Daily pg_dump worker
 ├── docker-compose.prod.yml
 ├── .env.prod.example
-└── AGENTS.md            Product/engineering master prompt
+├── AGENTS.md            Original product master prompt
+└── BED_MODE.md          Per-bed shared-room change prompt
 ```
 
 ---

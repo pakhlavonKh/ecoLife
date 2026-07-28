@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { NotificationEvent, TelegramStaffRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -9,11 +9,23 @@ import {
 } from './telegram.routing';
 
 @Injectable()
-export class NotificationRulesService {
+export class NotificationRulesService implements OnModuleInit {
   private readonly logger = new Logger(NotificationRulesService.name);
   private cache: RoutingRule[] | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.ensureDefaults();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        { err: msg },
+        'Could not ensure notification_rules defaults on boot',
+      );
+    }
+  }
 
   /** Drop the in-memory matrix so the next read hits the DB. */
   invalidate(): void {

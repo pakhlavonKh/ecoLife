@@ -91,6 +91,11 @@ describe('telegram routing matrix (§4)', () => {
     expect(chatIdsFor(NotificationEvent.system_payment_failed)).toEqual([
       '200',
     ]);
+    expect(chatIdsFor(NotificationEvent.system_room_locked)).toEqual([
+      '100',
+      '200',
+      '300',
+    ]);
     expect(chatIdsFor(NotificationEvent.digest_morning)).toEqual([
       '100',
       '200',
@@ -105,9 +110,12 @@ describe('telegram routing matrix (§4)', () => {
     expect(checkout).not.toContain('201');
   });
 
-  it('cleaner never receives booking.created / payment.received', () => {
+  it('cleaner never receives booking.created / payment.received / room_locked', () => {
     expect(chatIdsFor(NotificationEvent.booking_created)).not.toContain('400');
     expect(chatIdsFor(NotificationEvent.payment_received)).not.toContain(
+      '400',
+    );
+    expect(chatIdsFor(NotificationEvent.system_room_locked)).not.toContain(
       '400',
     );
   });

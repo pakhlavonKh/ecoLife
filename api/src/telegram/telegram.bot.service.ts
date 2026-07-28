@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TelegramLanguage } from '@prisma/client';
+import { TelegramLanguage, TelegramStaffRole } from '@prisma/client';
 import { Bot, GrammyError, HttpError, InlineKeyboard } from 'grammy';
 import { DashboardService } from '../dashboard/dashboard.service';
 import {
@@ -22,6 +22,7 @@ import { formatToday } from './telegram.messages';
 import { TelegramInvitesService } from './telegram-invites.service';
 import { TelegramQueueService } from './telegram.queue.service';
 import { TelegramRecipientsService } from './telegram-recipients.service';
+import { scopeForRole } from './telegram.routing';
 import { telegramRoleLabel } from './telegram.roles';
 
 function inviteErrorMessage(error: unknown, lang: TelegramLang): string {
@@ -244,14 +245,14 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       }
 
       const access = await this.resolveCommandAccess(chatId);
-      if (access === 'denied') {
+      if (access.status === 'denied') {
         this.logger.warn(
           { chatId },
           'Ignored /lang from unauthorized chat',
         );
         return;
       }
-      if (access === 'inactive') {
+      if (access.status === 'inactive') {
         const lang = await this.langForChat(chatId);
         await ctx.reply(tt(lang, 'commands.accessDisabled'));
         return;
@@ -281,7 +282,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         return;
       }
       const access = await this.resolveCommandAccess(chatId);
-      if (access !== 'ok') {
+      if (access.status !== 'ok') {
         await ctx.answerCallbackQuery();
         return;
       }
@@ -301,24 +302,28 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     bot.command('today', async (ctx) => {
       const access = await this.resolveCommandAccess(ctx.chat?.id);
       const lang = await this.langForChat(ctx.chat?.id);
-      if (access === 'denied') {
+      if (access.status === 'denied') {
         this.logger.warn(
           { chatId: ctx.chat?.id },
           'Ignored /today from unauthorized chat',
         );
         return;
       }
-      if (access === 'inactive') {
+      if (access.status === 'inactive') {
         await ctx.reply(tt(lang, 'commands.accessDisabled'));
         return;
       }
       try {
         const stats = await this.dashboard.getStats();
+        const scope = scopeForRole(
+          access.role ?? TelegramStaffRole.admin,
+        );
         const text = formatToday(
           stats.today,
           stats.arrivalsList,
           stats.departuresList,
           lang,
+          scope,
         );
         await ctx.reply(text, { parse_mode: 'HTML' });
       } catch (error) {
@@ -433,27 +438,32 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
 
   private async resolveCommandAccess(
     chatId: number | undefined,
-  ): Promise<'ok' | 'inactive' | 'denied'> {
+  ): Promise<{
+    status: 'ok' | 'inactive' | 'denied';
+    role?: TelegramStaffRole;
+  }> {
     if (chatId === undefined) {
-      return 'denied';
+      return { status: 'denied' };
     }
 
     try {
       const recipient = await this.recipients.findByChatId(BigInt(chatId));
       if (recipient) {
-        return recipient.isActive ? 'ok' : 'inactive';
+        return recipient.isActive
+          ? { status: 'ok', role: recipient.role }
+          : { status: 'inactive', role: recipient.role };
       }
 
       const total = await this.recipients.countActive();
       if (total === 0 && this.envChatIds.has(String(chatId))) {
-        return 'ok';
+        return { status: 'ok', role: TelegramStaffRole.admin };
       }
     } catch {
       if (this.envChatIds.has(String(chatId))) {
-        return 'ok';
+        return { status: 'ok', role: TelegramStaffRole.admin };
       }
     }
 
-    return 'denied';
+    return { status: 'denied' };
   }
 }

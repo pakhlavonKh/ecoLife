@@ -5,6 +5,7 @@ export const uz: TelegramDict = {
     emDash: '—',
     code: 'Kod',
     guest: 'Mehmon',
+    guests: 'Mehmonlar',
     phone: 'Telefon',
     room: 'Xona',
     dates: 'Sanalar',
@@ -13,6 +14,7 @@ export const uz: TelegramDict = {
     checkOut: 'Chiqish',
     reason: 'Sabab',
     bookingStatus: 'Bron holati',
+    bedsInRoom: 'Xonada joylar: {{booked}}/{{capacity}} band',
     active: 'faol',
     name: 'Ism',
     role: 'Rol',
@@ -71,12 +73,16 @@ export const uz: TelegramDict = {
     paymentFailedHint:
       'Mehmon bilan bog‘laning yoki provayderni tekshiring.',
     latePaymentReview: 'Kechikkan to‘lov — tekshiruv',
+    roomLocked: '{{number}}-xona {{from}}–{{to}} oralig‘ida to‘liq yopildi',
   },
   cleaner: {
     freedGeneric: '🧹 Xona bo‘shadi.',
     checkoutDate: 'Chiqish sanasi: {{date}}',
     canClean: 'Tozalash mumkin.',
     freedRoom: '🧹 {{number}}-xona bo‘shadi ({{cottage}}). Tozalash mumkin.',
+    digestTitle: 'Ertalabki xulosa {{date}}',
+    digestDepartures: 'Bugun bo‘shaydi ({{count}}):',
+    digestNoDepartures: 'Bugun chiqishlar yo‘q.',
   },
   today: {
     title: 'Bugun {{date}}',
@@ -84,6 +90,8 @@ export const uz: TelegramDict = {
     departures: 'Chiqishlar ({{count}})',
     noArrivals: 'Kelishlar yo‘q',
     noDepartures: 'Chiqishlar yo‘q',
+    cleanerTitle: 'Bugungi chiqishlar {{date}}',
+    cleanerDepartures: 'Bo‘shaydi ({{count}}):',
   },
   commands: {
     startStaffOnly:

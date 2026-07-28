@@ -4,6 +4,7 @@ import { DashboardCoreModule } from '../dashboard/dashboard-core.module';
 import { NotificationRulesService } from './notification-rules.service';
 import { TelegramAdminController } from './telegram.admin.controller';
 import { TelegramBotService } from './telegram.bot.service';
+import { TelegramDigestWorker } from './telegram.digest.worker';
 import { TelegramInvitesService } from './telegram-invites.service';
 import { TelegramNotifyService } from './telegram.notify.service';
 import { TelegramQueueService } from './telegram.queue.service';
@@ -17,6 +18,7 @@ import { TelegramRouterService } from './telegram.router.service';
     TelegramQueueService,
     TelegramBotService,
     TelegramNotifyService,
+    TelegramDigestWorker,
     TelegramRecipientsService,
     TelegramInvitesService,
     NotificationRulesService,

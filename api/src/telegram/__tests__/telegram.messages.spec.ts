@@ -4,9 +4,12 @@ import {
   formatBookingEdited,
   formatCheckOut,
   formatCleanerCheckout,
+  formatCleanerToday,
   formatDateRu,
+  formatMorningDigest,
   formatNewBooking,
   formatPaymentReceived,
+  formatRoomLocked,
   formatToday,
 } from '../telegram.messages';
 import type { BookingSnapshot } from '../../bookings/events/booking.events';
@@ -24,17 +27,17 @@ const sampleBooking: BookingSnapshot = {
       categoryCode: 'standart',
       categoryName: 'Стандарт',
       capacity: 9,
-      bedsBooked: 9,
+      bedsBooked: 2,
     },
   ],
-  bedsTotal: 9,
+  bedsTotal: 2,
   checkIn: '2026-08-01',
   checkOut: '2026-08-03',
-  priceOriginal: '2000000.00',
-  totalAmount: '2000000.00',
-  depositAmount: '600000.00',
-  paidAmount: '600000.00',
-  remainingAmount: '1400000.00',
+  priceOriginal: '1200000.00',
+  totalAmount: '1200000.00',
+  depositAmount: '360000.00',
+  paidAmount: '360000.00',
+  remainingAmount: '840000.00',
   paymentStatus: 'deposit_paid',
   status: 'checked_out',
   source: 'online',
@@ -50,18 +53,19 @@ describe('telegram.messages', () => {
     expect(formatDateRu('2026-08-01')).toBe('01/08/2026');
   });
 
-  it('formats compact new booking for admins', () => {
-    const text = formatNewBooking(sampleBooking, 'full');
+  it('formats compact new booking for admins with bed-mode guests + occupancy', () => {
+    const text = formatNewBooking(sampleBooking, 'full', 'ru');
     expect(text).toContain('<b>Новое бронирование</b>');
     expect(text).toContain('<code>BK-TEST</code>');
     expect(text).toContain('Ali Karimov');
     expect(text).toContain('+998901234567');
+    expect(text).toContain('Гости: 2');
     expect(text).toContain('Коттедж Среда / 305');
+    expect(text).toContain('Мест в номере: 2/9 занято');
     expect(text).toContain('Даты: 01/08/2026 → 03/08/2026');
-    expect(text).toMatch(/Депозит: .*600.?000 UZS/);
+    expect(text).toMatch(/Депозит: .*360.?000 UZS/);
     expect(text).not.toContain('Требует ручного подтверждения');
-    // No noise fields
-    expect(text).not.toContain('Мест:');
+    // No noise money/status fields beyond deposit
     expect(text).not.toContain('Итого:');
     expect(text).not.toContain('Оплачено:');
     expect(text).not.toContain('Остаток:');
@@ -72,18 +76,24 @@ describe('telegram.messages', () => {
     const text = formatNewBooking(sampleBooking, 'full', 'uz');
     expect(text).toContain('<b>Yangi bron</b>');
     expect(text).toContain('Mehmon: Ali Karimov');
+    expect(text).toContain('Mehmonlar: 2');
     expect(text).toContain('Chorshanba kotteji / 305');
+    expect(text).toContain('Xonada joylar: 2/9 band');
     expect(text).toContain('Sanalar:');
   });
 
   it('marks online_request bookings for manual payment confirmation', () => {
-    const text = formatNewBooking({
-      ...sampleBooking,
-      source: 'online_request',
-      status: 'pending_payment',
-      paymentStatus: 'unpaid',
-      paidAmount: '0.00',
-    });
+    const text = formatNewBooking(
+      {
+        ...sampleBooking,
+        source: 'online_request',
+        status: 'pending_payment',
+        paymentStatus: 'unpaid',
+        paidAmount: '0.00',
+      },
+      'full',
+      'ru',
+    );
     expect(text).toContain('<b>Новая предзаявка</b>');
     expect(text).toContain('+998901234567');
     expect(text).toContain('⚠️ Требует ручного подтверждения оплаты');
@@ -91,22 +101,38 @@ describe('telegram.messages', () => {
 
   it('does not duplicate guest name when surname empty or same', () => {
     expect(
-      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: '' }),
+      formatNewBooking(
+        { ...sampleBooking, firstName: 'MK', lastName: '' },
+        'full',
+        'ru',
+      ),
     ).toContain('Гость: MK');
     expect(
-      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: 'MK' }),
+      formatNewBooking(
+        { ...sampleBooking, firstName: 'MK', lastName: 'MK' },
+        'full',
+        'ru',
+      ),
     ).toMatch(/Гость: MK\n/);
     expect(
-      formatNewBooking({ ...sampleBooking, firstName: 'MK', lastName: 'MK' }),
+      formatNewBooking(
+        { ...sampleBooking, firstName: 'MK', lastName: 'MK' },
+        'full',
+        'ru',
+      ),
     ).not.toContain('MK MK');
   });
 
   it('escapes guest name in new booking', () => {
-    const text = formatNewBooking({
-      ...sampleBooking,
-      firstName: '<script>',
-      lastName: 'X',
-    });
+    const text = formatNewBooking(
+      {
+        ...sampleBooking,
+        firstName: '<script>',
+        lastName: 'X',
+      },
+      'full',
+      'ru',
+    );
     expect(text).toContain('&lt;script&gt;');
     expect(text).not.toContain('<script>');
   });
@@ -160,9 +186,11 @@ describe('telegram.messages', () => {
   it('formats hold-expired cancellation', () => {
     const text = formatBookingCancelled(
       { ...sampleBooking, status: 'cancelled' },
-      { holdExpired: true, scope: 'full' },
+      { holdExpired: true, scope: 'full', lang: 'ru' },
     );
     expect(text).toContain('холд истёк');
+    expect(text).toContain('Гости: 2');
+    expect(text).toContain('Мест в номере: 2/9 занято');
     expect(text).not.toContain('Итого:');
   });
 
@@ -174,10 +202,45 @@ describe('telegram.messages', () => {
         { field: 'phone', from: '+998901111111', to: '+998902222222' },
       ],
       'full',
+      'ru',
     );
     expect(text).toContain('<b>Бронирование изменено</b>');
     expect(text).toContain('Заезд: 01/08/2026 → 02/08/2026');
     expect(text).toContain('Телефон:');
+  });
+
+  it('formats whole-room lock alert', () => {
+    const text = formatRoomLocked(
+      {
+        lockId: 'l1',
+        roomId: 'r1',
+        roomNumber: '305',
+        cottageName: 'Chorshanba kottej',
+        checkIn: '2026-08-01',
+        checkOut: '2026-08-05',
+        reason: 'группа',
+        bookingId: null,
+      },
+      'full',
+      'ru',
+    );
+    expect(text).toContain('Номер 305 закрыт целиком на 01.08–05.08');
+    expect(text).toContain('Коттедж Среда / 305');
+    expect(text).toContain('группа');
+    expect(formatRoomLocked(
+      {
+        lockId: 'l1',
+        roomId: 'r1',
+        roomNumber: '305',
+        cottageName: 'Chorshanba kottej',
+        checkIn: '2026-08-01',
+        checkOut: '2026-08-05',
+        reason: null,
+        bookingId: null,
+      },
+      'cleaner',
+      'ru',
+    )).toBeNull();
   });
 
   it('formats /today arrivals and departures', () => {
@@ -195,6 +258,7 @@ describe('telegram.messages', () => {
         },
       ],
       [],
+      'ru',
     );
     expect(text).toContain('Сегодня 25/07/2026');
     expect(text).toContain('Заезды (1)');
@@ -204,7 +268,7 @@ describe('telegram.messages', () => {
 
   describe('cleaner scope privacy (§5 GATE)', () => {
     it('checkout template has cottage + room only — no name/phone/money/code', () => {
-      const text = formatCheckOut(sampleBooking, 'cleaner');
+      const text = formatCheckOut(sampleBooking, 'cleaner', 'ru');
       expect(text).toBeTruthy();
       expect(text).toContain('305');
       expect(text).toContain('Chorshanba kottej');
@@ -215,9 +279,9 @@ describe('telegram.messages', () => {
       expect(text).not.toContain('+998901234567');
       expect(text).not.toContain('998901234567');
       expect(text).not.toContain('BK-TEST');
-      expect(text).not.toContain('2000000');
-      expect(text).not.toContain('600000');
-      expect(text).not.toContain('1400000');
+      expect(text).not.toContain('1200000');
+      expect(text).not.toContain('360000');
+      expect(text).not.toContain('840000');
       expect(text).not.toContain('UZS');
       expect(text).not.toContain('Гость');
       expect(text).not.toContain('Телефон');
@@ -226,14 +290,14 @@ describe('telegram.messages', () => {
     });
 
     it('formatCleanerCheckout matches the §5 example shape', () => {
-      const text = formatCleanerCheckout(sampleBooking);
+      const text = formatCleanerCheckout(sampleBooking, 'ru');
       expect(text).toBe(
         '🧹 Освободился номер 305 (Chorshanba kottej). Можно убирать.',
       );
     });
 
     it('new booking / payment formatters return null for cleaner', () => {
-      expect(formatNewBooking(sampleBooking, 'cleaner')).toBeNull();
+      expect(formatNewBooking(sampleBooking, 'cleaner', 'ru')).toBeNull();
       expect(
         formatPaymentReceived(
           {
@@ -245,8 +309,43 @@ describe('telegram.messages', () => {
             providerTxnId: 't',
           },
           'cleaner',
+          'ru',
         ),
       ).toBeNull();
+    });
+
+    it('/today and morning digest for cleaner — rooms only, no PII/money', () => {
+      const departures = [
+        {
+          publicCode: 'BK-OUT',
+          customerName: 'Secret Guest',
+          phone: '+998901111111',
+          rooms: ['Chorshanba kottej / 305'],
+          checkIn: '2026-07-24',
+          checkOut: '2026-07-25',
+          status: 'checked_in',
+        },
+      ];
+      const today = formatCleanerToday('2026-07-25', departures, 'ru');
+      expect(today).toContain('Выезды сегодня 25/07/2026');
+      expect(today).toContain('Chorshanba kottej / 305');
+      expect(today).not.toContain('Secret');
+      expect(today).not.toContain('BK-OUT');
+      expect(today).not.toContain('998901111111');
+      expect(today).not.toContain('UZS');
+
+      const digest = formatMorningDigest(
+        '2026-07-25',
+        [],
+        departures,
+        'cleaner',
+        'ru',
+      );
+      expect(digest).toContain('Утренняя сводка');
+      expect(digest).toContain('Chorshanba kottej / 305');
+      expect(digest).not.toContain('Secret');
+      expect(digest).not.toContain('BK-OUT');
+      expect(digest).not.toContain('998901111111');
     });
   });
 });

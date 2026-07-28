@@ -4,11 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ActorType, Prisma } from '@prisma/client';
 import { AvailabilityService } from '../availability/availability.service';
 import { formatIsoDate, parseIsoDate } from '../common/utils/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomLockDto } from './dto/create-room-lock.dto';
+import {
+  ROOM_LOCK_CREATED_EVENT,
+  RoomLockCreatedPayload,
+} from './events/room-lock.events';
 
 function isLockExclusion(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -34,6 +39,7 @@ export class RoomLocksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async list(params: {
@@ -173,6 +179,18 @@ export class RoomLocksService {
           timeout: 15000,
         },
       );
+
+      const payload: RoomLockCreatedPayload = {
+        lockId: lock.lock.id,
+        roomId: lock.lock.roomId,
+        roomNumber: lock.room.number,
+        cottageName: lock.room.cottage.name,
+        checkIn: formatIsoDate(lock.lock.checkIn),
+        checkOut: formatIsoDate(lock.lock.checkOut),
+        reason: lock.lock.reason,
+        bookingId: lock.lock.bookingId,
+      };
+      this.events.emit(ROOM_LOCK_CREATED_EVENT, payload);
 
       return {
         id: lock.lock.id,

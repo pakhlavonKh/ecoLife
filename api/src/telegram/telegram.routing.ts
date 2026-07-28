@@ -73,6 +73,11 @@ export const DEFAULT_NOTIFICATION_MATRIX: Record<
   [NotificationEvent.system_payment_failed]: {
     admin: true,
   },
+  [NotificationEvent.system_room_locked]: {
+    owner: true,
+    admin: true,
+    manager: true,
+  },
   [NotificationEvent.digest_morning]: {
     owner: true,
     admin: true,
