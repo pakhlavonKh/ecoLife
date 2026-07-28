@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import arrive2 from '../assets/arrive-2.webp';
@@ -10,62 +10,112 @@ import arrive6 from '../assets/arrive-6.webp';
 const DEST = {
   lat: 41.6671593,
   lng: 69.9078047,
+  name: 'Eco-Life Etiqod',
 };
 
-const MAP_EMBED = `https://www.google.com/maps?q=${DEST.lat},${DEST.lng}&z=14&output=embed`;
+const MAP_DELTA = 0.035;
+const MAP_EMBED = `https://www.openstreetmap.org/export/embed.html?bbox=${DEST.lng - MAP_DELTA}%2C${DEST.lat - MAP_DELTA}%2C${DEST.lng + MAP_DELTA}%2C${DEST.lat + MAP_DELTA}&layer=mapnik&marker=${DEST.lat}%2C${DEST.lng}`;
 
-const MAP_APPS = [
-  { id: 'google', labelKey: 'mapGoogle' },
-  { id: 'yandex', labelKey: 'mapYandex' },
-  { id: 'apple', labelKey: 'mapApple' },
-];
-
-function buildMapUrl(appId, origin) {
-  const dest = `${DEST.lat},${DEST.lng}`;
-
-  if (appId === 'google') {
-    if (origin) {
-      return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
-    }
-    return `https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+function detectPlatform() {
+  if (typeof navigator === 'undefined') {
+    return { mobile: false, ios: false, android: false };
   }
 
-  if (appId === 'yandex') {
-    if (origin) {
-      return `https://yandex.ru/maps/?rtext=${origin.lat},${origin.lng}~${DEST.lat},${DEST.lng}&rtt=auto`;
-    }
-    return `https://yandex.ru/maps/?rtext=~${DEST.lat},${DEST.lng}&rtt=auto`;
-  }
+  const ua = navigator.userAgent || '';
+  const ios = /iPhone|iPad|iPod/i.test(ua);
+  const android = /Android/i.test(ua);
+  const mobile =
+    ios ||
+    android ||
+    /Mobile/i.test(ua) ||
+    (navigator.maxTouchPoints > 1 && /Mac/i.test(ua));
 
-  // Apple Maps
-  if (origin) {
-    return `https://maps.apple.com/?saddr=${origin.lat},${origin.lng}&daddr=${DEST.lat},${DEST.lng}&dirflg=d`;
-  }
-  return `https://maps.apple.com/?daddr=${DEST.lat},${DEST.lng}&dirflg=d`;
+  return { mobile, ios, android };
 }
 
-function getCurrentPosition() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve(null);
-      return;
-    }
+/** HTTPS universal links — OS hands off to the installed app when possible. */
+function buildWebLink(appId) {
+  const { lat, lng, name } = DEST;
+  const dest = `${lat},${lng}`;
+  const label = encodeURIComponent(name);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-      },
-      () => resolve(null),
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60_000,
-      }
-    );
-  });
+  if (appId === 'google') {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+  }
+  if (appId === 'yandex') {
+    return `https://yandex.ru/maps/?rtext=~${lat},${lng}&rtt=auto`;
+  }
+  if (appId === 'dgis') {
+    // 2GIS uses lon,lat order
+    return `https://2gis.uz/routeSearch/to/${lng},${lat}/tab/car`;
+  }
+  return `https://maps.apple.com/?daddr=${lat},${lng}&q=${label}&dirflg=d`;
+}
+
+/**
+ * Native schemes (optional nudge). Never assigned to window.location —
+ * that unloads the SPA and can leave a blank page on return.
+ */
+function buildAppScheme(appId, platform) {
+  const { lat, lng, name } = DEST;
+  const label = encodeURIComponent(name);
+
+  if (appId === 'google') {
+    if (platform.ios) {
+      return `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+    }
+    return null;
+  }
+  if (appId === 'yandex') {
+    return `yandexmaps://maps.yandex.ru/?rtext=~${lat},${lng}&rtt=auto`;
+  }
+  if (appId === 'dgis') {
+    return `dgis://2gis.ru/routeSearch/to/${lng},${lat}/tab/car`;
+  }
+  if (appId === 'apple' && (platform.ios || !platform.android)) {
+    return `maps://?daddr=${lat},${lng}&q=${label}&dirflg=d`;
+  }
+  return null;
+}
+
+/** Open in a new browsing context — our React tab stays mounted. */
+function openInNewTab(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Probe a custom scheme without navigating the current document. */
+function probeAppScheme(schemeUrl) {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText =
+    'display:none;width:0;height:0;border:0;position:absolute;left:-9999px';
+  iframe.src = schemeUrl;
+  document.body.appendChild(iframe);
+  window.setTimeout(() => {
+    iframe.remove();
+  }, 2000);
+}
+
+function openMapApp(appId) {
+  const platform = detectPlatform();
+  const web = buildWebLink(appId);
+  const scheme = platform.mobile ? buildAppScheme(appId, platform) : null;
+
+  // 1) Keep this tab alive: always open HTTPS in a new tab.
+  //    On phones, App Links / Universal Links usually open the native app.
+  openInNewTab(web);
+
+  // 2) Extra nudge via hidden iframe (does not unload our page).
+  if (scheme) {
+    probeAppScheme(scheme);
+  }
 }
 
 function HowToGet() {
@@ -73,7 +123,23 @@ function HowToGet() {
   const titleId = useId();
   const closeBtnRef = useRef(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [openingApp, setOpeningApp] = useState(null);
+
+  const platform = useMemo(() => detectPlatform(), []);
+
+  const mapApps = useMemo(() => {
+    const apps = [
+      { id: 'google', labelKey: 'mapGoogle' },
+      { id: 'yandex', labelKey: 'mapYandex' },
+      { id: 'dgis', labelKey: 'mapDgis' },
+    ];
+
+    // Apple Maps is useful on iPhone / iPad / Mac; hide on Android.
+    if (!platform.android) {
+      apps.push({ id: 'apple', labelKey: 'mapApple' });
+    }
+
+    return apps;
+  }, [platform.android]);
 
   const steps = [
     { title: t('step2'), img: arrive2 },
@@ -102,18 +168,14 @@ function HowToGet() {
   }, [pickerOpen]);
 
   const openPicker = () => setPickerOpen(true);
-  const closePicker = () => {
-    if (openingApp) return;
-    setPickerOpen(false);
-  };
+  const closePicker = () => setPickerOpen(false);
 
-  const openInApp = async (appId) => {
-    setOpeningApp(appId);
-    const origin = await getCurrentPosition();
-    const url = buildMapUrl(appId, origin);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setOpeningApp(null);
+  const openInApp = (appId) => {
+    // Unlock scroll immediately — don't leave the page frozen if React
+    // effect cleanup is delayed while the user switches to Maps.
+    document.body.style.overflow = '';
     setPickerOpen(false);
+    openMapApp(appId);
   };
 
   const onMapKeyDown = (e) => {
@@ -184,7 +246,6 @@ function HowToGet() {
                 type="button"
                 className="map-picker__close"
                 onClick={closePicker}
-                disabled={Boolean(openingApp)}
                 aria-label={t('mapClose')}
               >
                 ×
@@ -194,18 +255,15 @@ function HowToGet() {
             <p className="map-picker__lead">{t('mapPickerLead')}</p>
 
             <div className="map-picker__apps">
-              {MAP_APPS.map((app) => (
+              {mapApps.map((app) => (
                 <button
                   key={app.id}
                   type="button"
                   className="map-picker__app"
                   onClick={() => openInApp(app.id)}
-                  disabled={Boolean(openingApp)}
                 >
                   <span className="map-picker__app-name">{t(app.labelKey)}</span>
-                  <span className="map-picker__app-meta">
-                    {openingApp === app.id ? t('mapLocating') : t('mapOpenRoute')}
-                  </span>
+                  <span className="map-picker__app-meta">{t('mapOpenRoute')}</span>
                 </button>
               ))}
             </div>
