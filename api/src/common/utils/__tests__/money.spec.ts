@@ -6,8 +6,8 @@ import {
 } from '../money';
 
 describe('money utils — bargain remaining', () => {
-  it('TZ example: standart 1 night 600_000, deposit 180_000, bargain total → 500_000', () => {
-    const priceOriginal = calcTotalAmount(1, '600000');
+  it('TZ example: standart 1 guest × 1 night 600_000, deposit 180_000, bargain total → 500_000', () => {
+    const priceOriginal = calcTotalAmount(1, '600000', 1);
     expect(priceOriginal.toFixed(2)).toBe('600000.00');
 
     const deposit = calcDepositAmount(priceOriginal, 30);
@@ -23,6 +23,10 @@ describe('money utils — bargain remaining', () => {
       deposit.toFixed(2),
     );
     expect(deposit.toFixed(2)).toBe('180000.00');
+  });
+
+  it('total = price × guests × nights', () => {
+    expect(calcTotalAmount(2, '600000', 2).toFixed(2)).toBe('2400000.00');
   });
 
   it('floors remaining at 0 when paid exceeds bargained total', () => {

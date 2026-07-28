@@ -16,8 +16,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AppController } from './app.controller';
 import { OptionalThrottlerGuard } from './common/guards/optional-throttler.guard';
 import { PaymentsModule } from './payments/payments.module';
-import { PriceTiersModule } from './price-tiers/price-tiers.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RoomLocksModule } from './room-locks/room-locks.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { UsersModule } from './users/users.module';
@@ -60,7 +60,7 @@ import { UsersModule } from './users/users.module';
     CategoriesModule,
     CottagesModule,
     RoomsModule,
-    PriceTiersModule,
+    RoomLocksModule,
     AvailabilityModule,
     PaymentsModule,
     BookingsModule,

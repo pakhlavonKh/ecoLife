@@ -9,7 +9,6 @@ export class CategoriesRepository {
   findMany(where?: Prisma.RoomCategoryWhereInput) {
     return this.prisma.roomCategory.findMany({
       where,
-      include: { priceTiers: { orderBy: { capacity: 'asc' } } },
       orderBy: { code: 'asc' },
     });
   }
@@ -17,7 +16,6 @@ export class CategoriesRepository {
   findById(id: string) {
     return this.prisma.roomCategory.findUnique({
       where: { id },
-      include: { priceTiers: { orderBy: { capacity: 'asc' } } },
     });
   }
 

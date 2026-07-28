@@ -161,21 +161,6 @@ const INVENTORY: CottageSeed[] = [
   },
 ];
 
-const PRICE_TIERS: Array<{
-  category: 'lux' | 'standart';
-  capacity: number;
-  pricePerNight: string;
-}> = [
-  { category: 'lux', capacity: 4, pricePerNight: LUX_PRICE },
-  { category: 'lux', capacity: 7, pricePerNight: LUX_PRICE },
-  { category: 'lux', capacity: 9, pricePerNight: LUX_PRICE },
-  { category: 'lux', capacity: 10, pricePerNight: LUX_PRICE },
-  { category: 'lux', capacity: 12, pricePerNight: LUX_PRICE },
-  { category: 'standart', capacity: 2, pricePerNight: STANDART_PRICE },
-  { category: 'standart', capacity: 7, pricePerNight: STANDART_PRICE },
-  { category: 'standart', capacity: 9, pricePerNight: STANDART_PRICE },
-];
-
 const EXPECTED = {
   cottages: 6,
   rooms: 41,
@@ -230,6 +215,7 @@ async function seedCategories() {
     update: {
       name: 'Люкс',
       depositPercent: 50,
+      pricePerBedPerNight: LUX_PRICE,
       isActive: true,
     },
     create: {
@@ -237,6 +223,7 @@ async function seedCategories() {
       name: 'Люкс',
       description: '',
       depositPercent: 50,
+      pricePerBedPerNight: LUX_PRICE,
       images: [],
       isActive: true,
     },
@@ -247,6 +234,7 @@ async function seedCategories() {
     update: {
       name: 'Стандарт',
       depositPercent: 30,
+      pricePerBedPerNight: STANDART_PRICE,
       isActive: true,
     },
     create: {
@@ -254,47 +242,17 @@ async function seedCategories() {
       name: 'Стандарт',
       description: '',
       depositPercent: 30,
+      pricePerBedPerNight: STANDART_PRICE,
       images: [],
       isActive: true,
     },
   });
 
   console.log(
-    `Categories: lux (deposit ${lux.depositPercent}%), standart (deposit ${standart.depositPercent}%)`,
+    `Categories: lux (deposit ${lux.depositPercent}%, ${LUX_PRICE}/bed), standart (deposit ${standart.depositPercent}%, ${STANDART_PRICE}/bed)`,
   );
 
   return { lux, standart };
-}
-
-async function seedPriceTiers(categories: {
-  lux: { id: string };
-  standart: { id: string };
-}) {
-  for (const tier of PRICE_TIERS) {
-    const categoryId =
-      tier.category === 'lux' ? categories.lux.id : categories.standart.id;
-
-    await prisma.priceTier.upsert({
-      where: {
-        categoryId_capacity: {
-          categoryId,
-          capacity: tier.capacity,
-        },
-      },
-      update: {
-        pricePerNight: tier.pricePerNight,
-      },
-      create: {
-        categoryId,
-        capacity: tier.capacity,
-        pricePerNight: tier.pricePerNight,
-      },
-    });
-  }
-
-  console.log(
-    `Price tiers: ${PRICE_TIERS.length} rows (lux ${LUX_PRICE}, standart ${STANDART_PRICE} UZS/night)`,
-  );
 }
 
 async function seedInventory(categories: {
@@ -471,7 +429,6 @@ async function main() {
 
   await seedAdmin();
   const categories = await seedCategories();
-  await seedPriceTiers(categories);
   await seedInventory(categories);
   await seedNotificationRules();
   await seedTelegramRecipientsFromEnv();

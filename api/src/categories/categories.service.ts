@@ -7,6 +7,7 @@ import {
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ActorType, RoomCategory } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { AuditService } from '../audit/audit.service';
 import {
   assertAllowedImageMime,
@@ -20,19 +21,15 @@ import { CategoriesRepository } from './categories.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
-type CategoryWithTiers = RoomCategory & {
-  priceTiers: { capacity: number; pricePerNight: { toFixed(n: number): string } | string | number }[];
-};
-
 export type AdminCategoryView = {
   id: string;
   code: string;
   name: string;
   description: string;
   depositPercent: number;
+  pricePerBedPerNight: string;
   images: string[];
   isActive: boolean;
-  priceTiers: { capacity: number; pricePerNight: string }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -46,6 +43,7 @@ export type PublicCategoryView = {
   images: string[];
   priceFrom: string | null;
   priceTo: string | null;
+  pricePerBedPerNight: string;
 };
 
 @Injectable()
@@ -90,6 +88,7 @@ export class CategoriesService {
       name: dto.name.trim(),
       description: dto.description?.trim() ?? '',
       depositPercent: dto.depositPercent,
+      pricePerBedPerNight: new Decimal(dto.pricePerBedPerNight),
       images,
       isActive: dto.isActive ?? true,
     });
@@ -121,6 +120,9 @@ export class CategoriesService {
         : {}),
       ...(dto.depositPercent !== undefined
         ? { depositPercent: dto.depositPercent }
+        : {}),
+      ...(dto.pricePerBedPerNight !== undefined
+        ? { pricePerBedPerNight: new Decimal(dto.pricePerBedPerNight) }
         : {}),
       ...(images !== undefined ? { images } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
@@ -183,32 +185,23 @@ export class CategoriesService {
     return after;
   }
 
-  private toAdminView(row: CategoryWithTiers): AdminCategoryView {
+  private toAdminView(row: RoomCategory): AdminCategoryView {
     return {
       id: row.id,
       code: row.code,
       name: row.name,
       description: row.description,
       depositPercent: row.depositPercent,
+      pricePerBedPerNight: decimalToString(row.pricePerBedPerNight),
       images: row.images,
       isActive: row.isActive,
-      priceTiers: row.priceTiers.map((t) => ({
-        capacity: t.capacity,
-        pricePerNight: decimalToString(t.pricePerNight as never),
-      })),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
-  private toPublicView(row: CategoryWithTiers): PublicCategoryView {
-    const prices = row.priceTiers.map((t) =>
-      Number(decimalToString(t.pricePerNight as never)),
-    );
-    const priceFrom =
-      prices.length > 0 ? Math.min(...prices).toFixed(2) : null;
-    const priceTo =
-      prices.length > 0 ? Math.max(...prices).toFixed(2) : null;
+  private toPublicView(row: RoomCategory): PublicCategoryView {
+    const price = decimalToString(row.pricePerBedPerNight);
 
     return {
       id: row.id,
@@ -217,8 +210,9 @@ export class CategoriesService {
       description: row.description,
       depositPercent: row.depositPercent,
       images: row.images,
-      priceFrom,
-      priceTo,
+      priceFrom: price,
+      priceTo: price,
+      pricePerBedPerNight: price,
     };
   }
 }

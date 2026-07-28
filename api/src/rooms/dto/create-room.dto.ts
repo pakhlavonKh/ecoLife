@@ -2,13 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsInt,
-  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class CreateRoomDto {
@@ -29,15 +27,6 @@ export class CreateRoomDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   categoryId!: string;
-
-  @ApiPropertyOptional({
-    description: 'Per-room price override (UZS). Omit or null = use tier.',
-    nullable: true,
-  })
-  @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
-  @IsNumberString()
-  priceOverride?: string | null;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

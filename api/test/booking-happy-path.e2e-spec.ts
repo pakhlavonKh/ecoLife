@@ -20,11 +20,11 @@ describe('Booking happy path (Phase 9)', () => {
 
   const checkIn = '2031-03-01';
   const checkOut = '2031-03-03';
-  /** Seed: standart × capacity 2 = 600_000 UZS / night × 2 nights */
-  const expectedTotal = '1200000.00';
+  /** Seed: standart 600_000 / bed / night × 2 guests × 2 nights */
+  const expectedTotal = '2400000.00';
   /** deposit_percent = 30 for standart */
-  const expectedDeposit = '360000.00';
-  const expectedRemaining = '840000.00';
+  const expectedDeposit = '720000.00';
+  const expectedRemaining = '1680000.00';
 
   beforeAll(async () => {
     app = await createE2eApp();
@@ -54,6 +54,9 @@ describe('Booking happy path (Phase 9)', () => {
     });
     const ids = [...new Set(conflicting.map((r) => r.bookingId))];
     if (ids.length > 0) {
+      await prisma.roomLock.deleteMany({
+        where: { bookingId: { in: ids } },
+      });
       await prisma.bookingRoom.deleteMany({
         where: { bookingId: { in: ids } },
       });
@@ -63,6 +66,12 @@ describe('Booking happy path (Phase 9)', () => {
       });
       await prisma.booking.deleteMany({ where: { id: { in: ids } } });
     }
+    await prisma.roomLock.deleteMany({
+      where: {
+        checkIn: { lt: new Date(checkOut) },
+        checkOut: { gt: new Date(checkIn) },
+      },
+    });
   });
 
   it('book → mock pay → deposit_paid → check-in → check-out', async () => {
@@ -92,6 +101,8 @@ describe('Booking happy path (Phase 9)', () => {
     expect(created.body.depositAmount).toBe(expectedDeposit);
     expect(created.body.paidAmount).toBe('0.00');
     expect(created.body.remainingAmount).toBe(expectedRemaining);
+    expect(created.body.bedsTotal).toBe(2);
+    expect(created.body.rooms[0].bedsBooked).toBe(2);
     expect(created.body.paymentId).toBeTruthy();
     expect(created.body.publicCode).toMatch(/^BK-/);
 

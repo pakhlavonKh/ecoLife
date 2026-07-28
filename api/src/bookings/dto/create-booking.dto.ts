@@ -49,7 +49,7 @@ export class CreateBookingDto {
   checkOut!: string;
 
   @ApiProperty({
-    description: 'Number of guests (room.capacity must be >= guests)',
+    description: 'Number of guests / beds in this booking (must fit remaining beds)',
     minimum: 1,
   })
   @Type(() => Number)

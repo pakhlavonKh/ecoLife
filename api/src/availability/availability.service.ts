@@ -1,4 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BookingStatus, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -8,14 +11,26 @@ import {
 } from '../common/utils/dates';
 import { decimalToString } from '../common/utils/money';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  canAcceptGuests,
+  hasOverlappingLock,
+  maxOccupiedOverStay,
+  remainingBeds,
+  type OccupancyStay,
+} from './occupancy';
+
+export const BEDS_UNAVAILABLE_MESSAGE = 'мест на эти даты не осталось';
 
 export type AvailableRoomView = {
   id: string;
   number: string;
   capacity: number;
+  /** Min free beds across nights in the requested stay (0 if locked). */
+  remainingBeds: number;
   categoryCode: string;
   cottageId: string;
   cottageName: string;
+  /** Price per bed per night (UZS). */
   pricePerNight: string;
 };
 
@@ -24,6 +39,7 @@ export type CategoryAvailabilityView = {
   code: string;
   name: string;
   depositPercent: number;
+  /** Sum of remainingBeds across bookable rooms. */
   availableBeds: number;
   availableRoomsCount: number;
   /** Present for admin responses, or when category_code+guests requested publicly. */
@@ -42,6 +58,8 @@ type RoomWithPrice = {
   pricePerNight: Decimal;
 };
 
+type TxClient = Prisma.TransactionClient | PrismaService;
+
 @Injectable()
 export class AvailabilityService {
   constructor(
@@ -57,21 +75,38 @@ export class AvailabilityService {
   }
 
   /**
-   * Rooms that currently occupy inventory for [checkIn, checkOut).
+   * Active bed stays overlapping [checkIn, checkOut) for the given rooms.
    * Expired pending_payment holds are ignored even before the worker runs.
    */
-  async findOccupiedRoomIds(
+  async loadActiveStaysByRoom(
+    roomIds: string[],
     checkIn: Date,
     checkOut: Date,
-    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    tx: TxClient = this.prisma,
     options?: { excludeBookingId?: string },
-  ): Promise<Set<string>> {
+  ): Promise<Map<string, OccupancyStay[]>> {
+    const map = new Map<string, OccupancyStay[]>();
+    for (const id of roomIds) {
+      map.set(id, []);
+    }
+    if (roomIds.length === 0) {
+      return map;
+    }
+
     const excludeId = options?.excludeBookingId ?? null;
-    const rows = await tx.$queryRaw<{ room_id: string }[]>`
-      SELECT DISTINCT br.room_id
+    const rows = await tx.$queryRaw<
+      {
+        room_id: string;
+        check_in: Date;
+        check_out: Date;
+        beds_booked: number;
+      }[]
+    >`
+      SELECT br.room_id, br.check_in, br.check_out, br.beds_booked
       FROM booking_rooms br
       INNER JOIN bookings b ON b.id = br.booking_id
       WHERE br.is_active = true
+        AND br.room_id IN (${Prisma.join(roomIds.map((id) => Prisma.sql`${id}::uuid`))})
         AND br.check_in < ${checkOut}::date
         AND br.check_out > ${checkIn}::date
         AND (
@@ -81,7 +116,135 @@ export class AvailabilityService {
         )
         AND (${excludeId}::uuid IS NULL OR b.id <> ${excludeId}::uuid)
     `;
+
+    for (const row of rows) {
+      const list = map.get(row.room_id) ?? [];
+      list.push({
+        checkIn: new Date(row.check_in),
+        checkOut: new Date(row.check_out),
+        beds: Number(row.beds_booked),
+      });
+      map.set(row.room_id, list);
+    }
+    return map;
+  }
+
+  /**
+   * Rooms that have a room_lock overlapping [checkIn, checkOut).
+   */
+  async findLockedRoomIds(
+    checkIn: Date,
+    checkOut: Date,
+    tx: TxClient = this.prisma,
+    options?: { roomIds?: string[] },
+  ): Promise<Set<string>> {
+    const roomIds = options?.roomIds;
+    const rows =
+      roomIds && roomIds.length > 0
+        ? await tx.$queryRaw<{ room_id: string }[]>`
+            SELECT DISTINCT rl.room_id
+            FROM room_locks rl
+            WHERE rl.room_id IN (${Prisma.join(roomIds.map((id) => Prisma.sql`${id}::uuid`))})
+              AND rl.check_in < ${checkOut}::date
+              AND rl.check_out > ${checkIn}::date
+          `
+        : roomIds && roomIds.length === 0
+          ? []
+          : await tx.$queryRaw<{ room_id: string }[]>`
+            SELECT DISTINCT rl.room_id
+            FROM room_locks rl
+            WHERE rl.check_in < ${checkOut}::date
+              AND rl.check_out > ${checkIn}::date
+          `;
     return new Set(rows.map((r) => r.room_id));
+  }
+
+  /**
+   * Snapshot used inside booking / lock transactions (room row already FOR UPDATE).
+   */
+  async getRoomStaySnapshot(
+    roomId: string,
+    capacity: number,
+    checkIn: Date,
+    checkOut: Date,
+    tx: TxClient,
+    options?: { excludeBookingId?: string },
+  ): Promise<{
+    maxOccupied: number;
+    remainingBeds: number;
+    locked: boolean;
+  }> {
+    const staysByRoom = await this.loadActiveStaysByRoom(
+      [roomId],
+      checkIn,
+      checkOut,
+      tx,
+      options,
+    );
+    const stays = staysByRoom.get(roomId) ?? [];
+    const lockedIds = await this.findLockedRoomIds(checkIn, checkOut, tx, {
+      roomIds: [roomId],
+    });
+    const locked = lockedIds.has(roomId);
+    const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+    return {
+      maxOccupied,
+      remainingBeds: remainingBeds(capacity, maxOccupied, locked),
+      locked,
+    };
+  }
+
+  /**
+   * Throws 409 if the room cannot accept `guests` for the stay
+   * (per-night capacity or overlapping room_lock).
+   */
+  async assertRoomAcceptsGuests(
+    roomId: string,
+    capacity: number,
+    guests: number,
+    checkIn: Date,
+    checkOut: Date,
+    tx: TxClient,
+    options?: { excludeBookingId?: string },
+  ): Promise<void> {
+    const snap = await this.getRoomStaySnapshot(
+      roomId,
+      capacity,
+      checkIn,
+      checkOut,
+      tx,
+      options,
+    );
+    if (
+      !canAcceptGuests(capacity, snap.maxOccupied, guests, snap.locked)
+    ) {
+      throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
+    }
+  }
+
+  /**
+   * True if any active (non-expired) beds are booked on overlapping nights.
+   * Used when creating a whole-room lock.
+   */
+  async assertRoomHasNoBookedBeds(
+    roomId: string,
+    checkIn: Date,
+    checkOut: Date,
+    tx: TxClient,
+  ): Promise<void> {
+    const staysByRoom = await this.loadActiveStaysByRoom(
+      [roomId],
+      checkIn,
+      checkOut,
+      tx,
+    );
+    const stays = staysByRoom.get(roomId) ?? [];
+    const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+    if (maxOccupied > 0) {
+      throw new ConflictException(
+        'нельзя закрыть номер: на эти даты уже есть брони',
+      );
+    }
   }
 
   async resolveBookableRooms(filters?: {
@@ -112,32 +275,17 @@ export class AvailabilityService {
       ],
     });
 
-    const tiers = await this.prisma.priceTier.findMany();
-    const tierMap = new Map(
-      tiers.map((t) => [`${t.categoryId}:${t.capacity}`, t.pricePerNight]),
-    );
-
-    const result: RoomWithPrice[] = [];
-    for (const room of rooms) {
-      const override = room.priceOverride;
-      const tierPrice = tierMap.get(`${room.categoryId}:${room.capacity}`);
-      const price = override ?? tierPrice ?? null;
-      if (price === null) {
-        continue; // non-bookable until a price exists
-      }
-      result.push({
-        id: room.id,
-        number: room.number,
-        capacity: room.capacity,
-        categoryId: room.categoryId,
-        categoryCode: room.category.code,
-        cottageId: room.cottageId,
-        cottageName: room.cottage.name,
-        cottageSortOrder: room.cottage.sortOrder,
-        pricePerNight: price,
-      });
-    }
-    return result;
+    return rooms.map((room) => ({
+      id: room.id,
+      number: room.number,
+      capacity: room.capacity,
+      categoryId: room.categoryId,
+      categoryCode: room.category.code,
+      cottageId: room.cottageId,
+      cottageName: room.cottage.name,
+      cottageSortOrder: room.cottage.sortOrder,
+      pricePerNight: room.category.pricePerBedPerNight,
+    }));
   }
 
   /**
@@ -156,7 +304,6 @@ export class AvailabilityService {
 
   /**
    * Best-fit: capacity >= guests, smallest capacity first, then room number.
-   * Kept for assignment heuristics; lists use sortByCottageThenNumber.
    */
   sortBestFit<T extends { capacity: number; number: string }>(
     rooms: T[],
@@ -169,16 +316,38 @@ export class AvailabilityService {
     });
   }
 
+  private async annotateRemaining(
+    bookable: RoomWithPrice[],
+    checkIn: Date,
+    checkOut: Date,
+    guests?: number,
+  ): Promise<Array<RoomWithPrice & { remainingBeds: number }>> {
+    const roomIds = bookable.map((r) => r.id);
+    const [staysByRoom, lockedIds] = await Promise.all([
+      this.loadActiveStaysByRoom(roomIds, checkIn, checkOut),
+      this.findLockedRoomIds(checkIn, checkOut, this.prisma, { roomIds }),
+    ]);
+
+    const annotated: Array<RoomWithPrice & { remainingBeds: number }> = [];
+    for (const room of bookable) {
+      const locked = lockedIds.has(room.id);
+      const stays = staysByRoom.get(room.id) ?? [];
+      const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
+      const rem = remainingBeds(room.capacity, maxOccupied, locked);
+      if (guests != null && rem < guests) {
+        continue;
+      }
+      annotated.push({ ...room, remainingBeds: rem });
+    }
+    return annotated;
+  }
+
   async getPublicAvailability(
     checkInStr: string,
     checkOutStr: string,
     opts?: { categoryCode?: string; guests?: number },
   ) {
     const stay = this.validateQuery(checkInStr, checkOutStr);
-    const occupied = await this.findOccupiedRoomIds(
-      stay.checkIn,
-      stay.checkOut,
-    );
 
     const categories = await this.prisma.roomCategory.findMany({
       where: { isActive: true },
@@ -190,7 +359,12 @@ export class AvailabilityService {
       minCapacity: opts?.guests,
     });
 
-    const available = bookable.filter((r) => !occupied.has(r.id));
+    const available = await this.annotateRemaining(
+      bookable,
+      stay.checkIn,
+      stay.checkOut,
+      opts?.guests,
+    );
 
     const includeRooms =
       opts?.categoryCode != null && opts?.guests != null;
@@ -210,7 +384,7 @@ export class AvailabilityService {
           code: cat.code,
           name: cat.name,
           depositPercent: cat.depositPercent,
-          availableBeds: rooms.reduce((sum, r) => sum + r.capacity, 0),
+          availableBeds: rooms.reduce((sum, r) => sum + r.remainingBeds, 0),
           availableRoomsCount: rooms.length,
         };
         if (includeRooms) {
@@ -229,18 +403,17 @@ export class AvailabilityService {
 
   async getAdminAvailability(checkInStr: string, checkOutStr: string) {
     const stay = this.validateQuery(checkInStr, checkOutStr);
-    const occupied = await this.findOccupiedRoomIds(
-      stay.checkIn,
-      stay.checkOut,
-    );
 
     const categories = await this.prisma.roomCategory.findMany({
       orderBy: { code: 'asc' },
     });
 
     const bookable = await this.resolveBookableRooms();
-    // Admin sees all active rooms with price; still exclude occupied
-    const available = bookable.filter((r) => !occupied.has(r.id));
+    const available = await this.annotateRemaining(
+      bookable,
+      stay.checkIn,
+      stay.checkOut,
+    );
 
     const categoryViews: CategoryAvailabilityView[] = categories.map(
       (cat) => {
@@ -252,7 +425,7 @@ export class AvailabilityService {
           code: cat.code,
           name: cat.name,
           depositPercent: cat.depositPercent,
-          availableBeds: rooms.reduce((sum, r) => sum + r.capacity, 0),
+          availableBeds: rooms.reduce((sum, r) => sum + r.remainingBeds, 0),
           availableRoomsCount: rooms.length,
           availableRooms: rooms.map((r) => this.toRoomView(r)),
         };
@@ -268,7 +441,7 @@ export class AvailabilityService {
   }
 
   /**
-   * Available rooms for a category with capacity >= guests (best-fit order).
+   * Available rooms for a category with remainingBeds >= guests.
    */
   async listAvailableRoomsForGuests(
     checkInStr: string,
@@ -277,31 +450,38 @@ export class AvailabilityService {
     guests: number,
   ): Promise<AvailableRoomView[]> {
     const stay = this.validateQuery(checkInStr, checkOutStr);
-    const occupied = await this.findOccupiedRoomIds(
-      stay.checkIn,
-      stay.checkOut,
-    );
     const bookable = await this.resolveBookableRooms({
       categoryCode: categoryCode.toLowerCase(),
       minCapacity: guests,
     });
-    return this.sortByCottageThenNumber(
-      bookable.filter((r) => !occupied.has(r.id)),
-    ).map((r) => this.toRoomView(r));
+    const available = await this.annotateRemaining(
+      bookable,
+      stay.checkIn,
+      stay.checkOut,
+      guests,
+    );
+    return this.sortByCottageThenNumber(available).map((r) =>
+      this.toRoomView(r),
+    );
   }
 
-  isRoomFree(
-    roomId: string,
-    occupied: Set<string>,
+  /** @deprecated Prefer assertRoomAcceptsGuests — kept for lock overlap helpers. */
+  locksOverlapStay(
+    checkIn: Date,
+    checkOut: Date,
+    locks: Array<{ checkIn: Date; checkOut: Date }>,
   ): boolean {
-    return !occupied.has(roomId);
+    return hasOverlappingLock(checkIn, checkOut, locks);
   }
 
-  private toRoomView(r: RoomWithPrice): AvailableRoomView {
+  private toRoomView(
+    r: RoomWithPrice & { remainingBeds: number },
+  ): AvailableRoomView {
     return {
       id: r.id,
       number: r.number,
       capacity: r.capacity,
+      remainingBeds: r.remainingBeds,
       categoryCode: r.categoryCode,
       cottageId: r.cottageId,
       cottageName: r.cottageName,

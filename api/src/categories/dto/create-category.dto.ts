@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumberString,
   IsOptional,
   IsString,
   Max,
@@ -34,6 +35,13 @@ export class CreateCategoryDto {
   @Min(0)
   @Max(100)
   depositPercent!: number;
+
+  @ApiProperty({
+    example: '800000.00',
+    description: 'Цена за место / ночь (UZS)',
+  })
+  @IsNumberString()
+  pricePerBedPerNight!: string;
 
   @ApiPropertyOptional({
     type: [String],

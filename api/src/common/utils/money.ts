@@ -11,12 +11,16 @@ export function toDecimal(value: Decimal | string | number): Decimal {
   return value instanceof Decimal ? value : new Decimal(value);
 }
 
-/** total = nights × pricePerNight (2 dp). */
+/** total = pricePerBedPerNight × guests × nights (2 dp). */
 export function calcTotalAmount(
   nights: number,
-  pricePerNight: Decimal | string | number,
+  pricePerBedPerNight: Decimal | string | number,
+  guests = 1,
 ): Decimal {
-  return toDecimal(pricePerNight).mul(nights).toDecimalPlaces(2);
+  return toDecimal(pricePerBedPerNight)
+    .mul(guests)
+    .mul(nights)
+    .toDecimalPlaces(2);
 }
 
 /** deposit = round(total × depositPercent / 100) to 2 dp. */

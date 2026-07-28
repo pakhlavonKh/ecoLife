@@ -15,7 +15,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { AvailabilityService } from '../availability/availability.service';
+import { AvailabilityService, BEDS_UNAVAILABLE_MESSAGE } from '../availability/availability.service';
 import {
   formatIsoDate,
   parseIsoDate,
@@ -52,9 +52,6 @@ import {
   releasesInventory,
 } from './status-machine';
 
-const ROOM_TAKEN_MESSAGE =
-  'This room was just booked, please pick another room or dates';
-
 function isExclusionOrConflict(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002' || error.code === 'P2034') {
@@ -69,8 +66,10 @@ function isExclusionOrConflict(error: unknown): boolean {
         : '';
   return (
     msg.includes('booking_rooms_no_overlap') ||
+    msg.includes('room_locks_no_overlap') ||
     msg.includes('23P01') ||
-    msg.includes('exclusion')
+    msg.includes('exclusion') ||
+    msg.includes('could not serialize')
   );
 }
 
@@ -134,31 +133,27 @@ export class BookingsService {
             );
           }
 
-          const tier = await tx.priceTier.findUnique({
-            where: {
-              categoryId_capacity: {
-                categoryId: room.categoryId,
-                capacity: room.capacity,
-              },
-            },
-          });
-          const pricePerNight = room.priceOverride ?? tier?.pricePerNight ?? null;
+          const pricePerNight = room.category.pricePerBedPerNight;
           if (pricePerNight === null) {
             throw new BadRequestException(
               'Room has no price configured and cannot be booked',
             );
           }
 
-          const occupied = await this.availability.findOccupiedRoomIds(
+          await this.availability.assertRoomAcceptsGuests(
+            room.id,
+            room.capacity,
+            dto.guests,
             stay.checkIn,
             stay.checkOut,
             tx,
           );
-          if (!this.availability.isRoomFree(room.id, occupied)) {
-            throw new ConflictException(ROOM_TAKEN_MESSAGE);
-          }
 
-          const totalAmount = calcTotalAmount(stay.nights, pricePerNight);
+          const totalAmount = calcTotalAmount(
+            stay.nights,
+            pricePerNight,
+            dto.guests,
+          );
           const depositAmount = calcDepositAmount(
             totalAmount,
             room.category.depositPercent,
@@ -198,7 +193,7 @@ export class BookingsService {
                   customerId: customer.id,
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
-                  bedsTotal: room.capacity,
+                  bedsTotal: dto.guests,
                   priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
@@ -212,7 +207,7 @@ export class BookingsService {
                   bookingRooms: {
                     create: {
                       roomId: room.id,
-                      bedsBooked: room.capacity,
+                      bedsBooked: dto.guests,
                       checkIn: stay.checkIn,
                       checkOut: stay.checkOut,
                       isActive: true,
@@ -257,6 +252,7 @@ export class BookingsService {
                   roomNumber: room.number,
                   checkIn: stay.checkInStr,
                   checkOut: stay.checkOutStr,
+                  guests: dto.guests,
                   status: created.status,
                   totalAmount: decimalToString(totalAmount),
                   depositAmount: decimalToString(depositAmount),
@@ -323,7 +319,7 @@ export class BookingsService {
         throw error;
       }
       if (isExclusionOrConflict(error)) {
-        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
       }
       throw error;
     }
@@ -478,31 +474,27 @@ export class BookingsService {
             );
           }
 
-          const tier = await tx.priceTier.findUnique({
-            where: {
-              categoryId_capacity: {
-                categoryId: room.categoryId,
-                capacity: room.capacity,
-              },
-            },
-          });
-          const pricePerNight = room.priceOverride ?? tier?.pricePerNight ?? null;
+          const pricePerNight = room.category.pricePerBedPerNight;
           if (pricePerNight === null) {
             throw new BadRequestException(
               'Room has no price configured and cannot be booked',
             );
           }
 
-          const occupied = await this.availability.findOccupiedRoomIds(
+          await this.availability.assertRoomAcceptsGuests(
+            room.id,
+            room.capacity,
+            dto.guests,
             stay.checkIn,
             stay.checkOut,
             tx,
           );
-          if (!this.availability.isRoomFree(room.id, occupied)) {
-            throw new ConflictException(ROOM_TAKEN_MESSAGE);
-          }
 
-          const totalAmount = calcTotalAmount(stay.nights, pricePerNight);
+          const totalAmount = calcTotalAmount(
+            stay.nights,
+            pricePerNight,
+            dto.guests,
+          );
           const depositAmount = calcDepositAmount(
             totalAmount,
             room.category.depositPercent,
@@ -539,7 +531,7 @@ export class BookingsService {
                   customerId: customer.id,
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
-                  bedsTotal: room.capacity,
+                  bedsTotal: dto.guests,
                   priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
@@ -554,7 +546,7 @@ export class BookingsService {
                   bookingRooms: {
                     create: {
                       roomId: room.id,
-                      bedsBooked: room.capacity,
+                      bedsBooked: dto.guests,
                       checkIn: stay.checkIn,
                       checkOut: stay.checkOut,
                       isActive: true,
@@ -600,6 +592,7 @@ export class BookingsService {
                   roomNumber: room.number,
                   checkIn: stay.checkInStr,
                   checkOut: stay.checkOutStr,
+                  guests: dto.guests,
                   status: created.status,
                   totalAmount: decimalToString(totalAmount),
                   source: BookingSource.manual,
@@ -640,7 +633,7 @@ export class BookingsService {
         throw error;
       }
       if (isExclusionOrConflict(error)) {
-        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
       }
       throw error;
     }
@@ -748,43 +741,40 @@ export class BookingsService {
             roomId !== currentRoom.roomId ||
             stay.checkInStr !== before.checkIn ||
             stay.checkOutStr !== before.checkOut;
+          const guestsChanged = guests !== currentRoom.bedsBooked;
+          const inventoryChanged = datesOrRoomChanged || guestsChanged;
 
           if (
-            datesOrRoomChanged &&
+            inventoryChanged &&
             OCCUPYING_STATUSES.includes(booking.status)
           ) {
-            const occupied = await this.availability.findOccupiedRoomIds(
+            await this.availability.assertRoomAcceptsGuests(
+              room.id,
+              room.capacity,
+              guests,
               stay.checkIn,
               stay.checkOut,
               tx,
               { excludeBookingId: id },
             );
-            if (!this.availability.isRoomFree(room.id, occupied)) {
-              throw new ConflictException(ROOM_TAKEN_MESSAGE);
-            }
           }
 
           let priceOriginal = booking.priceOriginal;
           let totalAmount = booking.totalAmount;
           let depositAmount = booking.depositAmount;
-          if (datesOrRoomChanged) {
-            const tier = await tx.priceTier.findUnique({
-              where: {
-                categoryId_capacity: {
-                  categoryId: room.categoryId,
-                  capacity: room.capacity,
-                },
-              },
-            });
-            const pricePerNight =
-              room.priceOverride ?? tier?.pricePerNight ?? null;
+          if (inventoryChanged) {
+            const pricePerNight = room.category.pricePerBedPerNight;
             if (pricePerNight === null) {
               throw new BadRequestException(
                 'Room has no price configured and cannot be booked',
               );
             }
-            totalAmount = calcTotalAmount(stay.nights, pricePerNight);
-            // Room/date change resets catalog snapshot; deposit still recalculates
+            totalAmount = calcTotalAmount(
+              stay.nights,
+              pricePerNight,
+              guests,
+            );
+            // Room/date/guests change resets catalog snapshot; deposit still recalculates
             // only here (not when admin bargains totalAmount alone).
             depositAmount = calcDepositAmount(
               totalAmount,
@@ -826,7 +816,7 @@ export class BookingsService {
             },
           });
 
-          if (datesOrRoomChanged) {
+          if (inventoryChanged) {
             // Replace room assignment in-place to keep one active row
             await tx.bookingRoom.updateMany({
               where: { bookingId: id },
@@ -837,7 +827,7 @@ export class BookingsService {
               data: {
                 bookingId: id,
                 roomId: room.id,
-                bedsBooked: room.capacity,
+                bedsBooked: guests,
                 checkIn: stay.checkIn,
                 checkOut: stay.checkOut,
                 isActive: OCCUPYING_STATUSES.includes(booking.status),
@@ -850,7 +840,7 @@ export class BookingsService {
             data: {
               checkIn: stay.checkIn,
               checkOut: stay.checkOut,
-              bedsTotal: room.capacity,
+              bedsTotal: guests,
               priceOriginal,
               totalAmount,
               depositAmount,
@@ -932,7 +922,7 @@ export class BookingsService {
         throw error;
       }
       if (isExclusionOrConflict(error)) {
-        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
       }
       throw error;
     }
@@ -1108,7 +1098,7 @@ export class BookingsService {
         throw error;
       }
       if (isExclusionOrConflict(error)) {
-        throw new ConflictException(ROOM_TAKEN_MESSAGE);
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
       }
       throw error;
     }

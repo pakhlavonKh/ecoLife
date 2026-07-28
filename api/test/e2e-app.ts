@@ -8,8 +8,8 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 export async function createE2eApp(): Promise<INestApplication> {
   process.env.LOG_LEVEL = 'silent';
   process.env.DISABLE_THROTTLE = 'true';
-  // Happy-path e2e covers paymentUrl + mock pay; production default remains false.
-  process.env.PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED ?? 'true';
+  // Happy-path e2e covers paymentUrl + mock pay; force on regardless of local .env.
+  process.env.PAYMENTS_ENABLED = 'true';
   process.env.PAYMENT_PROVIDERS =
     process.env.PAYMENT_PROVIDERS ?? 'mock,payme,click';
 

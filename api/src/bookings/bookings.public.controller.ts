@@ -22,7 +22,7 @@ export class BookingsPublicController {
   @StrictThrottle(8)
   @ApiOperation({
     summary:
-      'Create online booking (whole room). When PAYMENTS_ENABLED=true: pending_payment + paymentUrl. When false (default): online_request pre-booking with requiresOperator=true (no invoice).',
+      'Create online booking (per-bed). When PAYMENTS_ENABLED=true: pending_payment + paymentUrl. When false (default): online_request pre-booking with requiresOperator=true (no invoice).',
   })
   create(@Body() dto: CreateBookingDto) {
     return this.bookingsService.createPublic(dto);

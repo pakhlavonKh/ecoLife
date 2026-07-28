@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ActorType } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import { AuditService } from '../audit/audit.service';
 import { decimalToString } from '../common/utils/money';
 import { CategoriesRepository } from '../categories/categories.repository';
@@ -29,7 +28,7 @@ export class RoomsService {
       ...(filters?.categoryId ? { categoryId: filters.categoryId } : {}),
     });
 
-    return Promise.all(rows.map((r) => this.toView(r)));
+    return rows.map((r) => this.toView(r));
   }
 
   async getById(id: string) {
@@ -56,8 +55,6 @@ export class RoomsService {
     const created = await this.roomsRepository.create({
       number,
       capacity: dto.capacity,
-      priceOverride:
-        dto.priceOverride != null ? new Decimal(dto.priceOverride) : null,
       isActive: dto.isActive ?? true,
       cottage: { connect: { id: dto.cottageId } },
       category: { connect: { id: dto.categoryId } },
@@ -110,14 +107,6 @@ export class RoomsService {
         ? { category: { connect: { id: dto.categoryId } } }
         : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-      ...(dto.priceOverride !== undefined
-        ? {
-            priceOverride:
-              dto.priceOverride === null
-                ? null
-                : new Decimal(dto.priceOverride),
-          }
-        : {}),
     });
 
     const after = await this.getById(id);
@@ -145,20 +134,10 @@ export class RoomsService {
     }
   }
 
-  private async toView(
+  private toView(
     room: NonNullable<Awaited<ReturnType<RoomsRepository['findById']>>>,
   ) {
-    const tier = await this.roomsRepository.findPriceTier(
-      room.categoryId,
-      room.capacity,
-    );
-
-    const tierPrice = tier ? decimalToString(tier.pricePerNight) : null;
-    const override =
-      room.priceOverride !== null
-        ? decimalToString(room.priceOverride)
-        : null;
-    const resolvedPrice = override ?? tierPrice;
+    const resolvedPrice = decimalToString(room.category.pricePerBedPerNight);
 
     return {
       id: room.id,
@@ -168,10 +147,9 @@ export class RoomsService {
       cottageName: room.cottage.name,
       categoryId: room.categoryId,
       categoryCode: room.category.code,
-      priceOverride: override,
-      tierPrice,
+      pricePerBedPerNight: resolvedPrice,
       resolvedPrice,
-      bookable: resolvedPrice !== null && room.isActive,
+      bookable: room.isActive,
       isActive: room.isActive,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,

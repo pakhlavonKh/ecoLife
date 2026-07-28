@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsNumberString,
   IsOptional,
   IsString,
   Max,
@@ -31,6 +32,14 @@ export class UpdateCategoryDto {
   @Min(0)
   @Max(100)
   depositPercent?: number;
+
+  @ApiPropertyOptional({
+    example: '800000.00',
+    description: 'Цена за место / ночь (UZS)',
+  })
+  @IsOptional()
+  @IsNumberString()
+  pricePerBedPerNight?: string;
 
   @ApiPropertyOptional({
     type: [String],

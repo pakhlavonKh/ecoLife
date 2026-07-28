@@ -2,13 +2,11 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsInt,
-  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class UpdateRoomDto {
@@ -33,12 +31,6 @@ export class UpdateRoomDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
-
-  @ApiPropertyOptional({ nullable: true })
-  @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
-  @IsNumberString()
-  priceOverride?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,0 +1,161 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ActorType, Prisma } from '@prisma/client';
+import { AvailabilityService } from '../availability/availability.service';
+import { formatIsoDate } from '../common/utils/dates';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateRoomLockDto } from './dto/create-room-lock.dto';
+
+function isLockExclusion(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002' || error.code === 'P2034') {
+      return true;
+    }
+  }
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : '';
+  return (
+    msg.includes('room_locks_no_overlap') ||
+    msg.includes('23P01') ||
+    msg.includes('exclusion')
+  );
+}
+
+@Injectable()
+export class RoomLocksService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly availability: AvailabilityService,
+  ) {}
+
+  /**
+   * Whole-room lock: FOR UPDATE room row → refuse if any beds booked → insert.
+   * Same serialization path as booking create.
+   */
+  async create(
+    dto: CreateRoomLockDto,
+    actor: { type: ActorType; id: string },
+  ) {
+    const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut);
+
+    try {
+      const lock = await this.prisma.$transaction(
+        async (tx) => {
+          const locked = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM rooms WHERE id = ${dto.roomId}::uuid FOR UPDATE
+          `;
+          if (locked.length === 0) {
+            throw new NotFoundException('Room not found');
+          }
+
+          const room = await tx.room.findUnique({
+            where: { id: dto.roomId },
+            include: { cottage: true, category: true },
+          });
+          if (!room || !room.isActive) {
+            throw new BadRequestException('Room is not available');
+          }
+
+          if (dto.bookingId) {
+            const booking = await tx.booking.findUnique({
+              where: { id: dto.bookingId },
+            });
+            if (!booking) {
+              throw new NotFoundException('Booking not found');
+            }
+          }
+
+          await this.availability.assertRoomHasNoBookedBeds(
+            room.id,
+            stay.checkIn,
+            stay.checkOut,
+            tx,
+          );
+
+          // Also refuse if another lock already covers the range
+          const existingLocks = await this.availability.findLockedRoomIds(
+            stay.checkIn,
+            stay.checkOut,
+            tx,
+            { roomIds: [room.id] },
+          );
+          if (existingLocks.has(room.id)) {
+            throw new ConflictException(
+              'номер уже закрыт на пересекающиеся даты',
+            );
+          }
+
+          const created = await tx.roomLock.create({
+            data: {
+              roomId: room.id,
+              bookingId: dto.bookingId ?? null,
+              checkIn: stay.checkIn,
+              checkOut: stay.checkOut,
+              reason: dto.reason?.trim() || null,
+              createdById: actor.id,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorType: actor.type,
+              actorId: actor.id,
+              entity: 'room_lock',
+              entityId: created.id,
+              action: 'create',
+              diff: {
+                after: {
+                  roomId: room.id,
+                  roomNumber: room.number,
+                  checkIn: stay.checkInStr,
+                  checkOut: stay.checkOutStr,
+                  reason: created.reason,
+                  bookingId: created.bookingId,
+                },
+              },
+            },
+          });
+
+          return { lock: created, room };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 15000,
+        },
+      );
+
+      return {
+        id: lock.lock.id,
+        roomId: lock.lock.roomId,
+        roomNumber: lock.room.number,
+        bookingId: lock.lock.bookingId,
+        checkIn: formatIsoDate(lock.lock.checkIn),
+        checkOut: formatIsoDate(lock.lock.checkOut),
+        reason: lock.lock.reason,
+        createdAt: lock.lock.createdAt,
+      };
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      if (isLockExclusion(error)) {
+        throw new ConflictException(
+          'номер уже закрыт на пересекающиеся даты',
+        );
+      }
+      throw error;
+    }
+  }
+}

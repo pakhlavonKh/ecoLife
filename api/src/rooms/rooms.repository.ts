@@ -12,7 +12,6 @@ export class RoomsRepository {
       include: {
         cottage: true,
         category: true,
-        // resolve tier via categoryId + capacity later in service
       },
       orderBy: [
         { cottage: { sortOrder: 'asc' } },
@@ -38,13 +37,5 @@ export class RoomsRepository {
 
   update(id: string, data: Prisma.RoomUpdateInput): Promise<Room> {
     return this.prisma.room.update({ where: { id }, data });
-  }
-
-  findPriceTier(categoryId: string, capacity: number) {
-    return this.prisma.priceTier.findUnique({
-      where: {
-        categoryId_capacity: { categoryId, capacity },
-      },
-    });
   }
 }
