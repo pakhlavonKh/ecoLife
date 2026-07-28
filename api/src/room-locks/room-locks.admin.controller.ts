@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestUser } from '../common/types/request-user';
 import { CreateRoomLockDto } from './dto/create-room-lock.dto';
+import { ListRoomLocksQueryDto } from './dto/list-room-locks-query.dto';
 import { RoomLocksService } from './room-locks.service';
 
 @ApiTags('admin / room-locks')
@@ -22,6 +23,17 @@ import { RoomLocksService } from './room-locks.service';
 @Controller('admin/room-locks')
 export class RoomLocksAdminController {
   constructor(private readonly roomLocks: RoomLocksService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List room locks (filter by range / room / booking)' })
+  list(@Query() query: ListRoomLocksQueryDto) {
+    return this.roomLocks.list({
+      from: query.from,
+      to: query.to,
+      roomId: query.roomId,
+      bookingId: query.bookingId,
+    });
+  }
 
   @Post()
   @ApiOperation({

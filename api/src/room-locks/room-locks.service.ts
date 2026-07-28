@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ActorType, Prisma } from '@prisma/client';
 import { AvailabilityService } from '../availability/availability.service';
-import { formatIsoDate } from '../common/utils/dates';
+import { formatIsoDate, parseIsoDate } from '../common/utils/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoomLockDto } from './dto/create-room-lock.dto';
 
@@ -36,9 +36,51 @@ export class RoomLocksService {
     private readonly availability: AvailabilityService,
   ) {}
 
+  async list(params: {
+    from?: string;
+    to?: string;
+    roomId?: string;
+    bookingId?: string;
+  }) {
+    const where: Prisma.RoomLockWhereInput = {};
+    if (params.roomId) {
+      where.roomId = params.roomId;
+    }
+    if (params.bookingId) {
+      where.bookingId = params.bookingId;
+    }
+    if (params.from || params.to) {
+      const from = params.from
+        ? parseIsoDate(params.from, 'from')
+        : undefined;
+      const to = params.to ? parseIsoDate(params.to, 'to') : undefined;
+      where.AND = [
+        ...(from ? [{ checkOut: { gt: from } }] : []),
+        ...(to ? [{ checkIn: { lt: to } }] : []),
+      ];
+    }
+
+    const rows = await this.prisma.roomLock.findMany({
+      where,
+      include: { room: true },
+      orderBy: [{ checkIn: 'asc' }, { room: { number: 'asc' } }],
+    });
+
+    return rows.map((lock) => ({
+      id: lock.id,
+      roomId: lock.roomId,
+      roomNumber: lock.room.number,
+      bookingId: lock.bookingId,
+      checkIn: formatIsoDate(lock.checkIn),
+      checkOut: formatIsoDate(lock.checkOut),
+      reason: lock.reason,
+      createdAt: lock.createdAt,
+    }));
+  }
+
   /**
-   * Whole-room lock: FOR UPDATE room row → refuse if any beds booked → insert.
-   * Same serialization path as booking create.
+   * Whole-room lock: FOR UPDATE room row → refuse if other beds booked → insert.
+   * When bookingId is set, that booking's own beds are ignored (lock closes the rest).
    */
   async create(
     dto: CreateRoomLockDto,
@@ -78,9 +120,9 @@ export class RoomLocksService {
             stay.checkIn,
             stay.checkOut,
             tx,
+            { excludeBookingId: dto.bookingId },
           );
 
-          // Also refuse if another lock already covers the range
           const existingLocks = await this.availability.findLockedRoomIds(
             stay.checkIn,
             stay.checkOut,

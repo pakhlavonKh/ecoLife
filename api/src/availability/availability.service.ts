@@ -231,12 +231,14 @@ export class AvailabilityService {
     checkIn: Date,
     checkOut: Date,
     tx: TxClient,
+    options?: { excludeBookingId?: string },
   ): Promise<void> {
     const staysByRoom = await this.loadActiveStaysByRoom(
       [roomId],
       checkIn,
       checkOut,
       tx,
+      options,
     );
     const stays = staysByRoom.get(roomId) ?? [];
     const maxOccupied = maxOccupiedOverStay(checkIn, checkOut, stays);
@@ -321,10 +323,11 @@ export class AvailabilityService {
     checkIn: Date,
     checkOut: Date,
     guests?: number,
+    options?: { excludeBookingId?: string },
   ): Promise<Array<RoomWithPrice & { remainingBeds: number }>> {
     const roomIds = bookable.map((r) => r.id);
     const [staysByRoom, lockedIds] = await Promise.all([
-      this.loadActiveStaysByRoom(roomIds, checkIn, checkOut),
+      this.loadActiveStaysByRoom(roomIds, checkIn, checkOut, this.prisma, options),
       this.findLockedRoomIds(checkIn, checkOut, this.prisma, { roomIds }),
     ]);
 
@@ -401,7 +404,11 @@ export class AvailabilityService {
     };
   }
 
-  async getAdminAvailability(checkInStr: string, checkOutStr: string) {
+  async getAdminAvailability(
+    checkInStr: string,
+    checkOutStr: string,
+    options?: { excludeBookingId?: string },
+  ) {
     const stay = this.validateQuery(checkInStr, checkOutStr);
 
     const categories = await this.prisma.roomCategory.findMany({
@@ -413,6 +420,8 @@ export class AvailabilityService {
       bookable,
       stay.checkIn,
       stay.checkOut,
+      undefined,
+      options,
     );
 
     const categoryViews: CategoryAvailabilityView[] = categories.map(

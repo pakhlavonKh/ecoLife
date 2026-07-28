@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   Min,
@@ -41,4 +42,12 @@ export class AvailabilityQueryDto {
   @Min(1)
   @Max(50)
   guests?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'When editing a booking, exclude its beds from remainingBeds calculation',
+  })
+  @IsOptional()
+  @IsUUID()
+  exclude_booking_id?: string;
 }

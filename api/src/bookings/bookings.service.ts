@@ -948,19 +948,30 @@ export class BookingsService {
       orderBy: [{ cottage: { sortOrder: 'asc' } }, { number: 'asc' }],
     });
 
-    const bookings = await this.prisma.booking.findMany({
-      where: {
-        checkIn: { lt: to },
-        checkOut: { gt: from },
-        status: { not: BookingStatus.cancelled },
-      },
-      include: {
-        customer: true,
-        bookingRooms: {
-          include: { room: true },
+    const [bookings, locks] = await Promise.all([
+      this.prisma.booking.findMany({
+        where: {
+          checkIn: { lt: to },
+          checkOut: { gt: from },
+          status: { not: BookingStatus.cancelled },
         },
-      },
-    });
+        include: {
+          customer: true,
+          bookingRooms: {
+            where: { isActive: true },
+            include: { room: true },
+          },
+        },
+      }),
+      this.prisma.roomLock.findMany({
+        where: {
+          checkIn: { lt: to },
+          checkOut: { gt: from },
+        },
+        include: { room: true },
+        orderBy: { checkIn: 'asc' },
+      }),
+    ]);
 
     const bars: Array<{
       bookingId: string;
@@ -972,6 +983,7 @@ export class BookingsService {
       customerName: string;
       roomId: string;
       roomNumber: string;
+      bedsBooked: number;
     }> = [];
 
     for (const b of bookings) {
@@ -989,6 +1001,7 @@ export class BookingsService {
           ),
           roomId: br.roomId,
           roomNumber: br.room.number,
+          bedsBooked: br.bedsBooked,
         });
       }
     }
@@ -1005,6 +1018,15 @@ export class BookingsService {
         categoryCode: r.category.code,
       })),
       bookings: bars,
+      locks: locks.map((lock) => ({
+        id: lock.id,
+        roomId: lock.roomId,
+        roomNumber: lock.room.number,
+        bookingId: lock.bookingId,
+        checkIn: formatIsoDate(lock.checkIn),
+        checkOut: formatIsoDate(lock.checkOut),
+        reason: lock.reason,
+      })),
     };
   }
 

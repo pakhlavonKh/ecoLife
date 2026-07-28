@@ -127,3 +127,22 @@ After seed you should see:
 - Total beds: 215
 
 Price tiers: **lux = 800 000 UZS/night**, **standart = 600 000 UZS/night** (all capacities). Editable via `PUT /api/v1/admin/price-tiers`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
