@@ -32,6 +32,7 @@ api/dist
 api/node_modules
 api/uploads/*
 !api/uploads/.gitkeep
+api/tmp/
 
 # Env files anywhere
 .env

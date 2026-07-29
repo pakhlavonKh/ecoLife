@@ -13,6 +13,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CottagesModule } from './cottages/cottages.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ExportsModule } from './exports/exports.module';
 import { AppController } from './app.controller';
 import { OptionalThrottlerGuard } from './common/guards/optional-throttler.guard';
 import { PaymentsModule } from './payments/payments.module';
@@ -66,6 +67,7 @@ import { UsersModule } from './users/users.module';
     BookingsModule,
     CustomersModule,
     DashboardModule,
+    ExportsModule,
     TelegramModule,
   ],
   controllers: [AppController],

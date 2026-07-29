@@ -36,6 +36,7 @@ RUN apk add --no-cache python3 make g++ \
   && rm -rf /root/.npm
 
 COPY --from=build /app/dist ./dist
+COPY assets ./assets
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x ./docker-entrypoint.sh \

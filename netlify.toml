@@ -1,9 +1,10 @@
-# Proxy API through the site origin (HTTPS) → VPS nginx (HTTP only for now).
-# Must be above the SPA fallback. Requires VITE_API_URL empty or
-# https://eco-life-etiqod.com (NOT https://api.... until TLS is on the VPS).
+# Proxy API through the site origin → VPS (HTTPS). Prefer this over cleartext
+# HTTP: Netlify→:80 timeouts often surface in the browser as 500 on /api/*.
+# Must be above the SPA fallback. Leave VITE_API_URL empty to use this proxy,
+# or set VITE_API_URL=https://api.eco-life-etiqod.com to bypass the proxy.
 [[redirects]]
   from = "/api/*"
-  to = "http://api.eco-life-etiqod.com/api/:splat"
+  to = "https://api.eco-life-etiqod.com/api/:splat"
   status = 200
   force = true
 

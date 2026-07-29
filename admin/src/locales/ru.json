@@ -81,7 +81,16 @@
     "emptyList": "Нет записей",
     "sortByTime": "По времени ({{dir}})",
     "sortAsc": "раньше → позже",
-    "sortDesc": "позже → раньше"
+    "sortDesc": "позже → раньше",
+    "mealExport": "Экспорт для ресторана",
+    "mealExportTitle": "Прогноз питания",
+    "mealExportHint": "Сколько гостей кормить на завтрак / обед / ужин по дням",
+    "mealExportFormat": "Формат",
+    "mealExportXlsx": "Excel (.xlsx)",
+    "mealExportPdf": "PDF",
+    "mealExportDownload": "Скачать",
+    "mealExportDownloading": "Формирование…",
+    "mealExportError": "Не удалось скачать файл"
   },
   "bookings": {
     "title": "Бронирования",

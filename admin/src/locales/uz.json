@@ -81,7 +81,16 @@
     "emptyList": "Yozuvlar yo‘q",
     "sortByTime": "Vaqt bo‘yicha ({{dir}})",
     "sortAsc": "erta → kech",
-    "sortDesc": "kech → erta"
+    "sortDesc": "kech → erta",
+    "mealExport": "Restoran uchun eksport",
+    "mealExportTitle": "Ovqatlanish prognozi",
+    "mealExportHint": "Nonushta / tushlik / kechki ovqat uchun mehmonlar soni (kunlar bo‘yicha)",
+    "mealExportFormat": "Format",
+    "mealExportXlsx": "Excel (.xlsx)",
+    "mealExportPdf": "PDF",
+    "mealExportDownload": "Yuklab olish",
+    "mealExportDownloading": "Tayyorlanmoqda…",
+    "mealExportError": "Faylni yuklab bo‘lmadi"
   },
   "bookings": {
     "title": "Bronlar",

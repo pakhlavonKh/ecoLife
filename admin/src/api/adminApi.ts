@@ -105,6 +105,24 @@ export const dashboardApi = {
     }),
 };
 
+export const exportsApi = {
+  mealForecast: (params: {
+    from: string;
+    to: string;
+    format: 'xlsx' | 'pdf';
+    includePending?: boolean;
+  }) =>
+    api.get<Blob>('/api/v1/admin/exports/meal-forecast', {
+      params: {
+        from: params.from,
+        to: params.to,
+        format: params.format,
+        ...(params.includePending ? { include_pending: 'true' } : {}),
+      },
+      responseType: 'blob',
+    }),
+};
+
 export const customersApi = {
   list: (search?: string) =>
     api.get<CustomerListItem[]>('/api/v1/admin/customers', {

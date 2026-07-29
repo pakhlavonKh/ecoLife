@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { dashboardApi } from '../api/adminApi';
+import { dashboardApi, exportsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { DashboardStats } from '../api/types';
 import { DateField } from '../components/DateField';
-import { Card, ErrorBox, Field, PageHeader, StatusBadge } from '../components/ui';
+import {
+  Button,
+  Card,
+  ErrorBox,
+  Field,
+  PageHeader,
+  Select,
+  StatusBadge,
+} from '../components/ui';
 import {
   DEFAULT_CHECK_IN_TIME,
   DEFAULT_CHECK_OUT_TIME,
@@ -15,6 +23,17 @@ import {
 } from '../lib/format';
 
 type SortDir = 'asc' | 'desc';
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function DashboardPage() {
   const { t } = useTranslation();
@@ -27,6 +46,17 @@ export function DashboardPage() {
   const [error, setError] = useState('');
   const [arrivalSort, setArrivalSort] = useState<SortDir>('asc');
   const [departureSort, setDepartureSort] = useState<SortDir>('asc');
+
+  const [mealOpen, setMealOpen] = useState(false);
+  const [mealFrom, setMealFrom] = useState(todayIso);
+  const [mealTo, setMealTo] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 6);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const [mealFormat, setMealFormat] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [mealBusy, setMealBusy] = useState(false);
+  const [mealError, setMealError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +97,55 @@ export function DashboardPage() {
     });
     return list;
   }, [data?.departuresList, departureSort]);
+
+  async function downloadMealForecast() {
+    setMealBusy(true);
+    setMealError('');
+    try {
+      const res = await exportsApi.mealForecast({
+        from: mealFrom,
+        to: mealTo,
+        format: mealFormat,
+      });
+      const contentType = String(res.headers['content-type'] ?? '');
+      if (contentType.includes('application/json')) {
+        const text = await (res.data as Blob).text();
+        const parsed = JSON.parse(text) as { message?: string | string[] };
+        const msg = Array.isArray(parsed.message)
+          ? parsed.message.join(', ')
+          : parsed.message;
+        throw new Error(msg || t('dashboard.mealExportError'));
+      }
+      const ext = mealFormat === 'pdf' ? 'pdf' : 'xlsx';
+      downloadBlob(res.data, `meal-forecast_${mealFrom}_${mealTo}.${ext}`);
+      setMealOpen(false);
+    } catch (err) {
+      // Nest validation errors come as JSON blob when responseType=blob.
+      if (
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        (err as { response?: { data?: Blob } }).response?.data instanceof Blob
+      ) {
+        try {
+          const text = await (
+            err as { response: { data: Blob } }
+          ).response.data.text();
+          const parsed = JSON.parse(text) as { message?: string | string[] };
+          const msg = Array.isArray(parsed.message)
+            ? parsed.message.join(', ')
+            : parsed.message;
+          setMealError(msg || t('dashboard.mealExportError'));
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
+      setMealError(getErrorMessage(err) || t('dashboard.mealExportError'));
+    } finally {
+      setMealBusy(false);
+    }
+  }
 
   const cards = data
     ? [
@@ -113,7 +192,7 @@ export function DashboardPage() {
             : undefined
         }
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <Field label={t('common.from')}>
               <DateField value={from} onChange={setFrom} />
             </Field>
@@ -123,6 +202,18 @@ export function DashboardPage() {
           </div>
         }
       />
+      <div className="mb-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setMealError('');
+            setMealOpen(true);
+          }}
+        >
+          {t('dashboard.mealExport')}
+        </Button>
+      </div>
       <ErrorBox message={error} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((c) => (
@@ -180,6 +271,58 @@ export function DashboardPage() {
           <List items={departures} mode="departure" />
         </Card>
       </div>
+
+      {mealOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-md p-5 shadow-lg">
+            <h2 className="text-lg font-semibold">
+              {t('dashboard.mealExportTitle')}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {t('dashboard.mealExportHint')}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Field label={t('common.from')}>
+                <DateField value={mealFrom} onChange={setMealFrom} />
+              </Field>
+              <Field label={t('common.to')}>
+                <DateField value={mealTo} onChange={setMealTo} />
+              </Field>
+              <Field label={t('dashboard.mealExportFormat')}>
+                <Select
+                  value={mealFormat}
+                  onChange={(e) =>
+                    setMealFormat(e.target.value as 'xlsx' | 'pdf')
+                  }
+                >
+                  <option value="xlsx">{t('dashboard.mealExportXlsx')}</option>
+                  <option value="pdf">{t('dashboard.mealExportPdf')}</option>
+                </Select>
+              </Field>
+            </div>
+            <ErrorBox message={mealError} />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={mealBusy}
+                onClick={() => setMealOpen(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="button"
+                disabled={mealBusy}
+                onClick={() => void downloadMealForecast()}
+              >
+                {mealBusy
+                  ? t('dashboard.mealExportDownloading')
+                  : t('dashboard.mealExportDownload')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
