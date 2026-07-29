@@ -95,6 +95,8 @@ enum NotificationEvent {
   payment_received           @map("payment.received")
   booking_checked_in         @map("booking.checked_in")
   booking_checked_out        @map("booking.checked_out")
+  /// Transfer / upgrade mid-stay: cleaning notice WITHOUT checkout buffer (TRANSFER.md §5).
+  booking_transferred        @map("booking.transferred")
   booking_updated            @map("booking.updated")
   booking_cancelled          @map("booking.cancelled")
   system_hold_expired        @map("system.hold_expired")
@@ -225,6 +227,8 @@ model Booking {
   depositAmount    Decimal         @map("deposit_amount") @db.Decimal(14, 2)
   paidAmount       Decimal         @default(0) @map("paid_amount") @db.Decimal(14, 2)
   remainingAmount  Decimal         @map("remaining_amount") @db.Decimal(14, 2)
+  /// Per-segment money breakdown (TRANSFER.md §2–3). Null until written; backfilled for existing.
+  priceBreakdown   Json?           @map("price_breakdown") @db.JsonB
   paymentStatus    PaymentStatus   @default(unpaid) @map("payment_status")
   status           BookingStatus   @default(pending_payment)
   source           BookingSource   @default(online)
@@ -253,6 +257,10 @@ model BookingRoom {
   checkIn    DateTime @map("check_in") @db.Timestamptz(6)
   checkOut   DateTime @map("check_out") @db.Timestamptz(6)
   isActive   Boolean  @default(true) @map("is_active")
+  /// Ordered stay segment within a booking (0 = first / only; transfer adds 1, 2, …).
+  segmentIndex Int    @default(0) @map("segment_index")
+  /// Money for this segment (nullable until Phase 2 writes it; backfilled for existing).
+  amount     Decimal? @map("amount") @db.Decimal(14, 2)
   /// Generated tstzrange [check_in, check_out) — the guest's stay, WITHOUT the cleaning
   /// buffer (the buffer is applied in availability logic, never persisted).
   /// Room-level exclusion dropped (bed mode); anti-overbooking is app-level + room_locks.
@@ -262,6 +270,7 @@ model BookingRoom {
   room    Room    @relation(fields: [roomId], references: [id], onDelete: Restrict)
 
   @@index([roomId, isActive])
+  @@index([bookingId, segmentIndex])
   @@map("booking_rooms")
 }
 

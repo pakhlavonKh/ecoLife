@@ -1,3 +1,5 @@
+import type { Decimal } from '@prisma/client/runtime/library';
+
 /** Age-band boundaries (exclusive upper bounds for child/infant labels). */
 export type AgeBandConfig = {
   /** Children are under this age (default 12). */
@@ -13,9 +15,9 @@ export type GuestCounts = {
 };
 
 export type CategoryPersonPrices = {
-  priceAdult: string | number;
-  priceChild: string | number;
-  priceInfant: string | number;
+  priceAdult: string | number | Decimal;
+  priceChild: string | number | Decimal;
+  priceInfant: string | number | Decimal;
 };
 
 export function readAgeBandConfig(env: {

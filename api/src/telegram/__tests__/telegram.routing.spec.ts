@@ -72,6 +72,12 @@ describe('telegram routing matrix (§4)', () => {
       '300',
       '400',
     ]);
+    expect(chatIdsFor(NotificationEvent.booking_transferred)).toEqual([
+      '100',
+      '200',
+      '300',
+      '400',
+    ]);
     expect(chatIdsFor(NotificationEvent.booking_updated)).toEqual([
       '100',
       '200',
@@ -138,6 +144,10 @@ describe('telegram routing matrix (§4)', () => {
   it('DEFAULT_NOTIFICATION_MATRIX matches §4 cleaner column', () => {
     expect(
       DEFAULT_NOTIFICATION_MATRIX[NotificationEvent.booking_checked_out]
+        .cleaner,
+    ).toBe(true);
+    expect(
+      DEFAULT_NOTIFICATION_MATRIX[NotificationEvent.booking_transferred]
         .cleaner,
     ).toBe(true);
     expect(

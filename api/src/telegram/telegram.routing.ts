@@ -54,6 +54,13 @@ export const DEFAULT_NOTIFICATION_MATRIX: Record<
     manager: true,
     cleaner: true,
   },
+  /** Transfer-out: cleaner notice without checkout buffer (TRANSFER.md §5). */
+  [NotificationEvent.booking_transferred]: {
+    owner: true,
+    admin: true,
+    manager: true,
+    cleaner: true,
+  },
   [NotificationEvent.booking_updated]: {
     owner: true,
     admin: true,

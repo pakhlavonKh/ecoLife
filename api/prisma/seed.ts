@@ -31,6 +31,12 @@ const NOTIFICATION_MATRIX: Record<
     manager: true,
     cleaner: true,
   },
+  [NotificationEvent.booking_transferred]: {
+    owner: true,
+    admin: true,
+    manager: true,
+    cleaner: true,
+  },
   [NotificationEvent.booking_updated]: {
     owner: true,
     admin: true,
