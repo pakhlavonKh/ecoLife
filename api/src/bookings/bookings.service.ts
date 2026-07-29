@@ -16,7 +16,7 @@ import {
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AvailabilityService, BEDS_UNAVAILABLE_MESSAGE } from '../availability/availability.service';
-import { validateStayDates } from '../common/utils/dates';
+import { validateStayDates, nightsBetween } from '../common/utils/dates';
 import {
   addLocalDays,
   formatLocalDate,
@@ -27,6 +27,7 @@ import {
 import { formatGuestName } from '../common/utils/guest-name';
 import {
   calcDepositAmount,
+  calcNightlySubtotal,
   calcRemainingAfterTotalChange,
   calcTotalAmount,
   decimalToString,
@@ -45,14 +46,19 @@ import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
+import { ExtendBookingDto } from './dto/extend-booking.dto';
+import { TransferBookingDto } from './dto/transfer-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import {
   BOOKING_CREATED_EVENT,
   BOOKING_HOLD_EXPIRED_EVENT,
   BOOKING_STATUS_CHANGED_EVENT,
+  BOOKING_TRANSFERRED_EVENT,
   BOOKING_UPDATED_EVENT,
   BookingFieldChange,
   BookingSnapshot,
+  BookingTransferredPayload,
+  PriceBreakdown,
 } from './events/booking.events';
 import {
   assertTransition,
@@ -62,6 +68,13 @@ import {
   OCCUPYING_STATUSES,
   releasesInventory,
 } from './status-machine';
+import {
+  buildPriceBreakdown,
+  calcExtendMoney,
+  calcTransferMoney,
+  formatTransferAt,
+  splitStayAtTransfer,
+} from './transfer-math';
 
 function guestCountsFromDto(dto: {
   adults: number;
@@ -768,9 +781,30 @@ export class BookingsService {
             );
           }
 
-          const currentRoom = booking.bookingRooms[0];
+          const activeSegments = booking.bookingRooms
+            .filter((br) => br.isActive)
+            .sort((a, b) => a.segmentIndex - b.segmentIndex);
+          const currentRoom =
+            activeSegments[activeSegments.length - 1] ??
+            booking.bookingRooms[0];
           if (!currentRoom) {
             throw new BadRequestException('Booking has no rooms');
+          }
+          if (activeSegments.length > 1) {
+            const inventoryTouched =
+              dto.roomId !== undefined ||
+              dto.checkIn !== undefined ||
+              dto.checkOut !== undefined ||
+              dto.checkInTime !== undefined ||
+              dto.checkOutTime !== undefined ||
+              dto.adults !== undefined ||
+              dto.children !== undefined ||
+              dto.infants !== undefined;
+            if (inventoryTouched) {
+              throw new UnprocessableEntityException(
+                'Multi-segment booking: use transfer/extend instead of direct room/date edit',
+              );
+            }
           }
 
           const before = {
@@ -1261,6 +1295,982 @@ export class BookingsService {
     }
   }
 
+  /**
+   * Transfer / upgrade (TRANSFER.md §2–5): split stay at transferAt, free old
+   * beds from that instant (no cleaning buffer) and occupy the new room — one
+   * transaction through the availability engine (self-exclusion). Same category
+   * → no surcharge; different category → editable surcharge via age pricing.
+   */
+  async transferBooking(
+    id: string,
+    dto: TransferBookingDto,
+    actor: { type: ActorType; id: string },
+  ) {
+    try {
+      const result = await this.prisma.$transaction(
+        async (tx) => {
+          const booking = await tx.booking.findUnique({
+            where: { id },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+                orderBy: { segmentIndex: 'asc' },
+              },
+            },
+          });
+          if (!booking) {
+            throw new NotFoundException('Booking not found');
+          }
+          if (
+            booking.status === BookingStatus.cancelled ||
+            booking.status === BookingStatus.checked_out
+          ) {
+            throw new UnprocessableEntityException(
+              `Cannot transfer booking in status ${booking.status}`,
+            );
+          }
+          if (!OCCUPYING_STATUSES.includes(booking.status)) {
+            throw new UnprocessableEntityException(
+              `Cannot transfer booking in status ${booking.status}`,
+            );
+          }
+
+          const activeSegments = booking.bookingRooms.filter((br) => br.isActive);
+          if (activeSegments.length === 0) {
+            throw new BadRequestException('Booking has no active room segments');
+          }
+
+          const transferTime =
+            dto.transferTime ??
+            formatLocalTime(
+              activeSegments[activeSegments.length - 1]!.checkIn,
+            );
+          const transferAt = parseLocalDateTime(
+            dto.transferDate,
+            transferTime,
+            'transferDate',
+          );
+
+          if (
+            transferAt.getTime() < booking.checkIn.getTime() ||
+            transferAt.getTime() >= booking.checkOut.getTime()
+          ) {
+            throw new BadRequestException(
+              'transferAt must be on/after check-in and before check-out',
+            );
+          }
+
+          const covering = activeSegments.find(
+            (br) =>
+              br.checkIn.getTime() <= transferAt.getTime() &&
+              transferAt.getTime() < br.checkOut.getTime(),
+          );
+          if (!covering) {
+            throw new BadRequestException(
+              'transferAt does not fall inside any active segment',
+            );
+          }
+          if (covering.roomId === dto.roomId) {
+            throw new BadRequestException(
+              'Target room must differ from the current segment room',
+            );
+          }
+
+          const counts: GuestCounts = {
+            adults: booking.adults,
+            children: booking.children,
+            infants: booking.infants,
+          };
+          const beds = occupyingBeds(counts);
+
+          // Lock both rooms in stable UUID order to avoid deadlocks with create.
+          const lockIds = [covering.roomId, dto.roomId].sort();
+          const locked = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM rooms
+            WHERE id IN (${Prisma.join(lockIds.map((rid) => Prisma.sql`${rid}::uuid`))})
+            ORDER BY id
+            FOR UPDATE
+          `;
+          if (locked.length !== 2) {
+            throw new NotFoundException('Room not found');
+          }
+
+          const newRoom = await tx.room.findUnique({
+            where: { id: dto.roomId },
+            include: { category: true, cottage: true },
+          });
+          if (!newRoom || !newRoom.isActive || !newRoom.cottage.isActive) {
+            throw new BadRequestException('Target room is not available');
+          }
+          if (!newRoom.category.isActive) {
+            throw new BadRequestException('Target category is not available');
+          }
+          if (newRoom.capacity < beds) {
+            throw new BadRequestException(
+              `Room capacity (${newRoom.capacity}) is less than occupying guests (${beds}; infants excluded)`,
+            );
+          }
+
+          const segmentEnd = covering.checkOut;
+          // Availability for the NEW segment only; exclude this booking (self).
+          await this.availability.assertRoomAcceptsGuests(
+            newRoom.id,
+            newRoom.capacity,
+            beds,
+            transferAt,
+            segmentEnd,
+            tx,
+            { excludeBookingId: id },
+          );
+
+          const sameCategory =
+            covering.room.categoryId === newRoom.categoryId;
+          const oldPrices = categoryPrices(covering.room.category);
+          const newPrices = categoryPrices(newRoom.category);
+
+          const wholeStayMove =
+            transferAt.getTime() === covering.checkIn.getTime();
+
+          let livedNights: number;
+          let remainingNights: number;
+          let segmentACheckOut = transferAt;
+          let segmentBCheckIn = transferAt;
+          let segmentBCheckOut = segmentEnd;
+
+          if (wholeStayMove) {
+            livedNights = 0;
+            remainingNights = nightsBetween(covering.checkIn, covering.checkOut);
+            // Recalculate remaining nights from booking-level if this is the
+            // only/full segment covering the whole stay.
+            if (
+              covering.checkIn.getTime() === booking.checkIn.getTime() &&
+              covering.checkOut.getTime() === booking.checkOut.getTime()
+            ) {
+              remainingNights = nightsBetween(booking.checkIn, booking.checkOut);
+            }
+          } else {
+            const split = splitStayAtTransfer(
+              covering.checkIn,
+              covering.checkOut,
+              transferAt,
+            );
+            livedNights = split.segmentA.nights;
+            remainingNights = split.segmentB.nights;
+            segmentACheckOut = split.segmentA.checkOut;
+            segmentBCheckIn = split.segmentB.checkIn;
+            segmentBCheckOut = split.segmentB.checkOut;
+          }
+
+          const money = calcTransferMoney({
+            livedNights,
+            remainingNights,
+            counts,
+            oldPrices,
+            newPrices,
+            sameCategory,
+            surchargeOverride: sameCategory ? null : dto.surchargeAmount,
+          });
+
+          // Preserve amounts of earlier segments (index < covering).
+          const earlier = activeSegments.filter(
+            (br) => br.segmentIndex < covering.segmentIndex,
+          );
+          const earlierTotal = earlier.reduce(
+            (sum, br) => sum.add(toDecimal(br.amount ?? 0)),
+            new Decimal(0),
+          );
+
+          // Mid-stay: truncate A (skipCleaningBuffer) + insert B.
+          // Whole-stay move: replace covering segment in place (no empty A).
+          const nextIndex = covering.segmentIndex + (wholeStayMove ? 0 : 1);
+
+          if (wholeStayMove) {
+            await tx.bookingRoom.update({
+              where: { id: covering.id },
+              data: {
+                roomId: newRoom.id,
+                bedsBooked: beds,
+                amount: money.segmentBAmount,
+                skipCleaningBuffer: false,
+              },
+            });
+          } else {
+            // Bump later segments' indexes to make room for the new one.
+            const later = activeSegments.filter(
+              (br) => br.segmentIndex > covering.segmentIndex,
+            );
+            for (const br of [...later].sort(
+              (a, b) => b.segmentIndex - a.segmentIndex,
+            )) {
+              await tx.bookingRoom.update({
+                where: { id: br.id },
+                data: { segmentIndex: br.segmentIndex + 1 },
+              });
+            }
+
+            await tx.bookingRoom.update({
+              where: { id: covering.id },
+              data: {
+                checkOut: segmentACheckOut,
+                amount: money.segmentAAmount,
+                skipCleaningBuffer: true,
+              },
+            });
+
+            await tx.bookingRoom.create({
+              data: {
+                bookingId: id,
+                roomId: newRoom.id,
+                bedsBooked: beds,
+                checkIn: segmentBCheckIn,
+                checkOut: segmentBCheckOut,
+                isActive: true,
+                segmentIndex: nextIndex,
+                amount: money.segmentBAmount,
+                skipCleaningBuffer: false,
+              },
+            });
+          }
+
+          // If covering was not the last segment and we only moved part of it,
+          // later segments keep their rooms; booking.checkOut stays the same.
+          const totalAmount = earlierTotal
+            .add(wholeStayMove ? money.segmentBAmount : money.segmentAAmount)
+            .add(wholeStayMove ? new Decimal(0) : money.segmentBAmount)
+            .toDecimalPlaces(2);
+
+          // For same-class transfer of a bargained booking: keep prior total.
+          const finalTotal = sameCategory
+            ? booking.totalAmount
+            : totalAmount;
+          const remainingAmount = calcRemainingAfterTotalChange(
+            finalTotal,
+            booking.paidAmount,
+          );
+
+          let paymentStatus = booking.paymentStatus;
+          if (booking.paidAmount.gte(finalTotal) && finalTotal.gt(0)) {
+            paymentStatus = PaymentStatus.paid_full;
+          } else if (
+            booking.paidAmount.gte(booking.depositAmount) &&
+            booking.paidAmount.gt(0)
+          ) {
+            paymentStatus = PaymentStatus.deposit_paid;
+          } else if (booking.paidAmount.lte(0)) {
+            paymentStatus = PaymentStatus.unpaid;
+          }
+
+          const afterRooms = await tx.bookingRoom.findMany({
+            where: { bookingId: id },
+            include: {
+              room: { include: { cottage: true, category: true } },
+            },
+            orderBy: { segmentIndex: 'asc' },
+          });
+
+          const priceBreakdown = buildPriceBreakdown({
+            segments: afterRooms.map((br) => {
+              const segNights = nightsBetween(br.checkIn, br.checkOut);
+              const prices = categoryPrices(br.room.category);
+              return {
+                segmentIndex: br.segmentIndex,
+                bookingRoomId: br.id,
+                roomId: br.roomId,
+                checkIn: br.checkIn,
+                checkOut: br.checkOut,
+                bedsBooked: br.bedsBooked,
+                amount: br.amount ?? 0,
+                isActive: br.isActive,
+                nights: segNights,
+                nightlySubtotal: decimalToString(
+                  calcNightlySubtotal(counts, prices),
+                ),
+                categoryCode: br.room.category.code,
+                roomNumber: br.room.number,
+              };
+            }),
+            total: finalTotal,
+            lastAdjustment: {
+              operation: money.operation,
+              amount: decimalToString(money.appliedSurcharge),
+              note: dto.note,
+            },
+          });
+
+          const after = await tx.booking.update({
+            where: { id },
+            data: {
+              totalAmount: finalTotal,
+              remainingAmount,
+              paymentStatus,
+              priceBreakdown: priceBreakdown as unknown as Prisma.InputJsonValue,
+              // priceOriginal unchanged — catalog snapshot at creation
+            },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+                orderBy: { segmentIndex: 'asc' },
+              },
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorType: actor.type,
+              actorId: actor.id,
+              entity: 'booking',
+              entityId: id,
+              action: money.operation,
+              diff: {
+                before: {
+                  roomId: covering.roomId,
+                  roomNumber: covering.room.number,
+                  category: covering.room.category.code,
+                  totalAmount: decimalToString(booking.totalAmount),
+                  remainingAmount: decimalToString(booking.remainingAmount),
+                  paidAmount: decimalToString(booking.paidAmount),
+                },
+                after: {
+                  roomId: newRoom.id,
+                  roomNumber: newRoom.number,
+                  category: newRoom.category.code,
+                  transferAt: formatTransferAt(transferAt),
+                  operation: money.operation,
+                  surcharge: decimalToString(money.appliedSurcharge),
+                  suggestedSurcharge: decimalToString(
+                    money.suggestedSurcharge,
+                  ),
+                  totalAmount: decimalToString(finalTotal),
+                  remainingAmount: decimalToString(remainingAmount),
+                  paidAmount: decimalToString(booking.paidAmount),
+                  skipCleaningBuffer: !wholeStayMove,
+                  priceBreakdown,
+                },
+              },
+            },
+          });
+
+          const transferredPayload: BookingTransferredPayload = {
+            booking: this.toSnapshot(after),
+            operation: money.operation,
+            transferAt: formatTransferAt(transferAt),
+            from: {
+              roomId: covering.roomId,
+              roomNumber: covering.room.number,
+              categoryCode: covering.room.category.code,
+              segmentIndex: covering.segmentIndex,
+            },
+            to: {
+              roomId: newRoom.id,
+              roomNumber: newRoom.number,
+              categoryCode: newRoom.category.code,
+              segmentIndex: wholeStayMove
+                ? covering.segmentIndex
+                : nextIndex,
+            },
+            releasedBeds: beds,
+            surchargeAmount: decimalToString(money.appliedSurcharge),
+            priceBreakdown,
+          };
+
+          return {
+            booking: after,
+            money,
+            transferredPayload,
+            priceBreakdown,
+          };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 15000,
+        },
+      );
+
+      this.events.emit(
+        BOOKING_TRANSFERRED_EVENT,
+        result.transferredPayload,
+      );
+
+      return {
+        ...this.toView(result.booking),
+        priceBreakdown: result.priceBreakdown,
+        operation: result.money.operation,
+        surchargeAmount: decimalToString(result.money.appliedSurcharge),
+        suggestedSurcharge: decimalToString(result.money.suggestedSurcharge),
+        livedNights: result.money.livedNights,
+        remainingNights: result.money.remainingNights,
+      };
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        throw error;
+      }
+      if (isExclusionOrConflict(error)) {
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Extend stay in the current (last) room. If the room cannot accept the
+   * extra nights → 409 with same-class transfer offers (TRANSFER.md §4).
+   * With transferToRoomId, append a new segment for the extension on that room.
+   */
+  async extendBooking(
+    id: string,
+    dto: ExtendBookingDto,
+    actor: { type: ActorType; id: string },
+  ) {
+    try {
+      const preview = await this.prisma.$transaction(
+        async (tx) => {
+          const booking = await tx.booking.findUnique({
+            where: { id },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+                orderBy: { segmentIndex: 'asc' },
+              },
+            },
+          });
+          if (!booking) {
+            throw new NotFoundException('Booking not found');
+          }
+          if (
+            booking.status === BookingStatus.cancelled ||
+            booking.status === BookingStatus.checked_out
+          ) {
+            throw new UnprocessableEntityException(
+              `Cannot extend booking in status ${booking.status}`,
+            );
+          }
+          if (!OCCUPYING_STATUSES.includes(booking.status)) {
+            throw new UnprocessableEntityException(
+              `Cannot extend booking in status ${booking.status}`,
+            );
+          }
+
+          const activeSegments = booking.bookingRooms.filter((br) => br.isActive);
+          const last =
+            activeSegments[activeSegments.length - 1] ??
+            booking.bookingRooms[booking.bookingRooms.length - 1];
+          if (!last) {
+            throw new BadRequestException('Booking has no room segments');
+          }
+
+          const newCheckOutTime =
+            dto.newCheckOutTime ?? formatLocalTime(booking.checkOut);
+          const newCheckOut = parseLocalDateTime(
+            dto.newCheckOut,
+            newCheckOutTime,
+            'newCheckOut',
+          );
+          if (!(newCheckOut.getTime() > booking.checkOut.getTime())) {
+            throw new BadRequestException(
+              'newCheckOut must be after the current check-out',
+            );
+          }
+
+          const counts: GuestCounts = {
+            adults: booking.adults,
+            children: booking.children,
+            infants: booking.infants,
+          };
+          const beds = occupyingBeds(counts);
+          const prices = categoryPrices(last.room.category);
+          const money = calcExtendMoney({
+            previousCheckIn: booking.checkIn,
+            previousCheckOut: booking.checkOut,
+            newCheckOut,
+            counts,
+            prices,
+            previousTotal: booking.totalAmount,
+            addedAmountOverride: dto.addedAmount,
+          });
+
+          const extendFrom = booking.checkOut;
+          const offerCategoryCode = (
+            dto.offerCategoryCode ?? last.room.category.code
+          ).toLowerCase();
+
+          // Path A: transfer-to-room for the extension tail only.
+          if (dto.transferToRoomId) {
+            if (dto.transferToRoomId === last.roomId) {
+              throw new BadRequestException(
+                'transferToRoomId must differ from the current room',
+              );
+            }
+            const lockIds = [last.roomId, dto.transferToRoomId].sort();
+            await tx.$queryRaw`
+              SELECT id FROM rooms
+              WHERE id IN (${Prisma.join(lockIds.map((rid) => Prisma.sql`${rid}::uuid`))})
+              ORDER BY id
+              FOR UPDATE
+            `;
+
+            const target = await tx.room.findUnique({
+              where: { id: dto.transferToRoomId },
+              include: { category: true, cottage: true },
+            });
+            if (!target || !target.isActive || !target.cottage.isActive) {
+              throw new BadRequestException('Transfer target room is not available');
+            }
+            if (target.capacity < beds) {
+              throw new BadRequestException(
+                `Room capacity (${target.capacity}) is less than occupying guests (${beds})`,
+              );
+            }
+
+            await this.availability.assertRoomAcceptsGuests(
+              target.id,
+              target.capacity,
+              beds,
+              extendFrom,
+              newCheckOut,
+              tx,
+              { excludeBookingId: id },
+            );
+
+            // Extension on a different category → age-price the added nights there.
+            const targetPrices = categoryPrices(target.category);
+            const extendMoney =
+              target.categoryId === last.room.categoryId
+                ? money
+                : calcExtendMoney({
+                    previousCheckIn: booking.checkIn,
+                    previousCheckOut: booking.checkOut,
+                    newCheckOut,
+                    counts,
+                    prices: targetPrices,
+                    previousTotal: booking.totalAmount,
+                    addedAmountOverride: dto.addedAmount,
+                  });
+
+            await tx.bookingRoom.update({
+              where: { id: last.id },
+              data: { skipCleaningBuffer: true },
+            });
+
+            const newSeg = await tx.bookingRoom.create({
+              data: {
+                bookingId: id,
+                roomId: target.id,
+                bedsBooked: beds,
+                checkIn: extendFrom,
+                checkOut: newCheckOut,
+                isActive: true,
+                segmentIndex: last.segmentIndex + 1,
+                amount: extendMoney.appliedAddedAmount,
+                skipCleaningBuffer: false,
+              },
+            });
+
+            const finalTotal = extendMoney.newTotal;
+            const remainingAmount = calcRemainingAfterTotalChange(
+              finalTotal,
+              booking.paidAmount,
+            );
+            let paymentStatus = booking.paymentStatus;
+            if (booking.paidAmount.gte(finalTotal) && finalTotal.gt(0)) {
+              paymentStatus = PaymentStatus.paid_full;
+            } else if (
+              booking.paidAmount.gte(booking.depositAmount) &&
+              booking.paidAmount.gt(0)
+            ) {
+              paymentStatus = PaymentStatus.deposit_paid;
+            }
+
+            const afterRooms = await tx.bookingRoom.findMany({
+              where: { bookingId: id },
+              include: {
+                room: { include: { cottage: true, category: true } },
+              },
+              orderBy: { segmentIndex: 'asc' },
+            });
+            const priceBreakdown = buildPriceBreakdown({
+              segments: afterRooms.map((br) => ({
+                segmentIndex: br.segmentIndex,
+                bookingRoomId: br.id,
+                roomId: br.roomId,
+                checkIn: br.checkIn,
+                checkOut: br.checkOut,
+                bedsBooked: br.bedsBooked,
+                amount: br.amount ?? 0,
+                isActive: br.isActive,
+                nights: nightsBetween(br.checkIn, br.checkOut),
+                nightlySubtotal: decimalToString(
+                  calcNightlySubtotal(counts, categoryPrices(br.room.category)),
+                ),
+                categoryCode: br.room.category.code,
+                roomNumber: br.room.number,
+              })),
+              total: finalTotal,
+              lastAdjustment: {
+                operation: 'extend',
+                amount: decimalToString(extendMoney.appliedAddedAmount),
+                note: dto.note,
+              },
+            });
+
+            const after = await tx.booking.update({
+              where: { id },
+              data: {
+                checkOut: newCheckOut,
+                totalAmount: finalTotal,
+                remainingAmount,
+                paymentStatus,
+                priceBreakdown:
+                  priceBreakdown as unknown as Prisma.InputJsonValue,
+              },
+              include: {
+                customer: true,
+                bookingRooms: {
+                  include: {
+                    room: { include: { cottage: true, category: true } },
+                  },
+                  orderBy: { segmentIndex: 'asc' },
+                },
+              },
+            });
+
+            await tx.auditLog.create({
+              data: {
+                actorType: actor.type,
+                actorId: actor.id,
+                entity: 'booking',
+                entityId: id,
+                action: 'extend_via_transfer',
+                diff: {
+                  before: {
+                    checkOut: formatLocalDate(booking.checkOut),
+                    checkOutTime: formatLocalTime(booking.checkOut),
+                    totalAmount: decimalToString(booking.totalAmount),
+                    roomId: last.roomId,
+                  },
+                  after: {
+                    checkOut: formatLocalDate(newCheckOut),
+                    checkOutTime: formatLocalTime(newCheckOut),
+                    totalAmount: decimalToString(finalTotal),
+                    addedAmount: decimalToString(
+                      extendMoney.appliedAddedAmount,
+                    ),
+                    transferToRoomId: target.id,
+                    newSegmentId: newSeg.id,
+                    skipCleaningBufferOnPrior: true,
+                    priceBreakdown,
+                  },
+                },
+              },
+            });
+
+            const transferredPayload: BookingTransferredPayload = {
+              booking: this.toSnapshot(after),
+              operation:
+                target.categoryId === last.room.categoryId
+                  ? 'transfer'
+                  : 'upgrade',
+              transferAt: formatTransferAt(extendFrom),
+              from: {
+                roomId: last.roomId,
+                roomNumber: last.room.number,
+                categoryCode: last.room.category.code,
+                segmentIndex: last.segmentIndex,
+              },
+              to: {
+                roomId: target.id,
+                roomNumber: target.number,
+                categoryCode: target.category.code,
+                segmentIndex: last.segmentIndex + 1,
+              },
+              releasedBeds: beds,
+              surchargeAmount: decimalToString(extendMoney.appliedAddedAmount),
+              priceBreakdown,
+            };
+
+            return {
+              kind: 'ok' as const,
+              booking: after,
+              money: extendMoney,
+              priceBreakdown,
+              transferredPayload,
+              previousCheckOut: booking.checkOut,
+            };
+          }
+
+          // Path B: extend same room.
+          await tx.$queryRaw`
+            SELECT id FROM rooms WHERE id = ${last.roomId}::uuid FOR UPDATE
+          `;
+
+          try {
+            await this.availability.assertRoomAcceptsGuests(
+              last.roomId,
+              last.room.capacity,
+              beds,
+              extendFrom,
+              newCheckOut,
+              tx,
+              { excludeBookingId: id },
+            );
+          } catch (err) {
+            if (!(err instanceof ConflictException)) {
+              throw err;
+            }
+            // Build transfer offers (same / chosen class) for the extension window.
+            const candidates = await this.availability.resolveBookableRooms({
+              categoryCode: offerCategoryCode,
+              minCapacity: beds,
+            });
+            const offers: Array<{
+              id: string;
+              number: string;
+              capacity: number;
+              categoryCode: string;
+              cottageName: string;
+              priceAdult: string;
+              priceChild: string;
+              priceInfant: string;
+            }> = [];
+            for (const room of candidates) {
+              if (room.id === last.roomId) {
+                continue;
+              }
+              const snap = await this.availability.getRoomStaySnapshot(
+                room.id,
+                room.capacity,
+                extendFrom,
+                newCheckOut,
+                tx,
+                { excludeBookingId: id },
+              );
+              if (
+                snap.remainingBeds >= beds &&
+                !snap.locked
+              ) {
+                offers.push({
+                  id: room.id,
+                  number: room.number,
+                  capacity: room.capacity,
+                  categoryCode: room.categoryCode,
+                  cottageName: room.cottageName,
+                  priceAdult: decimalToString(room.priceAdult),
+                  priceChild: decimalToString(room.priceChild),
+                  priceInfant: decimalToString(room.priceInfant),
+                });
+              }
+            }
+            return {
+              kind: 'blocked' as const,
+              message:
+                'Продление в текущем номере невозможно: места заняты. Предложен перенос в свободный номер того же класса.',
+              code: 'EXTEND_BLOCKED',
+              transferOffers: offers,
+              requested: {
+                from: extendFrom.toISOString(),
+                to: newCheckOut.toISOString(),
+                beds,
+                categoryCode: offerCategoryCode,
+              },
+            };
+          }
+
+          await tx.bookingRoom.update({
+            where: { id: last.id },
+            data: {
+              checkOut: newCheckOut,
+              amount: toDecimal(last.amount ?? booking.totalAmount)
+                .add(money.appliedAddedAmount)
+                .toDecimalPlaces(2),
+            },
+          });
+
+          const finalTotal = money.newTotal;
+          const remainingAmount = calcRemainingAfterTotalChange(
+            finalTotal,
+            booking.paidAmount,
+          );
+          let paymentStatus = booking.paymentStatus;
+          if (booking.paidAmount.gte(finalTotal) && finalTotal.gt(0)) {
+            paymentStatus = PaymentStatus.paid_full;
+          } else if (
+            booking.paidAmount.gte(booking.depositAmount) &&
+            booking.paidAmount.gt(0)
+          ) {
+            paymentStatus = PaymentStatus.deposit_paid;
+          }
+
+          const afterRooms = await tx.bookingRoom.findMany({
+            where: { bookingId: id },
+            include: {
+              room: { include: { cottage: true, category: true } },
+            },
+            orderBy: { segmentIndex: 'asc' },
+          });
+          const priceBreakdown = buildPriceBreakdown({
+            segments: afterRooms.map((br) => ({
+              segmentIndex: br.segmentIndex,
+              bookingRoomId: br.id,
+              roomId: br.roomId,
+              checkIn: br.checkIn,
+              checkOut: br.checkOut,
+              bedsBooked: br.bedsBooked,
+              amount: br.amount ?? 0,
+              isActive: br.isActive,
+              nights: nightsBetween(br.checkIn, br.checkOut),
+              nightlySubtotal: decimalToString(
+                calcNightlySubtotal(counts, categoryPrices(br.room.category)),
+              ),
+              categoryCode: br.room.category.code,
+              roomNumber: br.room.number,
+            })),
+            total: finalTotal,
+            lastAdjustment: {
+              operation: 'extend',
+              amount: decimalToString(money.appliedAddedAmount),
+              note: dto.note,
+            },
+          });
+
+          const after = await tx.booking.update({
+            where: { id },
+            data: {
+              checkOut: newCheckOut,
+              totalAmount: finalTotal,
+              remainingAmount,
+              paymentStatus,
+              priceBreakdown:
+                priceBreakdown as unknown as Prisma.InputJsonValue,
+            },
+            include: {
+              customer: true,
+              bookingRooms: {
+                include: {
+                  room: { include: { cottage: true, category: true } },
+                },
+                orderBy: { segmentIndex: 'asc' },
+              },
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorType: actor.type,
+              actorId: actor.id,
+              entity: 'booking',
+              entityId: id,
+              action: 'extend',
+              diff: {
+                before: {
+                  checkOut: formatLocalDate(booking.checkOut),
+                  checkOutTime: formatLocalTime(booking.checkOut),
+                  totalAmount: decimalToString(booking.totalAmount),
+                  remainingAmount: decimalToString(booking.remainingAmount),
+                },
+                after: {
+                  checkOut: formatLocalDate(newCheckOut),
+                  checkOutTime: formatLocalTime(newCheckOut),
+                  totalAmount: decimalToString(finalTotal),
+                  remainingAmount: decimalToString(remainingAmount),
+                  addedNights: money.addedNights,
+                  addedAmount: decimalToString(money.appliedAddedAmount),
+                  catalogAddedAmount: decimalToString(
+                    money.catalogAddedAmount,
+                  ),
+                  paidAmount: decimalToString(booking.paidAmount),
+                  priceBreakdown,
+                },
+              },
+            },
+          });
+
+            return {
+              kind: 'ok' as const,
+              booking: after,
+              money,
+              priceBreakdown,
+              transferredPayload: null,
+              previousCheckOut: booking.checkOut,
+            };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 15000,
+        },
+      );
+
+      if (preview.kind === 'blocked') {
+        throw new ConflictException({
+          message: preview.message,
+          code: preview.code,
+          transferOffers: preview.transferOffers,
+          requested: preview.requested,
+        });
+      }
+
+      if (preview.transferredPayload) {
+        this.events.emit(
+          BOOKING_TRANSFERRED_EVENT,
+          preview.transferredPayload,
+        );
+      } else {
+        this.events.emit(BOOKING_UPDATED_EVENT, {
+          bookingId: preview.booking.id,
+          publicCode: preview.booking.publicCode,
+          changes: [
+            {
+              field: 'checkOut',
+              from: formatLocalDate(preview.previousCheckOut),
+              to: formatLocalDate(preview.booking.checkOut),
+            },
+            {
+              field: 'totalAmount',
+              from: decimalToString(preview.money.previousTotal),
+              to: decimalToString(preview.money.newTotal),
+            },
+          ],
+        });
+      }
+
+      return {
+        ...this.toView(preview.booking),
+        priceBreakdown: preview.priceBreakdown,
+        operation: 'extend' as const,
+        addedNights: preview.money.addedNights,
+        addedAmount: decimalToString(preview.money.appliedAddedAmount),
+        catalogAddedAmount: decimalToString(
+          preview.money.catalogAddedAmount,
+        ),
+      };
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        throw error;
+      }
+      if (isExclusionOrConflict(error)) {
+        throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
   /** Cancel expired pending_payment holds and free inventory. */
   async expireHolds(): Promise<number> {
     const now = new Date();
@@ -1413,6 +2423,7 @@ export class BookingsService {
       expiresAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
+      priceBreakdown?: Prisma.JsonValue | PriceBreakdown | null;
       customer: {
         id: string;
         firstName: string;
@@ -1425,6 +2436,9 @@ export class BookingsService {
         checkIn: Date;
         checkOut: Date;
         isActive: boolean;
+        segmentIndex?: number;
+        amount?: Decimal | null;
+        skipCleaningBuffer?: boolean;
         room: {
           id: string;
           number: string;
@@ -1473,11 +2487,21 @@ export class BookingsService {
         number: br.room.number,
         capacity: br.room.capacity,
         bedsBooked: br.bedsBooked,
+        checkIn: formatLocalDate(br.checkIn),
+        checkOut: formatLocalDate(br.checkOut),
+        checkInTime: formatLocalTime(br.checkIn),
+        checkOutTime: formatLocalTime(br.checkOut),
+        checkInAt: br.checkIn.toISOString(),
+        checkOutAt: br.checkOut.toISOString(),
+        segmentIndex: br.segmentIndex ?? 0,
+        amount: br.amount != null ? decimalToString(br.amount) : null,
+        skipCleaningBuffer: Boolean(br.skipCleaningBuffer),
         cottageId: br.room.cottage.id,
         cottageName: br.room.cottage.name,
         categoryCode: br.room.category.code,
         isActive: br.isActive,
       })),
+      priceBreakdown: (booking.priceBreakdown as PriceBreakdown | null) ?? null,
     };
   }
 }

@@ -261,6 +261,9 @@ model BookingRoom {
   segmentIndex Int    @default(0) @map("segment_index")
   /// Money for this segment (nullable until Phase 2 writes it; backfilled for existing).
   amount     Decimal? @map("amount") @db.Decimal(14, 2)
+  /// When true, availability applies NO cleaning buffer after check_out (transfer-out).
+  /// Normal check-outs leave this false so HOURLY.md variant б still applies.
+  skipCleaningBuffer Boolean @default(false) @map("skip_cleaning_buffer")
   /// Generated tstzrange [check_in, check_out) — the guest's stay, WITHOUT the cleaning
   /// buffer (the buffer is applied in availability logic, never persisted).
   /// Room-level exclusion dropped (bed mode); anti-overbooking is app-level + room_locks.

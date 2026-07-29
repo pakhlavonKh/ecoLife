@@ -15,6 +15,11 @@ type ErrorBody = {
   message: string | string[];
   timestamp: string;
   path: string;
+  /** Machine-readable code (e.g. EXTEND_BLOCKED). */
+  code?: string;
+  /** Same-class rooms offered when extend is blocked (TRANSFER.md §4). */
+  transferOffers?: unknown;
+  requested?: unknown;
 };
 
 @Catch()
@@ -58,11 +63,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const statusCode = exception.getStatus();
       const res = exception.getResponse();
-      const { error, message } = this.normalizeHttpResponse(
-        res,
-        exception.message,
-      );
-      return { statusCode, error, message, timestamp, path };
+      const { error, message, code, transferOffers, requested } =
+        this.normalizeHttpResponse(res, exception.message);
+      return {
+        statusCode,
+        error,
+        message,
+        timestamp,
+        path,
+        ...(code != null ? { code } : {}),
+        ...(transferOffers != null ? { transferOffers } : {}),
+        ...(requested != null ? { requested } : {}),
+      };
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
@@ -133,7 +145,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private normalizeHttpResponse(
     res: string | object,
     fallback: string,
-  ): { error: string; message: string | string[] } {
+  ): {
+    error: string;
+    message: string | string[];
+    code?: string;
+    transferOffers?: unknown;
+    requested?: unknown;
+  } {
     if (typeof res === 'string') {
       return { error: fallback, message: res };
     }
@@ -147,6 +165,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? message
           : 'Error';
 
-    return { error, message };
+    return {
+      error,
+      message,
+      ...(typeof obj.code === 'string' ? { code: obj.code } : {}),
+      ...(obj.transferOffers != null
+        ? { transferOffers: obj.transferOffers }
+        : {}),
+      ...(obj.requested != null ? { requested: obj.requested } : {}),
+    };
   }
 }

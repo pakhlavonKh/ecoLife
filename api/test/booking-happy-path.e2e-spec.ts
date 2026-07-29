@@ -91,7 +91,9 @@ describe('Booking happy path (Phase 9)', () => {
         roomId: room!.id,
         checkIn,
         checkOut,
-        guests: 2,
+        adults: 2,
+        children: 0,
+        infants: 0,
         provider: 'mock',
       });
 

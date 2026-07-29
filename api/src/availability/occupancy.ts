@@ -12,6 +12,11 @@ export type OccupancyStay = {
   checkIn: Date;
   checkOut: Date;
   beds: number;
+  /**
+   * Transfer-out (TRANSFER.md §5): vacated beds are immediately bookable —
+   * no cleaning buffer on this stay's checkOut. Default false = normal checkout.
+   */
+  skipCleaningBuffer?: boolean;
 };
 
 export type EffectiveStay = {
@@ -21,14 +26,17 @@ export type EffectiveStay = {
   beds: number;
 };
 
-/** Effective occupancy interval: [checkIn, checkOut + bufferMinutes). */
+/** Effective occupancy interval: [checkIn, checkOut + bufferMinutes).
+ * Pass bufferMinutes=0 when stay.skipCleaningBuffer is set (caller responsibility).
+ */
 export function toEffectiveStay(
   stay: OccupancyStay,
   bufferMinutes: number,
 ): EffectiveStay {
+  const effectiveBuffer = stay.skipCleaningBuffer ? 0 : bufferMinutes;
   return {
     start: stay.checkIn,
-    end: addMinutes(stay.checkOut, bufferMinutes),
+    end: addMinutes(stay.checkOut, effectiveBuffer),
     beds: stay.beds,
   };
 }
@@ -55,11 +63,14 @@ export function maxOccupiedOverStay(
 
   const bufferMs = Math.max(0, bufferMinutes) * MS_PER_MINUTE;
   const effective = stays
-    .map((s) => ({
-      start: s.checkIn.getTime(),
-      end: s.checkOut.getTime() + bufferMs,
-      beds: s.beds,
-    }))
+    .map((s) => {
+      const stayBufferMs = s.skipCleaningBuffer ? 0 : bufferMs;
+      return {
+        start: s.checkIn.getTime(),
+        end: s.checkOut.getTime() + stayBufferMs,
+        beds: s.beds,
+      };
+    })
     .filter((e) => e.start < reqEnd && e.end > reqStart);
 
   let current = 0;
@@ -173,7 +184,8 @@ export function earliestFreeAt(
   const bufferMs = Math.max(0, bufferMinutes) * MS_PER_MINUTE;
   const candidates = new Set<number>([from.getTime()]);
   for (const s of stays) {
-    candidates.add(s.checkOut.getTime() + bufferMs);
+    const stayBufferMs = s.skipCleaningBuffer ? 0 : bufferMs;
+    candidates.add(s.checkOut.getTime() + stayBufferMs);
   }
   const sorted = [...candidates].filter((t) => t >= from.getTime()).sort((a, b) => a - b);
 

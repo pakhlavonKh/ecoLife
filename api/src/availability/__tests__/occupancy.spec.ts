@@ -374,3 +374,109 @@ describe('interval-sweep occupancy + cleaning buffer (HOURLY Phase 2)', () => {
     ).toBe(true);
   });
 });
+
+describe('transfer-out: no cleaning buffer (TRANSFER.md §5)', () => {
+  const buffer = 60;
+
+  it('skipCleaningBuffer=true → beds free immediately at transfer_ts', () => {
+    // Mid-stay transfer-out: 5 beds released at Aug3 14:00 with NO buffer.
+    // New guest wants those 5 beds at Aug3 14:00 on a full-capacity scenario.
+    const capacity = 5;
+    const afterTransfer: OccupancyStay[] = [
+      {
+        checkIn: t('2026-08-01', '14:00'),
+        checkOut: t('2026-08-03', '14:00'),
+        beds: 5,
+        skipCleaningBuffer: true,
+      },
+    ];
+
+    // At exact transfer instant — half-open end → 0 occupied
+    expect(
+      maxOccupiedOverStay(
+        t('2026-08-03', '14:00'),
+        t('2026-08-04', '12:00'),
+        afterTransfer,
+        buffer,
+      ),
+    ).toBe(0);
+    expect(
+      canAcceptGuests(
+        capacity,
+        maxOccupiedOverStay(
+          t('2026-08-03', '14:00'),
+          t('2026-08-04', '12:00'),
+          afterTransfer,
+          buffer,
+        ),
+        5,
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it('normal checkout still applies buffer (control)', () => {
+    const capacity = 5;
+    const normalCheckout: OccupancyStay[] = [
+      {
+        checkIn: t('2026-08-01', '14:00'),
+        checkOut: t('2026-08-03', '14:00'),
+        beds: 5,
+        // skipCleaningBuffer omitted / false
+      },
+    ];
+    // 14:30 still in 1h buffer
+    expect(
+      maxOccupiedOverStay(
+        t('2026-08-03', '14:30'),
+        t('2026-08-04', '12:00'),
+        normalCheckout,
+        buffer,
+      ),
+    ).toBe(5);
+    expect(
+      canAcceptGuests(
+        capacity,
+        maxOccupiedOverStay(
+          t('2026-08-03', '14:30'),
+          t('2026-08-04', '12:00'),
+          normalCheckout,
+          buffer,
+        ),
+        5,
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  it('self-exclusion: own stay must not block extend into its cleaning tail', () => {
+    // Room cap 7, booking uses 5 until Aug5 12:00. Extend wants Aug5 12:00→Aug7.
+    // Without excluding self, cleaning buffer of own stay blocks Aug5 12:00–13:00.
+    const ownStay: OccupancyStay[] = [
+      {
+        checkIn: t('2026-08-01', '14:00'),
+        checkOut: t('2026-08-05', '12:00'),
+        beds: 5,
+      },
+    ];
+    const withSelf = maxOccupiedOverStay(
+      t('2026-08-05', '12:00'),
+      t('2026-08-07', '12:00'),
+      ownStay,
+      buffer,
+    );
+    expect(withSelf).toBe(5);
+    expect(canAcceptGuests(7, withSelf, 5, false)).toBe(false);
+
+    // After excludeBookingId filter (empty stays) → free
+    const excluded: OccupancyStay[] = [];
+    const withoutSelf = maxOccupiedOverStay(
+      t('2026-08-05', '12:00'),
+      t('2026-08-07', '12:00'),
+      excluded,
+      buffer,
+    );
+    expect(withoutSelf).toBe(0);
+    expect(canAcceptGuests(7, withoutSelf, 5, false)).toBe(true);
+  });
+});

@@ -25,8 +25,10 @@ import { PaymentsService } from '../payments/payments.service';
 import { BookingsService } from './bookings.service';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
+import { ExtendBookingDto } from './dto/extend-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { MarkPaymentAmountDto, MarkPaymentDto } from './dto/mark-payment.dto';
+import { TransferBookingDto } from './dto/transfer-booking.dto';
 import { TransitionStatusDto } from './dto/transition-status.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 
@@ -108,6 +110,38 @@ export class BookingsAdminController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.bookingsService.transitionStatus(id, dto.status, {
+      type: ActorType.admin,
+      id: user.id,
+    });
+  }
+
+  @Post('bookings/:id/transfer')
+  @ApiOperation({
+    summary:
+      'Transfer / upgrade: split stay at transferAt, free old beds (no cleaning buffer) and occupy new room. Same class = no surcharge; upgrade surcharge editable.',
+  })
+  transfer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TransferBookingDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.bookingsService.transferBooking(id, dto, {
+      type: ActorType.admin,
+      id: user.id,
+    });
+  }
+
+  @Post('bookings/:id/extend')
+  @ApiOperation({
+    summary:
+      'Extend checkout. If same room is blocked → 409 with transferOffers; retry with transferToRoomId to move the extension tail.',
+  })
+  extend(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ExtendBookingDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.bookingsService.extendBooking(id, dto, {
       type: ActorType.admin,
       id: user.id,
     });

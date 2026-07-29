@@ -156,9 +156,11 @@ export class AvailabilityService {
         check_in: Date;
         check_out: Date;
         beds_booked: number;
+        skip_cleaning_buffer: boolean;
       }[]
     >`
-      SELECT br.room_id, br.check_in, br.check_out, br.beds_booked
+      SELECT br.room_id, br.check_in, br.check_out, br.beds_booked,
+             br.skip_cleaning_buffer
       FROM booking_rooms br
       INNER JOIN bookings b ON b.id = br.booking_id
       WHERE br.is_active = true
@@ -179,6 +181,7 @@ export class AvailabilityService {
         checkIn: new Date(row.check_in),
         checkOut: new Date(row.check_out),
         beds: Number(row.beds_booked),
+        skipCleaningBuffer: Boolean(row.skip_cleaning_buffer),
       });
       map.set(row.room_id, list);
     }
