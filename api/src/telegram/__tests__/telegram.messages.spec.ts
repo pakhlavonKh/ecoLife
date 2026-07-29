@@ -65,10 +65,10 @@ describe('telegram.messages', () => {
     expect(text).toContain('Коттедж Среда / 305');
     expect(text).toContain('Мест в номере: 2/9 занято');
     expect(text).toContain('Даты: 01/08/2026 14:00 → 03/08/2026 12:00');
-    expect(text).toMatch(/Депозит: .*360.?000 UZS/);
+    expect(text).toMatch(/Общая сумма: .*1.?200.?000 UZS/);
     expect(text).not.toContain('Требует ручного подтверждения');
-    // No noise money/status fields beyond deposit
-    expect(text).not.toContain('Итого:');
+    // No noise money/status fields beyond total
+    expect(text).not.toContain('Депозит:');
     expect(text).not.toContain('Оплачено:');
     expect(text).not.toContain('Остаток:');
     expect(text).not.toContain('Статус:');
@@ -82,6 +82,8 @@ describe('telegram.messages', () => {
     expect(text).toContain('Chorshanba kotteji / 305');
     expect(text).toContain('Xonada joylar: 2/9 band');
     expect(text).toContain('Sanalar:');
+    expect(text).toMatch(/Umumiy summa: .*1.?200.?000 UZS/);
+    expect(text).not.toContain('Depozit:');
   });
 
   it('marks online_request bookings for manual payment confirmation', () => {

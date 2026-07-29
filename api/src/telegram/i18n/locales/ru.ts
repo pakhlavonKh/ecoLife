@@ -48,7 +48,7 @@ const ruSource = {
     checkInTime: 'Время заезда',
     checkOutTime: 'Время выезда',
     notes: 'Заметки',
-    totalAmount: 'Итого',
+    totalAmount: 'Общая сумма',
     priceOriginal: 'Цена с сайта',
     depositAmount: 'Депозит',
     paymentStatus: 'Оплата',

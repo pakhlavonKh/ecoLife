@@ -42,7 +42,7 @@ export const uz: TelegramDict = {
     checkInTime: 'Kelish vaqti',
     checkOutTime: 'Chiqish vaqti',
     notes: 'Izohlar',
-    totalAmount: 'Jami',
+    totalAmount: 'Umumiy summa',
     priceOriginal: 'Saytdagi narx',
     depositAmount: 'Depozit',
     paymentStatus: 'To‘lov',

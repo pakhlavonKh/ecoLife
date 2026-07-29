@@ -112,7 +112,7 @@ function guestLine(booking: BookingSnapshot): string {
 function compactBookingLines(
   booking: BookingSnapshot,
   lang: TelegramLang,
-  opts?: { includePhone?: boolean; includeDeposit?: boolean },
+  opts?: { includePhone?: boolean; includeTotal?: boolean },
 ): string[] {
   const lines = [
     `${tt(lang, 'common.code')}: <code>${escapeHtml(booking.publicCode)}</code>`,
@@ -129,9 +129,9 @@ function compactBookingLines(
     ...bedsOccupancyLines(booking, lang),
     `${tt(lang, 'common.dates')}: ${formatDateTimeRu(booking.checkIn, booking.checkInTime)} → ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
   );
-  if (opts?.includeDeposit) {
+  if (opts?.includeTotal) {
     lines.push(
-      `${tt(lang, 'common.deposit')}: ${fmtMoney(booking.depositAmount, lang)}`,
+      `${tt(lang, 'fields.totalAmount')}: ${fmtMoney(booking.totalAmount, lang)}`,
     );
   }
   return lines;
@@ -173,7 +173,7 @@ export function formatNewBooking(
   const isRequest = booking.source === 'online_request';
   const lines = [
     `<b>${tt(lang, isRequest ? 'events.newRequest' : 'events.newBooking')}</b>`,
-    ...compactBookingLines(booking, lang, { includeDeposit: true }),
+    ...compactBookingLines(booking, lang, { includeTotal: true }),
   ];
   if (isRequest) {
     lines.push(tt(lang, 'events.requestNeedsConfirm'));
