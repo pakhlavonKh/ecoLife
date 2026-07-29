@@ -186,10 +186,10 @@ function BookingPage() {
                 cat.description?.trim() ||
                 t(`roomsData.${cat.code}.description`);
               const bedPrice =
-                cat.pricePerBedPerNight ?? cat.priceFrom ?? null;
+                cat.priceAdult ?? cat.pricePerBedPerNight ?? cat.priceFrom ?? null;
               const priceLabel =
                 bedPrice != null
-                  ? `${formatMoney(bedPrice, locale)}${t('pricePerBedNight')}`
+                  ? `${formatMoney(bedPrice, locale)}${t('pricePerAdultNight')}`
                   : t('priceUnavailable');
               const bedsCount = Number(
                 avail?.availableBeds ?? avail?.available_beds ?? 0,

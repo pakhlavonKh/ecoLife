@@ -14,12 +14,20 @@ export function sortCategories(categories) {
   );
 }
 
-/** Confirmed per-bed prices (UZS / bed / night) when API is down. */
-export const DEFAULT_PRICE_PER_BED = { standart: 600000, lux: 800000 };
+/** Confirmed age-based prices (UZS / person / night) when API is down. */
+export const DEFAULT_AGE_PRICES = {
+  standart: { priceAdult: 600000, priceChild: 300000, priceInfant: 0 },
+  lux: { priceAdult: 800000, priceChild: 400000, priceInfant: 0 },
+};
+
+/** @deprecated use DEFAULT_AGE_PRICES */
+export const DEFAULT_PRICE_PER_BED = {
+  standart: DEFAULT_AGE_PRICES.standart.priceAdult,
+  lux: DEFAULT_AGE_PRICES.lux.priceAdult,
+};
 
 /**
  * Normalize API category (camelCase or snake_case) and keep only standart/lux.
- * @returns {null | {id:string,code:string,name:string,description:string,depositPercent:number,images:string[],pricePerBedPerNight:string|null,priceFrom:string|null,priceTo:string|null}}
  */
 export function normalizeCategory(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -33,13 +41,20 @@ export function normalizeCategory(raw) {
   const depositRaw =
     raw.depositPercent ?? raw.deposit_percent ?? DEFAULT_DEPOSIT[code];
   const depositPercent = Number(depositRaw);
-  const pricePerBed =
+  const defaults = DEFAULT_AGE_PRICES[code];
+  const priceAdult =
+    raw.priceAdult ??
+    raw.price_adult ??
     raw.pricePerBedPerNight ??
     raw.price_per_bed_per_night ??
     raw.priceFrom ??
     raw.price_from ??
-    null;
-  const priceFrom = pricePerBed ?? raw.priceFrom ?? raw.price_from ?? null;
+    defaults.priceAdult;
+  const priceChild =
+    raw.priceChild ?? raw.price_child ?? defaults.priceChild;
+  const priceInfant =
+    raw.priceInfant ?? raw.price_infant ?? defaults.priceInfant;
+  const priceFrom = priceAdult ?? raw.priceFrom ?? raw.price_from ?? null;
   const priceTo = raw.priceTo ?? raw.price_to ?? priceFrom;
 
   return {
@@ -51,7 +66,10 @@ export function normalizeCategory(raw) {
       ? depositPercent
       : DEFAULT_DEPOSIT[code],
     images: Array.isArray(raw.images) ? raw.images.filter(Boolean) : [],
-    pricePerBedPerNight: pricePerBed != null ? String(pricePerBed) : null,
+    priceAdult: priceAdult != null ? String(priceAdult) : null,
+    priceChild: priceChild != null ? String(priceChild) : null,
+    priceInfant: priceInfant != null ? String(priceInfant) : null,
+    pricePerBedPerNight: priceAdult != null ? String(priceAdult) : null,
     priceFrom: priceFrom != null ? String(priceFrom) : null,
     priceTo: priceTo != null ? String(priceTo) : null,
   };
@@ -75,7 +93,8 @@ export function normalizeCategories(data) {
 /** Offline / API-down fallback so the page still shows Стандарт / Люкс. */
 export function fallbackCategories() {
   return PUBLIC_CATEGORY_CODES.map((code) => {
-    const price = String(DEFAULT_PRICE_PER_BED[code]);
+    const prices = DEFAULT_AGE_PRICES[code];
+    const price = String(prices.priceAdult);
     return {
       id: code,
       code,
@@ -83,6 +102,9 @@ export function fallbackCategories() {
       description: '',
       depositPercent: DEFAULT_DEPOSIT[code],
       images: [],
+      priceAdult: price,
+      priceChild: String(prices.priceChild),
+      priceInfant: String(prices.priceInfant),
       pricePerBedPerNight: price,
       priceFrom: price,
       priceTo: price,
@@ -173,14 +195,29 @@ export function formatMoney(amount, locale = 'ru-RU') {
 }
 
 /**
- * Bed-mode preview: total = pricePerBedPerNight × guests × nights.
- * Mirrors api/src/common/utils/money.ts (rounded to whole UZS for display).
+ * Age-based preview:
+ * total = (adults×priceAdult + children×priceChild + infants×priceInfant) × nights
  */
-export function calcPreview(pricePerBedPerNight, guests, nights, depositPercent) {
-  const price = Number(pricePerBedPerNight);
-  const guestCount = Math.max(1, Number(guests) || 1);
+export function calcPreview(prices, counts, nights, depositPercent) {
+  const priceAdult = Number(
+    typeof prices === 'object' && prices != null
+      ? prices.priceAdult
+      : prices,
+  );
+  const priceChild = Number(
+    typeof prices === 'object' && prices != null ? prices.priceChild : 0,
+  );
+  const priceInfant = Number(
+    typeof prices === 'object' && prices != null ? prices.priceInfant : 0,
+  );
+  const adults = Math.max(1, Number(counts?.adults) || 1);
+  const children = Math.max(0, Number(counts?.children) || 0);
+  const infants = Math.max(0, Number(counts?.infants) || 0);
   const nightCount = Math.max(0, Number(nights) || 0);
-  const total = Math.round(price * guestCount * nightCount);
+  const nightly = Math.round(
+    priceAdult * adults + priceChild * children + priceInfant * infants,
+  );
+  const total = Math.round(nightly * nightCount);
   const deposit = Math.round((total * Number(depositPercent)) / 100);
   const remaining = total - deposit;
   return {
@@ -188,9 +225,22 @@ export function calcPreview(pricePerBedPerNight, guests, nights, depositPercent)
     deposit,
     remaining,
     nights: nightCount,
-    guests: guestCount,
-    pricePerBedPerNight: price,
+    adults,
+    children,
+    infants,
+    guests: adults + children + infants,
+    occupyingBeds: adults + children,
+    nightly,
+    priceAdult,
+    priceChild,
+    priceInfant,
+    pricePerBedPerNight: priceAdult,
   };
+}
+
+/** Occupying beds for availability (infants excluded). */
+export function occupyingBeds(adults, children) {
+  return Math.max(0, Number(adults) || 0) + Math.max(0, Number(children) || 0);
 }
 
 /** Normalize availability room row (remaining beds for shared-room UI). */
@@ -203,11 +253,15 @@ export function normalizeAvailableRoom(raw) {
     raw.remainingBeds ?? raw.remaining_beds ?? capacity,
   );
   const price =
+    raw.priceAdult ??
+    raw.price_adult ??
     raw.pricePerNight ??
     raw.price_per_night ??
     raw.pricePerBedPerNight ??
     raw.price_per_bed_per_night ??
     null;
+  const priceChild = raw.priceChild ?? raw.price_child ?? null;
+  const priceInfant = raw.priceInfant ?? raw.price_infant ?? null;
   const fromRaw = raw.availableFrom ?? raw.available_from ?? null;
   let availableFrom = null;
   if (fromRaw && typeof fromRaw === 'object') {
@@ -227,6 +281,9 @@ export function normalizeAvailableRoom(raw) {
       raw.categoryCode ?? raw.category_code ?? '',
     ).toLowerCase(),
     pricePerNight: price != null ? String(price) : null,
+    priceAdult: price != null ? String(price) : null,
+    priceChild: priceChild != null ? String(priceChild) : null,
+    priceInfant: priceInfant != null ? String(priceInfant) : null,
     availableFrom,
   };
 }

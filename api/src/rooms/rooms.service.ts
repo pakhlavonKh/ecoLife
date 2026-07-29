@@ -137,7 +137,7 @@ export class RoomsService {
   private toView(
     room: NonNullable<Awaited<ReturnType<RoomsRepository['findById']>>>,
   ) {
-    const resolvedPrice = decimalToString(room.category.pricePerBedPerNight);
+    const resolvedPrice = decimalToString(room.category.priceAdult);
 
     return {
       id: room.id,
@@ -147,6 +147,9 @@ export class RoomsService {
       cottageName: room.cottage.name,
       categoryId: room.categoryId,
       categoryCode: room.category.code,
+      priceAdult: resolvedPrice,
+      priceChild: decimalToString(room.category.priceChild),
+      priceInfant: decimalToString(room.category.priceInfant),
       pricePerBedPerNight: resolvedPrice,
       resolvedPrice,
       bookable: room.isActive,

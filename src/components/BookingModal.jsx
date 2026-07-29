@@ -20,6 +20,7 @@ import {
   isValidStay,
   isValidUzPhone,
   normalizeAvailableRoom,
+  occupyingBeds,
   OPERATOR_PHONES,
   operatorPhonesDisplay,
   paymentProviders,
@@ -30,8 +31,7 @@ import {
 } from '../utils/booking';
 
 /**
- * Shared-room (per-bed) booking modal — bed mode + datetime stay (HOURLY.md §6).
- * Guest sees remaining beds and available-from times only; never co-occupant identities.
+ * Age-based guest booking modal — adults/children occupy beds; infants do not.
  */
 function BookingModal({
   category,
@@ -58,7 +58,9 @@ function BookingModal({
   const [checkOutTime, setCheckOutTime] = useState(
     initialCheckOutTime || DEFAULT_CHECK_OUT_TIME,
   );
-  const [guests, setGuests] = useState(2);
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState([]);
   const [alternatives, setAlternatives] = useState([]);
   const [roomId, setRoomId] = useState('');
@@ -74,16 +76,29 @@ function BookingModal({
     DEFAULT_DEPOSIT[category.code] ??
     30;
 
-  const guestCount = Math.max(1, Number(guests) || 1);
+  const bedsNeeded = occupyingBeds(adults, children);
   const selectedRoom = rooms.find((r) => r.id === roomId) || null;
-  const pricePerBed =
-    selectedRoom?.pricePerNight ??
-    category.pricePerBedPerNight ??
-    category.priceFrom ??
-    null;
+  const prices = {
+    priceAdult:
+      selectedRoom?.priceAdult ??
+      selectedRoom?.pricePerNight ??
+      category.priceAdult ??
+      category.pricePerBedPerNight ??
+      category.priceFrom ??
+      null,
+    priceChild:
+      selectedRoom?.priceChild ?? category.priceChild ?? 0,
+    priceInfant:
+      selectedRoom?.priceInfant ?? category.priceInfant ?? 0,
+  };
   const preview =
-    pricePerBed != null && nights > 0
-      ? calcPreview(pricePerBed, guestCount, nights, depositPercent)
+    prices.priceAdult != null && nights > 0
+      ? calcPreview(
+          prices,
+          { adults, children, infants },
+          nights,
+          depositPercent,
+        )
       : null;
 
   useEffect(() => {
@@ -129,7 +144,7 @@ function BookingModal({
         checkInTime,
         checkOutTime,
         categoryCode: category.code,
-        guests: guestCount,
+        guests: bedsNeeded,
       });
       setNights(
         data.nights != null
@@ -169,7 +184,7 @@ function BookingModal({
     checkInTime,
     checkOutTime,
     category?.code,
-    guestCount,
+    bedsNeeded,
     t,
   ]);
 
@@ -219,7 +234,9 @@ function BookingModal({
         checkOut,
         checkInTime,
         checkOutTime,
-        guests: guestCount,
+        adults: Math.max(1, Number(adults) || 1),
+        children: Math.max(0, Number(children) || 0),
+        infants: Math.max(0, Number(infants) || 0),
       };
       if (paymentsEnabled) {
         payload.provider = provider;
@@ -404,17 +421,40 @@ function BookingModal({
                 />
               </label>
               <label className="field">
-                <span>{t('guests')}</span>
+                <span>{t('bookingModal.adults')}</span>
                 <input
                   type="number"
                   min={1}
                   max={50}
-                  value={guests}
-                  onChange={(e) => setGuests(e.target.value)}
+                  value={adults}
+                  onChange={(e) => setAdults(e.target.value)}
                   required
                 />
               </label>
+              <label className="field">
+                <span>{t('bookingModal.children')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={children}
+                  onChange={(e) => setChildren(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>{t('bookingModal.infants')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={infants}
+                  onChange={(e) => setInfants(e.target.value)}
+                />
+              </label>
             </div>
+            <p className="booking-modal__hint">
+              {t('bookingModal.guestAgeHint')}
+            </p>
 
             <fieldset className="booking-modal__rooms">
               <legend>{t('bookingModal.availableRooms')}</legend>
@@ -510,10 +550,23 @@ function BookingModal({
                 <p>
                   {t('bookingModal.nights', { count: preview.nights })}
                   {' · '}
-                  {t('bookingModal.guestsLine', { count: preview.guests })}
-                  {' · '}
-                  {formatMoney(preview.pricePerBedPerNight, locale)}
-                  {t('bookingModal.perBedNight')}
+                  {t('bookingModal.guestsBreakdown', {
+                    adults: preview.adults,
+                    children: preview.children,
+                    infants: preview.infants,
+                  })}
+                </p>
+                <p className="booking-modal__hint">
+                  {t('bookingModal.priceBreakdown', {
+                    adults: preview.adults,
+                    priceAdult: formatMoney(preview.priceAdult, locale),
+                    children: preview.children,
+                    priceChild: formatMoney(preview.priceChild, locale),
+                    infants: preview.infants,
+                    priceInfant: formatMoney(preview.priceInfant, locale),
+                    nightly: formatMoney(preview.nightly, locale),
+                    nights: preview.nights,
+                  })}
                 </p>
                 <dl>
                   <div>

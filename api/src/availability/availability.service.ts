@@ -51,8 +51,11 @@ export type AvailableRoomView = {
   categoryCode: string;
   cottageId: string;
   cottageName: string;
-  /** Price per bed per night (UZS). */
+  /** Adult price per night (UZS) — primary / legacy field. */
   pricePerNight: string;
+  priceAdult: string;
+  priceChild: string;
+  priceInfant: string;
   /**
    * When remainingBeds < guests: earliest time those beds free up
    * (checkout + cleaning). Counts only — never co-occupant identities.
@@ -87,6 +90,9 @@ type RoomWithPrice = {
   cottageName: string;
   cottageSortOrder: number;
   pricePerNight: Decimal;
+  priceAdult: Decimal;
+  priceChild: Decimal;
+  priceInfant: Decimal;
 };
 
 type TxClient = Prisma.TransactionClient | PrismaService;
@@ -348,7 +354,10 @@ export class AvailabilityService {
       cottageId: room.cottageId,
       cottageName: room.cottage.name,
       cottageSortOrder: room.cottage.sortOrder,
-      pricePerNight: room.category.pricePerBedPerNight,
+      pricePerNight: room.category.priceAdult,
+      priceAdult: room.category.priceAdult,
+      priceChild: room.category.priceChild,
+      priceInfant: room.category.priceInfant,
     }));
   }
 
@@ -643,7 +652,10 @@ export class AvailabilityService {
       categoryCode: r.categoryCode,
       cottageId: r.cottageId,
       cottageName: r.cottageName,
-      pricePerNight: decimalToString(r.pricePerNight),
+      pricePerNight: decimalToString(r.priceAdult),
+      priceAdult: decimalToString(r.priceAdult),
+      priceChild: decimalToString(r.priceChild),
+      priceInfant: decimalToString(r.priceInfant),
     };
     if (r.availableFrom) {
       view.availableFrom = this.toAvailableFromHint(r.availableFrom);

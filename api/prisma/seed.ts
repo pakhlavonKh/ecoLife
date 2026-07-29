@@ -70,9 +70,17 @@ const ALL_STAFF_ROLES: TelegramStaffRole[] = [
   TelegramStaffRole.cleaner,
 ];
 
-/** Real category prices (UZS per night) — same for all capacities in the category. */
-const LUX_PRICE = '800000.00';
-const STANDART_PRICE = '600000.00';
+/** Default age-based prices (UZS / person / night). */
+const LUX_PRICES = {
+  priceAdult: '800000.00',
+  priceChild: '400000.00',
+  priceInfant: '0.00',
+};
+const STANDART_PRICES = {
+  priceAdult: '600000.00',
+  priceChild: '300000.00',
+  priceInfant: '0.00',
+};
 
 type RoomSeed = {
   number: string;
@@ -220,7 +228,7 @@ async function seedCategories() {
     update: {
       name: 'Люкс',
       depositPercent: 50,
-      pricePerBedPerNight: LUX_PRICE,
+      ...LUX_PRICES,
       isActive: true,
     },
     create: {
@@ -228,7 +236,7 @@ async function seedCategories() {
       name: 'Люкс',
       description: '',
       depositPercent: 50,
-      pricePerBedPerNight: LUX_PRICE,
+      ...LUX_PRICES,
       images: [],
       isActive: true,
     },
@@ -239,7 +247,7 @@ async function seedCategories() {
     update: {
       name: 'Стандарт',
       depositPercent: 30,
-      pricePerBedPerNight: STANDART_PRICE,
+      ...STANDART_PRICES,
       isActive: true,
     },
     create: {
@@ -247,14 +255,14 @@ async function seedCategories() {
       name: 'Стандарт',
       description: '',
       depositPercent: 30,
-      pricePerBedPerNight: STANDART_PRICE,
+      ...STANDART_PRICES,
       images: [],
       isActive: true,
     },
   });
 
   console.log(
-    `Categories: lux (deposit ${lux.depositPercent}%, ${LUX_PRICE}/bed), standart (deposit ${standart.depositPercent}%, ${STANDART_PRICE}/bed)`,
+    `Categories: lux (deposit ${lux.depositPercent}%, adult ${LUX_PRICES.priceAdult} / child ${LUX_PRICES.priceChild} / infant ${LUX_PRICES.priceInfant}), standart (deposit ${standart.depositPercent}%, adult ${STANDART_PRICES.priceAdult} / child ${STANDART_PRICES.priceChild} / infant ${STANDART_PRICES.priceInfant})`,
   );
 
   return { lux, standart };

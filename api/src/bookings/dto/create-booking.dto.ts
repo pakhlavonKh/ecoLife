@@ -71,14 +71,39 @@ export class CreateBookingDto {
   checkOutTime?: string;
 
   @ApiProperty({
-    description: 'Number of guests / beds in this booking (must fit remaining beds)',
+    description: 'Adults (occupy a bed)',
     minimum: 1,
+    default: 1,
   })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(50)
-  guests!: number;
+  adults!: number;
+
+  @ApiPropertyOptional({
+    description: 'Children under CHILD_MAX_AGE (occupy a bed)',
+    minimum: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  children?: number;
+
+  @ApiPropertyOptional({
+    description: 'Infants under INFANT_MAX_AGE (do NOT occupy a bed)',
+    minimum: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  infants?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

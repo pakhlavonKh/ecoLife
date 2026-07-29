@@ -22,6 +22,9 @@ export type BookingSnapshot = {
   phone: string;
   rooms: BookingRoomInfo[];
   bedsTotal: number;
+  adults: number;
+  children: number;
+  infants: number;
   /** Local calendar date, YYYY-MM-DD. */
   checkIn: string;
   checkOut: string;

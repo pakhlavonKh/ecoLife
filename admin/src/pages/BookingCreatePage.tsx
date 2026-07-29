@@ -18,13 +18,14 @@ import {
 } from '../components/ui';
 import {
   addDaysIso,
-  calcBedTotal,
+  calcAgeTotal,
   calcDeposit,
   cleaningBlockedUntil,
   DEFAULT_CHECK_IN_TIME,
   DEFAULT_CHECK_OUT_TIME,
   formatMoney,
   nightsBetween,
+  occupyingBeds,
   todayIso,
 } from '../lib/format';
 import { splitGuestName } from '../lib/guest-name';
@@ -39,7 +40,9 @@ export function BookingCreatePage() {
     checkOut: addDaysIso(2),
     checkInTime: DEFAULT_CHECK_IN_TIME,
     checkOutTime: DEFAULT_CHECK_OUT_TIME,
-    guests: 2,
+    adults: 2,
+    children: 0,
+    infants: 0,
     roomId: '',
     notes: '',
   });
@@ -50,6 +53,8 @@ export function BookingCreatePage() {
   const [bufferMinutes, setBufferMinutes] = useState(60);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const bedsNeeded = occupyingBeds(form.adults, form.children);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +74,7 @@ export function BookingCreatePage() {
         }
         const list = data.categories
           .flatMap((c) => c.availableRooms ?? [])
-          .filter((r) => (r.remainingBeds ?? 0) >= form.guests)
+          .filter((r) => (r.remainingBeds ?? 0) >= bedsNeeded)
           .sort((a, b) => {
             if (a.capacity !== b.capacity) return a.capacity - b.capacity;
             return a.number.localeCompare(b.number, undefined, {
@@ -105,7 +110,7 @@ export function BookingCreatePage() {
     form.checkOut,
     form.checkInTime,
     form.checkOutTime,
-    form.guests,
+    bedsNeeded,
   ]);
 
   const selected = rooms.find((r) => r.id === form.roomId);
@@ -117,25 +122,32 @@ export function BookingCreatePage() {
   );
 
   const pricePreview = useMemo(() => {
-    if (!selected || nights < 1 || form.guests < 1) return null;
-    const total = calcBedTotal(
-      selected.pricePerNight,
-      form.guests,
-      nights,
-    );
+    if (!selected || nights < 1 || form.adults < 1) return null;
+    const prices = {
+      priceAdult: selected.priceAdult ?? selected.pricePerNight,
+      priceChild: selected.priceChild ?? '0',
+      priceInfant: selected.priceInfant ?? '0',
+    };
+    const counts = {
+      adults: form.adults,
+      children: form.children,
+      infants: form.infants,
+    };
+    const total = calcAgeTotal(prices, counts, nights);
     const depositPercent =
       depositByCategory[selected.categoryCode] ?? 0;
     const deposit = calcDeposit(total, depositPercent);
     return {
-      pricePerBed: selected.pricePerNight,
+      ...prices,
+      ...counts,
       nights,
-      guests: form.guests,
+      beds: occupyingBeds(form.adults, form.children),
       total,
       depositPercent,
       deposit,
       remaining: Math.max(0, total - deposit),
     };
-  }, [selected, nights, form.guests, depositByCategory]);
+  }, [selected, nights, form.adults, form.children, form.infants, depositByCategory]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -152,7 +164,9 @@ export function BookingCreatePage() {
         checkOut: form.checkOut,
         checkInTime: form.checkInTime,
         checkOutTime: form.checkOutTime,
-        guests: form.guests,
+        adults: form.adults,
+        children: form.children,
+        infants: form.infants,
         notes: form.notes.trim() || undefined,
       });
       navigate(`/bookings/${data.id}`);
@@ -195,17 +209,39 @@ export function BookingCreatePage() {
               required
             />
           </Field>
-          <Field label={t('common.guestsCount')}>
+          <Field label={t('common.adults')}>
             <Input
               type="number"
               min={1}
-              value={form.guests}
+              value={form.adults}
               onChange={(e) =>
-                setForm((f) => ({ ...f, guests: Number(e.target.value) }))
+                setForm((f) => ({ ...f, adults: Number(e.target.value) }))
               }
             />
           </Field>
-          <div className="hidden sm:block" />
+          <Field label={t('common.children')}>
+            <Input
+              type="number"
+              min={0}
+              value={form.children}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, children: Number(e.target.value) }))
+              }
+            />
+          </Field>
+          <Field label={t('common.infants')}>
+            <Input
+              type="number"
+              min={0}
+              value={form.infants}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, infants: Number(e.target.value) }))
+              }
+            />
+          </Field>
+          <p className="sm:col-span-2 -mt-1 text-xs text-[var(--muted)]">
+            {t('common.guestAgeHint', { beds: bedsNeeded })}
+          </p>
           <Field label={t('common.checkIn')}>
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <DateField
@@ -295,8 +331,15 @@ export function BookingCreatePage() {
               </div>
               <div className="mt-1 text-[var(--muted)]">
                 {t('bookingCreate.pricePreviewFormula', {
-                  price: formatMoney(pricePreview.pricePerBed),
-                  guests: pricePreview.guests,
+                  adults: pricePreview.adults,
+                  priceAdult: formatMoney(pricePreview.priceAdult),
+                  children: pricePreview.children,
+                  priceChild: formatMoney(pricePreview.priceChild),
+                  infants: pricePreview.infants,
+                  priceInfant: formatMoney(pricePreview.priceInfant),
+                  nightly: formatMoney(
+                    pricePreview.total / Math.max(1, pricePreview.nights),
+                  ),
                   nights: pricePreview.nights,
                 })}
               </div>

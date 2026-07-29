@@ -125,7 +125,7 @@ function compactBookingLines(
     );
   }
   lines.push(
-    `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
+    `${tt(lang, 'common.guests')}: ${booking.adults} ${tt(lang, 'common.adults')} / ${booking.children} ${tt(lang, 'common.children')} / ${booking.infants} ${tt(lang, 'common.infants')} (${booking.bedsTotal} ${tt(lang, 'common.beds')})`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
     `${tt(lang, 'common.dates')}: ${formatDateTimeRu(booking.checkIn, booking.checkInTime)} → ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
@@ -235,7 +235,7 @@ export function formatCheckOut(
     `<b>${tt(lang, 'events.checkOut')}</b>`,
     `${tt(lang, 'common.code')}: <code>${escapeHtml(booking.publicCode)}</code>`,
     `${tt(lang, 'common.guest')}: ${guestLine(booking)}`,
-    `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
+    `${tt(lang, 'common.guests')}: ${booking.adults} ${tt(lang, 'common.adults')} / ${booking.children} ${tt(lang, 'common.children')} / ${booking.infants} ${tt(lang, 'common.infants')} (${booking.bedsTotal} ${tt(lang, 'common.beds')})`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
     `${tt(lang, 'common.checkOut')}: ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,
@@ -273,7 +273,7 @@ export function formatHoldExpired(
     `<b>${tt(lang, 'events.holdExpired')}</b>`,
     `${tt(lang, 'common.code')}: <code>${escapeHtml(booking.publicCode)}</code>`,
     `${tt(lang, 'common.guest')}: ${guestLine(booking)}`,
-    `${tt(lang, 'common.guests')}: ${booking.bedsTotal}`,
+    `${tt(lang, 'common.guests')}: ${booking.adults} ${tt(lang, 'common.adults')} / ${booking.children} ${tt(lang, 'common.children')} / ${booking.infants} ${tt(lang, 'common.infants')} (${booking.bedsTotal} ${tt(lang, 'common.beds')})`,
     `${tt(lang, 'common.room')}: ${roomsLine(booking, lang)}`,
     ...bedsOccupancyLines(booking, lang),
     `${tt(lang, 'common.dates')}: ${formatDateTimeRu(booking.checkIn, booking.checkInTime)} → ${formatDateTimeRu(booking.checkOut, booking.checkOutTime)}`,

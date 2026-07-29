@@ -27,6 +27,10 @@ export type AdminCategoryView = {
   name: string;
   description: string;
   depositPercent: number;
+  priceAdult: string;
+  priceChild: string;
+  priceInfant: string;
+  /** @deprecated alias of priceAdult for older clients */
   pricePerBedPerNight: string;
   images: string[];
   isActive: boolean;
@@ -43,6 +47,10 @@ export type PublicCategoryView = {
   images: string[];
   priceFrom: string | null;
   priceTo: string | null;
+  priceAdult: string;
+  priceChild: string;
+  priceInfant: string;
+  /** @deprecated alias of priceAdult */
   pricePerBedPerNight: string;
 };
 
@@ -88,7 +96,9 @@ export class CategoriesService {
       name: dto.name.trim(),
       description: dto.description?.trim() ?? '',
       depositPercent: dto.depositPercent,
-      pricePerBedPerNight: new Decimal(dto.pricePerBedPerNight),
+      priceAdult: new Decimal(dto.priceAdult),
+      priceChild: new Decimal(dto.priceChild),
+      priceInfant: new Decimal(dto.priceInfant),
       images,
       isActive: dto.isActive ?? true,
     });
@@ -121,8 +131,14 @@ export class CategoriesService {
       ...(dto.depositPercent !== undefined
         ? { depositPercent: dto.depositPercent }
         : {}),
-      ...(dto.pricePerBedPerNight !== undefined
-        ? { pricePerBedPerNight: new Decimal(dto.pricePerBedPerNight) }
+      ...(dto.priceAdult !== undefined
+        ? { priceAdult: new Decimal(dto.priceAdult) }
+        : {}),
+      ...(dto.priceChild !== undefined
+        ? { priceChild: new Decimal(dto.priceChild) }
+        : {}),
+      ...(dto.priceInfant !== undefined
+        ? { priceInfant: new Decimal(dto.priceInfant) }
         : {}),
       ...(images !== undefined ? { images } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
@@ -186,13 +202,17 @@ export class CategoriesService {
   }
 
   private toAdminView(row: RoomCategory): AdminCategoryView {
+    const priceAdult = decimalToString(row.priceAdult);
     return {
       id: row.id,
       code: row.code,
       name: row.name,
       description: row.description,
       depositPercent: row.depositPercent,
-      pricePerBedPerNight: decimalToString(row.pricePerBedPerNight),
+      priceAdult,
+      priceChild: decimalToString(row.priceChild),
+      priceInfant: decimalToString(row.priceInfant),
+      pricePerBedPerNight: priceAdult,
       images: row.images,
       isActive: row.isActive,
       createdAt: row.createdAt,
@@ -201,7 +221,9 @@ export class CategoriesService {
   }
 
   private toPublicView(row: RoomCategory): PublicCategoryView {
-    const price = decimalToString(row.pricePerBedPerNight);
+    const priceAdult = decimalToString(row.priceAdult);
+    const priceChild = decimalToString(row.priceChild);
+    const priceInfant = decimalToString(row.priceInfant);
 
     return {
       id: row.id,
@@ -210,9 +232,12 @@ export class CategoriesService {
       description: row.description,
       depositPercent: row.depositPercent,
       images: row.images,
-      priceFrom: price,
-      priceTo: price,
-      pricePerBedPerNight: price,
+      priceFrom: priceAdult,
+      priceTo: priceAdult,
+      priceAdult,
+      priceChild,
+      priceInfant,
+      pricePerBedPerNight: priceAdult,
     };
   }
 }

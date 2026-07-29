@@ -23,7 +23,7 @@ import {
   TextArea,
 } from '../components/ui';
 import {
-  calcBedTotal,
+  calcAgeTotal,
   calcDeposit,
   cleaningBlockedUntil,
   DEFAULT_CHECK_IN_TIME,
@@ -32,6 +32,7 @@ import {
   formatDateTime,
   formatMoney,
   nightsBetween,
+  occupyingBeds,
 } from '../lib/format';
 import { formatGuestName, splitGuestName } from '../lib/guest-name';
 import {
@@ -73,7 +74,7 @@ export function BookingDetailPage() {
     useState<ManualPaymentMethod>('cash');
   const [locks, setLocks] = useState<RoomLock[]>([]);
   const [lockReason, setLockReason] = useState('');
-  /** Snapshot of guests|dates|times|roomId from last load — used to skip price sync until user edits inventory. */
+  /** Snapshot of adults|children|infants|dates|times|roomId from last load. */
   const inventoryBaseline = useRef('');
   /** Shown when a bargained total was wiped by guests/dates/room change. */
   const [priceResetNotice, setPriceResetNotice] = useState<{
@@ -89,7 +90,9 @@ export function BookingDetailPage() {
     checkInTime: DEFAULT_CHECK_IN_TIME,
     checkOutTime: DEFAULT_CHECK_OUT_TIME,
     roomId: '',
-    guests: 1,
+    adults: 1,
+    children: 0,
+    infants: 0,
     notes: '',
     totalAmount: '',
   });
@@ -97,10 +100,12 @@ export function BookingDetailPage() {
   async function load() {
     const { data } = await bookingsApi.get(id);
     const roomId = data.rooms[0]?.roomId ?? '';
-    const guests = data.rooms[0]?.bedsBooked ?? data.bedsTotal;
+    const adults = data.adults ?? data.rooms[0]?.bedsBooked ?? data.bedsTotal;
+    const children = data.children ?? 0;
+    const infants = data.infants ?? 0;
     const checkInTime = data.checkInTime || DEFAULT_CHECK_IN_TIME;
     const checkOutTime = data.checkOutTime || DEFAULT_CHECK_OUT_TIME;
-    inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
+    inventoryBaseline.current = `${adults}|${children}|${infants}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
     setPriceResetNotice(null);
     setBooking(data);
     setForm({
@@ -114,7 +119,9 @@ export function BookingDetailPage() {
       checkInTime,
       checkOutTime,
       roomId,
-      guests,
+      adults,
+      children,
+      infants,
       notes: data.notes ?? '',
       totalAmount: data.totalAmount,
     });
@@ -231,19 +238,41 @@ export function BookingDetailPage() {
     : null;
 
   const calculated = useMemo(() => {
-    if (!selected || nights < 1 || form.guests < 1) return null;
-    const price = Number(selected.pricePerNight);
-    if (!Number.isFinite(price) || price <= 0) return null;
-    const total = calcBedTotal(selected.pricePerNight, form.guests, nights);
+    if (!selected || nights < 1 || form.adults < 1) return null;
+    const prices = {
+      priceAdult: selected.priceAdult ?? selected.pricePerNight,
+      priceChild: selected.priceChild ?? '0',
+      priceInfant: selected.priceInfant ?? '0',
+    };
+    const counts = {
+      adults: form.adults,
+      children: form.children,
+      infants: form.infants,
+    };
+    const total = calcAgeTotal(prices, counts, nights);
     const depositPercent = depositByCategory[selected.categoryCode] ?? 0;
     const deposit = calcDeposit(total, depositPercent);
-    return { total, deposit, depositPercent, pricePerBed: selected.pricePerNight };
-  }, [selected, nights, form.guests, depositByCategory]);
+    return {
+      total,
+      deposit,
+      depositPercent,
+      ...prices,
+      ...counts,
+      beds: occupyingBeds(form.adults, form.children),
+    };
+  }, [
+    selected,
+    nights,
+    form.adults,
+    form.children,
+    form.infants,
+    depositByCategory,
+  ]);
 
-  // On guests / dates / times / room change: always reset bargained total to per-bed auto-calc.
+  // On guests / dates / times / room change: always reset bargained total to auto-calc.
   useEffect(() => {
     if (!calculated) return;
-    const key = `${form.guests}|${form.checkIn}|${form.checkOut}|${form.checkInTime}|${form.checkOutTime}|${form.roomId}`;
+    const key = `${form.adults}|${form.children}|${form.infants}|${form.checkIn}|${form.checkOut}|${form.checkInTime}|${form.checkOutTime}|${form.roomId}`;
     if (key === inventoryBaseline.current) return;
     const next = String(calculated.total);
     const prev = form.totalAmount;
@@ -251,7 +280,9 @@ export function BookingDetailPage() {
     setPriceResetNotice({ from: prev, to: next });
     setForm((f) => ({ ...f, totalAmount: next }));
   }, [
-    form.guests,
+    form.adults,
+    form.children,
+    form.infants,
     form.checkIn,
     form.checkOut,
     form.checkInTime,
@@ -293,16 +324,20 @@ export function BookingDetailPage() {
         checkInTime: form.checkInTime,
         checkOutTime: form.checkOutTime,
         roomId: form.roomId,
-        guests: form.guests,
+        adults: form.adults,
+        children: form.children,
+        infants: form.infants,
         notes: form.notes,
         totalAmount: form.totalAmount,
       });
       setBooking(data);
       const roomId = data.rooms[0]?.roomId ?? form.roomId;
-      const guests = data.rooms[0]?.bedsBooked ?? form.guests;
+      const adults = data.adults ?? form.adults;
+      const children = data.children ?? form.children;
+      const infants = data.infants ?? form.infants;
       const checkInTime = data.checkInTime || form.checkInTime;
       const checkOutTime = data.checkOutTime || form.checkOutTime;
-      inventoryBaseline.current = `${guests}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
+      inventoryBaseline.current = `${adults}|${children}|${infants}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
       setPriceResetNotice(null);
       setForm((f) => ({
         ...f,
@@ -310,6 +345,9 @@ export function BookingDetailPage() {
         checkOut: data.checkOut,
         checkInTime,
         checkOutTime,
+        adults,
+        children,
+        infants,
         totalAmount: data.totalAmount,
       }));
       setCashAmount(data.remainingAmount);
@@ -503,16 +541,41 @@ export function BookingDetailPage() {
                 required
               />
             </Field>
-            <Field label={t('common.guestsCount')}>
+            <Field label={t('common.adults')}>
               <Input
                 type="number"
                 min={1}
-                value={form.guests}
+                value={form.adults}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, guests: Number(e.target.value) }))
+                  setForm((f) => ({ ...f, adults: Number(e.target.value) }))
                 }
               />
             </Field>
+            <Field label={t('common.children')}>
+              <Input
+                type="number"
+                min={0}
+                value={form.children}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, children: Number(e.target.value) }))
+                }
+              />
+            </Field>
+            <Field label={t('common.infants')}>
+              <Input
+                type="number"
+                min={0}
+                value={form.infants}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, infants: Number(e.target.value) }))
+                }
+              />
+            </Field>
+            <p className="sm:col-span-2 -mt-1 text-xs text-[var(--muted)]">
+              {t('common.guestAgeHint', {
+                beds: occupyingBeds(form.adults, form.children),
+              })}
+            </p>
             <Field label={t('common.checkIn')}>
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <DateField
@@ -579,8 +642,12 @@ export function BookingDetailPage() {
             {calculated ? (
               <div className="sm:col-span-2 rounded-md border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900">
                 {t('bookingDetail.livePrice', {
-                  price: formatMoney(calculated.pricePerBed),
-                  guests: form.guests,
+                  adults: calculated.adults,
+                  priceAdult: formatMoney(calculated.priceAdult),
+                  children: calculated.children,
+                  priceChild: formatMoney(calculated.priceChild),
+                  infants: calculated.infants,
+                  priceInfant: formatMoney(calculated.priceInfant),
                   nights,
                   total: formatMoney(calculated.total),
                   percent: calculated.depositPercent,

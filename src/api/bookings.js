@@ -10,7 +10,9 @@ import { api } from './client';
  *   checkOut: string,
  *   checkInTime?: string,
  *   checkOutTime?: string,
- *   guests: number,
+ *   adults: number,
+ *   children?: number,
+ *   infants?: number,
  *   provider?: 'mock'|'payme'|'click',
  *   notes?: string,
  * }} payload

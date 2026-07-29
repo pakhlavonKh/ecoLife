@@ -46,6 +46,9 @@ export type Booking = {
   checkInAt?: string;
   checkOutAt?: string;
   bedsTotal: number;
+  adults: number;
+  children: number;
+  infants: number;
   priceOriginal: string;
   totalAmount: string;
   depositAmount: string;
@@ -78,8 +81,11 @@ export type Category = {
   depositPercent: number;
   images: string[];
   isActive: boolean;
-  /** Price per bed per night (UZS). */
-  pricePerBedPerNight: string;
+  priceAdult: string;
+  priceChild: string;
+  priceInfant: string;
+  /** @deprecated alias of priceAdult */
+  pricePerBedPerNight?: string;
   /** @deprecated bed-mode — kept optional for stale responses */
   priceTiers?: { capacity: number; pricePerNight: string }[];
 };
@@ -100,7 +106,10 @@ export type Room = {
   cottageName: string;
   categoryId: string;
   categoryCode: string;
-  /** Price per bed per night from category (UZS). */
+  priceAdult: string | null;
+  priceChild: string | null;
+  priceInfant: string | null;
+  /** @deprecated alias of priceAdult */
   pricePerBedPerNight: string | null;
   resolvedPrice: string | null;
   bookable: boolean;
@@ -116,8 +125,12 @@ export type AvailableRoom = {
   categoryCode: string;
   cottageId: string;
   cottageName: string;
-  /** Price per bed per night (UZS). */
+  /** Adult price per night (UZS). */
   pricePerNight: string;
+  priceAdult?: string;
+  priceChild?: string;
+  priceInfant?: string;
+  availableFrom?: { date: string; time: string; at?: string } | null;
 };
 
 export type RoomLock = {

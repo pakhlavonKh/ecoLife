@@ -79,7 +79,23 @@ export class UpdateBookingDto {
   @IsInt()
   @Min(1)
   @Max(50)
-  guests?: number;
+  adults?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  children?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  infants?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

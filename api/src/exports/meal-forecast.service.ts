@@ -95,7 +95,7 @@ export class MealForecastService {
     const stays: StayForMeals[] = activeBookings.map((b) => ({
       checkIn: b.checkIn,
       checkOut: b.checkOut,
-      guests: b.bedsTotal,
+      guests: b.adults + b.children + b.infants,
     }));
 
     const days = buildDayMealCounts(stays, dates, mealTimes);

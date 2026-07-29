@@ -106,15 +106,53 @@ export function dayOverlapsInterval(
   return start < dayEnd && end > dayStart;
 }
 
-/** total = pricePerBed × guests × nights (rounded to 2 dp as number). */
+/** Occupying beds = adults + children (infants excluded). */
+export function occupyingBeds(adults: number, children: number): number {
+  return Math.max(0, adults) + Math.max(0, children);
+}
+
+export type AgePrices = {
+  priceAdult: string | number;
+  priceChild: string | number;
+  priceInfant: string | number;
+};
+
+export type GuestCounts = {
+  adults: number;
+  children: number;
+  infants: number;
+};
+
+/**
+ * total = (adults×priceAdult + children×priceChild + infants×priceInfant) × nights
+ */
+export function calcAgeTotal(
+  prices: AgePrices,
+  counts: GuestCounts,
+  nights: number,
+): number {
+  const adult = Number(prices.priceAdult) || 0;
+  const child = Number(prices.priceChild) || 0;
+  const infant = Number(prices.priceInfant) || 0;
+  if (nights < 1) return 0;
+  const nightly =
+    adult * Math.max(0, counts.adults) +
+    child * Math.max(0, counts.children) +
+    infant * Math.max(0, counts.infants);
+  return Math.round(nightly * nights * 100) / 100;
+}
+
+/** @deprecated use calcAgeTotal — kept for any leftover callers */
 export function calcBedTotal(
   pricePerBed: string | number,
   guests: number,
   nights: number,
 ): number {
-  const price = Number(pricePerBed);
-  if (!Number.isFinite(price) || guests < 1 || nights < 1) return 0;
-  return Math.round(price * guests * nights * 100) / 100;
+  return calcAgeTotal(
+    { priceAdult: pricePerBed, priceChild: 0, priceInfant: 0 },
+    { adults: guests, children: 0, infants: 0 },
+    nights,
+  );
 }
 
 export function calcDeposit(total: number, depositPercent: number): number {

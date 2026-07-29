@@ -108,6 +108,9 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
         checkIn: checkInAt,
         checkOut: checkOutAt,
         bedsTotal: seedBeds,
+        adults: seedBeds,
+        children: 0,
+        infants: 0,
         priceOriginal: '100.00',
         totalAmount: '100.00',
         depositAmount: '30.00',
@@ -137,7 +140,9 @@ describe('POST /api/v1/bookings bed-mode concurrency (gate)', () => {
             roomId: room!.id,
             checkIn,
             checkOut,
-            guests: requestBeds,
+            adults: requestBeds,
+            children: 0,
+            infants: 0,
           })
           .then((res) => ({ status: res.status, body: res.body }))
           .catch(

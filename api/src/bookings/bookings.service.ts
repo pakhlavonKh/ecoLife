@@ -30,8 +30,14 @@ import {
   calcRemainingAfterTotalChange,
   calcTotalAmount,
   decimalToString,
+  formatPriceBreakdownParts,
   toDecimal,
 } from '../common/utils/money';
+import {
+  assertValidGuestCounts,
+  occupyingBeds,
+  type GuestCounts,
+} from '../common/utils/guest-counts';
 import { isPaymentsEnabled } from '../common/utils/env-flag';
 import { normalizePhoneE164 } from '../common/utils/phone';
 import { generatePublicCode } from '../common/utils/public-code';
@@ -56,6 +62,38 @@ import {
   OCCUPYING_STATUSES,
   releasesInventory,
 } from './status-machine';
+
+function guestCountsFromDto(dto: {
+  adults: number;
+  children?: number;
+  infants?: number;
+}): GuestCounts {
+  const counts: GuestCounts = {
+    adults: dto.adults,
+    children: dto.children ?? 0,
+    infants: dto.infants ?? 0,
+  };
+  try {
+    assertValidGuestCounts(counts);
+  } catch (e) {
+    throw new BadRequestException(
+      e instanceof Error ? e.message : 'Invalid guest counts',
+    );
+  }
+  return counts;
+}
+
+function categoryPrices(category: {
+  priceAdult: Decimal;
+  priceChild: Decimal;
+  priceInfant: Decimal;
+}) {
+  return {
+    priceAdult: category.priceAdult,
+    priceChild: category.priceChild,
+    priceInfant: category.priceInfant,
+  };
+}
 
 function isExclusionOrConflict(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -135,38 +173,37 @@ export class BookingsService {
           if (!room.category.isActive) {
             throw new BadRequestException('Category is not available');
           }
-          if (room.capacity < dto.guests) {
+          const counts = guestCountsFromDto(dto);
+          const beds = occupyingBeds(counts);
+
+          if (room.capacity < beds) {
             throw new BadRequestException(
-              `Room capacity (${room.capacity}) is less than guests (${dto.guests})`,
+              `Room capacity (${room.capacity}) is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
-          const pricePerNight = room.category.pricePerBedPerNight;
-          if (pricePerNight === null) {
-            throw new BadRequestException(
-              'Room has no price configured and cannot be booked',
-            );
-          }
+          const prices = categoryPrices(room.category);
 
           await this.availability.assertRoomAcceptsGuests(
             room.id,
             room.capacity,
-            dto.guests,
+            beds,
             stay.checkIn,
             stay.checkOut,
             tx,
           );
 
-          const totalAmount = calcTotalAmount(
-            stay.nights,
-            pricePerNight,
-            dto.guests,
-          );
+          const totalAmount = calcTotalAmount(stay.nights, counts, prices);
           const depositAmount = calcDepositAmount(
             totalAmount,
             room.category.depositPercent,
           );
           const remainingAmount = totalAmount.sub(depositAmount);
+          const priceBreakdown = formatPriceBreakdownParts(
+            counts,
+            prices,
+            stay.nights,
+          );
 
           let customer = await tx.customer.findFirst({ where: { phone } });
           if (customer) {
@@ -201,7 +238,10 @@ export class BookingsService {
                   customerId: customer.id,
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
-                  bedsTotal: dto.guests,
+                  bedsTotal: beds,
+                  adults: counts.adults,
+                  children: counts.children,
+                  infants: counts.infants,
                   priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
@@ -215,7 +255,7 @@ export class BookingsService {
                   bookingRooms: {
                     create: {
                       roomId: room.id,
-                      bedsBooked: dto.guests,
+                      bedsBooked: beds,
                       checkIn: stay.checkIn,
                       checkOut: stay.checkOut,
                       isActive: true,
@@ -260,10 +300,14 @@ export class BookingsService {
                   roomNumber: room.number,
                   checkIn: stay.checkInStr,
                   checkOut: stay.checkOutStr,
-                  guests: dto.guests,
+                  adults: counts.adults,
+                  children: counts.children,
+                  infants: counts.infants,
+                  bedsTotal: beds,
                   status: created.status,
                   totalAmount: decimalToString(totalAmount),
                   depositAmount: decimalToString(depositAmount),
+                  priceBreakdown,
                 },
               },
             },
@@ -516,36 +560,35 @@ export class BookingsService {
           if (!room.category.isActive) {
             throw new BadRequestException('Category is not available');
           }
-          if (room.capacity < dto.guests) {
+          const counts = guestCountsFromDto(dto);
+          const beds = occupyingBeds(counts);
+
+          if (room.capacity < beds) {
             throw new BadRequestException(
-              `Room capacity (${room.capacity}) is less than guests (${dto.guests})`,
+              `Room capacity (${room.capacity}) is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
-          const pricePerNight = room.category.pricePerBedPerNight;
-          if (pricePerNight === null) {
-            throw new BadRequestException(
-              'Room has no price configured and cannot be booked',
-            );
-          }
+          const prices = categoryPrices(room.category);
 
           await this.availability.assertRoomAcceptsGuests(
             room.id,
             room.capacity,
-            dto.guests,
+            beds,
             stay.checkIn,
             stay.checkOut,
             tx,
           );
 
-          const totalAmount = calcTotalAmount(
-            stay.nights,
-            pricePerNight,
-            dto.guests,
-          );
+          const totalAmount = calcTotalAmount(stay.nights, counts, prices);
           const depositAmount = calcDepositAmount(
             totalAmount,
             room.category.depositPercent,
+          );
+          const priceBreakdown = formatPriceBreakdownParts(
+            counts,
+            prices,
+            stay.nights,
           );
 
           let customer = await tx.customer.findFirst({ where: { phone } });
@@ -579,7 +622,10 @@ export class BookingsService {
                   customerId: customer.id,
                   checkIn: stay.checkIn,
                   checkOut: stay.checkOut,
-                  bedsTotal: dto.guests,
+                  bedsTotal: beds,
+                  adults: counts.adults,
+                  children: counts.children,
+                  infants: counts.infants,
                   priceOriginal: totalAmount,
                   totalAmount,
                   depositAmount,
@@ -594,7 +640,7 @@ export class BookingsService {
                   bookingRooms: {
                     create: {
                       roomId: room.id,
-                      bedsBooked: dto.guests,
+                      bedsBooked: beds,
                       checkIn: stay.checkIn,
                       checkOut: stay.checkOut,
                       isActive: true,
@@ -640,10 +686,14 @@ export class BookingsService {
                   roomNumber: room.number,
                   checkIn: stay.checkInStr,
                   checkOut: stay.checkOutStr,
-                  guests: dto.guests,
+                  adults: counts.adults,
+                  children: counts.children,
+                  infants: counts.infants,
+                  bedsTotal: beds,
                   status: created.status,
                   totalAmount: decimalToString(totalAmount),
                   source: BookingSource.manual,
+                  priceBreakdown,
                 },
               },
             },
@@ -742,6 +792,9 @@ export class BookingsService {
             paidAmount: decimalToString(booking.paidAmount),
             remainingAmount: decimalToString(booking.remainingAmount),
             bedsTotal: String(booking.bedsTotal),
+            adults: String(booking.adults),
+            children: String(booking.children),
+            infants: String(booking.infants),
             paymentStatus: booking.paymentStatus,
           };
 
@@ -768,7 +821,12 @@ export class BookingsService {
           });
 
           const roomId = dto.roomId ?? currentRoom.roomId;
-          const guests = dto.guests ?? currentRoom.bedsBooked;
+          const counts = guestCountsFromDto({
+            adults: dto.adults ?? booking.adults,
+            children: dto.children ?? booking.children,
+            infants: dto.infants ?? booking.infants,
+          });
+          const beds = occupyingBeds(counts);
 
           const locked = await tx.$queryRaw<{ id: string }[]>`
             SELECT id FROM rooms WHERE id = ${roomId}::uuid FOR UPDATE
@@ -784,9 +842,9 @@ export class BookingsService {
           if (!room || !room.isActive || !room.cottage.isActive) {
             throw new BadRequestException('Room is not available for booking');
           }
-          if (room.capacity < guests) {
+          if (room.capacity < beds) {
             throw new BadRequestException(
-              `Room capacity (${room.capacity}) is less than guests (${guests})`,
+              `Room capacity (${room.capacity}) is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
@@ -796,7 +854,11 @@ export class BookingsService {
             stay.checkOutStr !== before.checkOut ||
             stay.checkInTime !== before.checkInTime ||
             stay.checkOutTime !== before.checkOutTime;
-          const guestsChanged = guests !== currentRoom.bedsBooked;
+          const guestsChanged =
+            counts.adults !== booking.adults ||
+            counts.children !== booking.children ||
+            counts.infants !== booking.infants ||
+            beds !== currentRoom.bedsBooked;
           const inventoryChanged = stayOrRoomChanged || guestsChanged;
 
           if (
@@ -806,7 +868,7 @@ export class BookingsService {
             await this.availability.assertRoomAcceptsGuests(
               room.id,
               room.capacity,
-              guests,
+              beds,
               stay.checkIn,
               stay.checkOut,
               tx,
@@ -818,17 +880,8 @@ export class BookingsService {
           let totalAmount = booking.totalAmount;
           let depositAmount = booking.depositAmount;
           if (inventoryChanged) {
-            const pricePerNight = room.category.pricePerBedPerNight;
-            if (pricePerNight === null) {
-              throw new BadRequestException(
-                'Room has no price configured and cannot be booked',
-              );
-            }
-            totalAmount = calcTotalAmount(
-              stay.nights,
-              pricePerNight,
-              guests,
-            );
+            const prices = categoryPrices(room.category);
+            totalAmount = calcTotalAmount(stay.nights, counts, prices);
             // Room/date/guests change resets catalog snapshot; deposit still recalculates
             // only here (not when admin bargains totalAmount alone).
             depositAmount = calcDepositAmount(
@@ -882,7 +935,7 @@ export class BookingsService {
               data: {
                 bookingId: id,
                 roomId: room.id,
-                bedsBooked: guests,
+                bedsBooked: beds,
                 checkIn: stay.checkIn,
                 checkOut: stay.checkOut,
                 isActive: OCCUPYING_STATUSES.includes(booking.status),
@@ -895,7 +948,10 @@ export class BookingsService {
             data: {
               checkIn: stay.checkIn,
               checkOut: stay.checkOut,
-              bedsTotal: guests,
+              bedsTotal: beds,
+              adults: counts.adults,
+              children: counts.children,
+              infants: counts.infants,
               priceOriginal,
               totalAmount,
               depositAmount,
@@ -934,6 +990,9 @@ export class BookingsService {
             paidAmount: decimalToString(paidAmount),
             remainingAmount: decimalToString(remainingAmount),
             bedsTotal: String(after.bedsTotal),
+            adults: String(after.adults),
+            children: String(after.children),
+            infants: String(after.infants),
             paymentStatus: after.paymentStatus,
           };
 
@@ -1294,6 +1353,9 @@ export class BookingsService {
         bedsBooked: br.bedsBooked,
       })),
       bedsTotal: booking.bedsTotal,
+      adults: booking.adults,
+      children: booking.children,
+      infants: booking.infants,
       checkIn: formatLocalDate(booking.checkIn),
       checkOut: formatLocalDate(booking.checkOut),
       checkInTime: formatLocalTime(booking.checkIn),
@@ -1336,6 +1398,9 @@ export class BookingsService {
       checkIn: Date;
       checkOut: Date;
       bedsTotal: number;
+      adults: number;
+      children: number;
+      infants: number;
       priceOriginal: Decimal;
       totalAmount: Decimal;
       depositAmount: Decimal;
@@ -1380,6 +1445,9 @@ export class BookingsService {
       checkInAt: booking.checkIn.toISOString(),
       checkOutAt: booking.checkOut.toISOString(),
       bedsTotal: booking.bedsTotal,
+      adults: booking.adults,
+      children: booking.children,
+      infants: booking.infants,
       priceOriginal: decimalToString(booking.priceOriginal),
       totalAmount: decimalToString(booking.totalAmount),
       depositAmount: decimalToString(booking.depositAmount),

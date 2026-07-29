@@ -35,11 +35,27 @@ export class UpdateCategoryDto {
 
   @ApiPropertyOptional({
     example: '800000.00',
-    description: 'Цена за место / ночь (UZS)',
+    description: 'Цена за взрослого / ночь (UZS)',
   })
   @IsOptional()
   @IsNumberString()
-  pricePerBedPerNight?: string;
+  priceAdult?: string;
+
+  @ApiPropertyOptional({
+    example: '400000.00',
+    description: 'Цена за ребёнка / ночь (UZS)',
+  })
+  @IsOptional()
+  @IsNumberString()
+  priceChild?: string;
+
+  @ApiPropertyOptional({
+    example: '0.00',
+    description: 'Цена за младенца / ночь (UZS)',
+  })
+  @IsOptional()
+  @IsNumberString()
+  priceInfant?: string;
 
   @ApiPropertyOptional({
     type: [String],

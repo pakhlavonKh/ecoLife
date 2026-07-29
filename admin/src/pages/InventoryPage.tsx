@@ -59,11 +59,14 @@ export function InventoryPage() {
     }
   }
 
-  async function savePrice(cat: Category, pricePerBedPerNight: string) {
+  async function savePrice(
+    cat: Category,
+    prices: { priceAdult: string; priceChild: string; priceInfant: string },
+  ) {
     setError('');
     setMessage('');
     try {
-      await inventoryApi.updateCategory(cat.id, { pricePerBedPerNight });
+      await inventoryApi.updateCategory(cat.id, prices);
       await reload();
       setMessage(t('inventory.priceSaved'));
     } catch (err) {
@@ -122,7 +125,7 @@ export function InventoryPage() {
                   {t('inventory.colCategory')}
                 </th>
                 <th className="px-3 py-2 text-left">
-                  {t('inventory.colPricePerBed')}
+                  {t('inventory.colPricesAge')}
                 </th>
                 <th className="px-3 py-2" />
               </tr>
@@ -132,7 +135,7 @@ export function InventoryPage() {
                 <PriceRow
                   key={cat.id}
                   category={cat}
-                  onSave={(price) => void savePrice(cat, price)}
+                  onSave={(prices) => void savePrice(cat, prices)}
                 />
               ))}
             </tbody>
@@ -149,7 +152,7 @@ export function InventoryPage() {
                 <th className="px-3 py-3">{t('inventory.colCottage')}</th>
                 <th className="px-3 py-3">{t('inventory.colCategoryShort')}</th>
                 <th className="px-3 py-3">{t('inventory.colBeds')}</th>
-                <th className="px-3 py-3">{t('inventory.colPricePerBed')}</th>
+                <th className="px-3 py-3">{t('inventory.colPriceAdult')}</th>
                 <th className="px-3 py-3">{t('inventory.colActive')}</th>
               </tr>
             </thead>
@@ -170,7 +173,9 @@ export function InventoryPage() {
                   </td>
                   <td className="px-3 py-2">
                     {formatMoney(
-                      room.pricePerBedPerNight ?? room.resolvedPrice,
+                      room.priceAdult ??
+                        room.pricePerBedPerNight ??
+                        room.resolvedPrice,
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -208,9 +213,11 @@ function CategoryCard({
   const [depositPercent, setDepositPercent] = useState(
     String(category.depositPercent),
   );
-  const [pricePerBedPerNight, setPricePerBedPerNight] = useState(
-    category.pricePerBedPerNight,
+  const [priceAdult, setPriceAdult] = useState(
+    category.priceAdult ?? category.pricePerBedPerNight ?? '',
   );
+  const [priceChild, setPriceChild] = useState(category.priceChild ?? '0');
+  const [priceInfant, setPriceInfant] = useState(category.priceInfant ?? '0');
   const [images, setImages] = useState(category.images.join('\n'));
   const [isActive, setIsActive] = useState(category.isActive);
 
@@ -218,7 +225,9 @@ function CategoryCard({
     setName(category.name);
     setDescription(category.description);
     setDepositPercent(String(category.depositPercent));
-    setPricePerBedPerNight(category.pricePerBedPerNight);
+    setPriceAdult(category.priceAdult ?? category.pricePerBedPerNight ?? '');
+    setPriceChild(category.priceChild ?? '0');
+    setPriceInfant(category.priceInfant ?? '0');
     setImages(category.images.join('\n'));
     setIsActive(category.isActive);
   }, [category]);
@@ -247,10 +256,22 @@ function CategoryCard({
             onChange={(e) => setDepositPercent(e.target.value)}
           />
         </Field>
-        <Field label={t('inventory.fieldPricePerBed')}>
+        <Field label={t('inventory.fieldPriceAdult')}>
           <Input
-            value={pricePerBedPerNight}
-            onChange={(e) => setPricePerBedPerNight(e.target.value)}
+            value={priceAdult}
+            onChange={(e) => setPriceAdult(e.target.value)}
+          />
+        </Field>
+        <Field label={t('inventory.fieldPriceChild')}>
+          <Input
+            value={priceChild}
+            onChange={(e) => setPriceChild(e.target.value)}
+          />
+        </Field>
+        <Field label={t('inventory.fieldPriceInfant')}>
+          <Input
+            value={priceInfant}
+            onChange={(e) => setPriceInfant(e.target.value)}
           />
         </Field>
         <Field label={t('inventory.fieldImages')}>
@@ -273,7 +294,9 @@ function CategoryCard({
               name,
               description,
               depositPercent: Number(depositPercent),
-              pricePerBedPerNight,
+              priceAdult,
+              priceChild,
+              priceInfant,
               images: images
                 .split('\n')
                 .map((s) => s.trim())
@@ -332,14 +355,23 @@ function PriceRow({
   onSave,
 }: {
   category: Category;
-  onSave: (price: string) => void;
+  onSave: (prices: {
+    priceAdult: string;
+    priceChild: string;
+    priceInfant: string;
+  }) => void;
 }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState(category.pricePerBedPerNight);
-  useEffect(
-    () => setValue(category.pricePerBedPerNight),
-    [category.pricePerBedPerNight],
+  const [priceAdult, setPriceAdult] = useState(
+    category.priceAdult ?? category.pricePerBedPerNight ?? '',
   );
+  const [priceChild, setPriceChild] = useState(category.priceChild ?? '0');
+  const [priceInfant, setPriceInfant] = useState(category.priceInfant ?? '0');
+  useEffect(() => {
+    setPriceAdult(category.priceAdult ?? category.pricePerBedPerNight ?? '');
+    setPriceChild(category.priceChild ?? '0');
+    setPriceInfant(category.priceInfant ?? '0');
+  }, [category]);
   return (
     <tr className="border-t border-[var(--line)]">
       <td className="px-3 py-2">
@@ -349,14 +381,32 @@ function PriceRow({
         })}
       </td>
       <td className="px-3 py-2">
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="max-w-48"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={priceAdult}
+            onChange={(e) => setPriceAdult(e.target.value)}
+            className="max-w-40"
+            aria-label={t('inventory.fieldPriceAdult')}
+          />
+          <Input
+            value={priceChild}
+            onChange={(e) => setPriceChild(e.target.value)}
+            className="max-w-40"
+            aria-label={t('inventory.fieldPriceChild')}
+          />
+          <Input
+            value={priceInfant}
+            onChange={(e) => setPriceInfant(e.target.value)}
+            className="max-w-40"
+            aria-label={t('inventory.fieldPriceInfant')}
+          />
+        </div>
       </td>
       <td className="px-3 py-2">
-        <Button variant="secondary" onClick={() => onSave(value)}>
+        <Button
+          variant="secondary"
+          onClick={() => onSave({ priceAdult, priceChild, priceInfant })}
+        >
           {t('common.save')}
         </Button>
       </td>
