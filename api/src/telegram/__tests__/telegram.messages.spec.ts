@@ -5,6 +5,7 @@ import {
   formatCheckOut,
   formatCleanerCheckout,
   formatCleanerToday,
+  formatCleanerTransferOut,
   formatDateRu,
   formatMorningDigest,
   formatNewBooking,
@@ -13,8 +14,12 @@ import {
   formatRoomLocked,
   formatStatsPeriodLabel,
   formatToday,
+  formatTransferred,
 } from '../telegram.messages';
-import type { BookingSnapshot } from '../../bookings/events/booking.events';
+import type {
+  BookingSnapshot,
+  BookingTransferredPayload,
+} from '../../bookings/events/booking.events';
 import {
   parseCustomStatsRange,
   resolveStatsPresetRange,
@@ -53,6 +58,59 @@ const sampleBooking: BookingSnapshot = {
   status: 'checked_out',
   source: 'online',
   notes: null,
+};
+
+const sampleTransferPayload: BookingTransferredPayload = {
+  booking: {
+    ...sampleBooking,
+    status: 'checked_in',
+    checkOut: '2026-08-05',
+    checkOutTime: '12:00',
+    totalAmount: '2000000.00',
+    remainingAmount: '1640000.00',
+    rooms: [
+      {
+        number: '205',
+        cottageName: 'Seshanba kottej',
+        categoryCode: 'standart',
+        categoryName: 'Стандарт',
+        capacity: 7,
+        bedsBooked: 2,
+      },
+      {
+        number: '301',
+        cottageName: 'Chorshanba kottej',
+        categoryCode: 'lux',
+        categoryName: 'Люкс',
+        capacity: 10,
+        bedsBooked: 2,
+      },
+    ],
+  },
+  operation: 'upgrade',
+  transferAt: '2026-08-02 14:00',
+  from: {
+    roomId: 'r-old',
+    roomNumber: '205',
+    cottageName: 'Seshanba kottej',
+    categoryCode: 'standart',
+    segmentIndex: 0,
+  },
+  to: {
+    roomId: 'r-new',
+    roomNumber: '301',
+    cottageName: 'Chorshanba kottej',
+    categoryCode: 'lux',
+    segmentIndex: 1,
+  },
+  releasedBeds: 2,
+  surchargeAmount: '800000.00',
+  priceBreakdown: {
+    version: 1,
+    segments: [],
+    total: '2000000.00',
+    lastAdjustment: { operation: 'upgrade', amount: '800000.00' },
+  },
 };
 
 describe('telegram.messages', () => {
@@ -319,6 +377,33 @@ describe('telegram.messages', () => {
       );
     });
 
+    it('transfer-out cleaner: room + freed beds only — no PII/money; buffer N/A', () => {
+      const text = formatTransferred(sampleTransferPayload, 'cleaner', 'ru');
+      expect(text).toBe(
+        '🧹 Освободился номер 205 (Seshanba kottej). Освободилось мест: 2. Можно убирать.',
+      );
+      expect(text).not.toContain('Ali');
+      expect(text).not.toContain('+998');
+      expect(text).not.toContain('BK-TEST');
+      expect(text).not.toContain('800000');
+      expect(text).not.toContain('UZS');
+      expect(text).not.toContain('Доплата');
+
+      expect(
+        formatTransferred(
+          { ...sampleTransferPayload, releasedBeds: 0, operation: 'extend' },
+          'cleaner',
+          'ru',
+        ),
+      ).toBeNull();
+    });
+
+    it('formatCleanerTransferOut matches transfer-out shape', () => {
+      expect(formatCleanerTransferOut(sampleTransferPayload, 'ru')).toBe(
+        '🧹 Освободился номер 205 (Seshanba kottej). Освободилось мест: 2. Можно убирать.',
+      );
+    });
+
     it('new booking / payment formatters return null for cleaner', () => {
       expect(formatNewBooking(sampleBooking, 'cleaner', 'ru')).toBeNull();
       expect(
@@ -495,6 +580,96 @@ describe('telegram.messages', () => {
       expect(text).toContain('📊 Hisobot');
       expect(text).toContain('Kelishlar: 34 mehmon');
       expect(text).toContain('Naqd:');
+    });
+  });
+
+  describe('transfer / upgrade / extend (TRANSFER.md Phase 4)', () => {
+    it('formats upgrade with before→after room, dates, surcharge', () => {
+      const text = formatTransferred(sampleTransferPayload, 'full', 'ru');
+      expect(text).toContain('<b>Апгрейд</b>');
+      expect(text).toContain('<code>BK-TEST</code>');
+      expect(text).toContain('Ali Karimov');
+      expect(text).toContain('<b>Было</b>');
+      expect(text).toContain('205');
+      expect(text).toContain('standart');
+      expect(text).toContain('<b>Стало</b>');
+      expect(text).toContain('301');
+      expect(text).toContain('lux');
+      expect(text).toContain('Момент переезда: 02/08/2026 14:00');
+      expect(text).toMatch(/Доплата: .*800.?000 UZS/);
+      expect(text).toMatch(/Общая сумма: .*2.?000.?000 UZS/);
+    });
+
+    it('formats same-class transfer with no surcharge', () => {
+      const text = formatTransferred(
+        {
+          ...sampleTransferPayload,
+          operation: 'transfer',
+          surchargeAmount: '0.00',
+          to: {
+            ...sampleTransferPayload.to,
+            roomNumber: '202',
+            categoryCode: 'standart',
+          },
+          priceBreakdown: {
+            version: 1,
+            segments: [],
+            total: '1200000.00',
+            lastAdjustment: { operation: 'transfer', amount: '0.00' },
+          },
+        },
+        'full',
+        'ru',
+      );
+      expect(text).toContain('<b>Переезд</b>');
+      expect(text).toContain('Без доплаты');
+      expect(text).not.toContain('Доплата:');
+    });
+
+    it('formats extend with previous→new checkout and added cost', () => {
+      const text = formatTransferred(
+        {
+          ...sampleTransferPayload,
+          operation: 'extend',
+          releasedBeds: 0,
+          transferAt: '2026-08-03 12:00',
+          previousCheckOut: '2026-08-03',
+          previousCheckOutTime: '12:00',
+          surchargeAmount: '600000.00',
+          from: {
+            ...sampleTransferPayload.from,
+            roomNumber: '305',
+            cottageName: 'Chorshanba kottej',
+            categoryCode: 'standart',
+          },
+          to: {
+            ...sampleTransferPayload.to,
+            roomId: sampleTransferPayload.from.roomId,
+            roomNumber: '305',
+            cottageName: 'Chorshanba kottej',
+            categoryCode: 'standart',
+          },
+          booking: {
+            ...sampleTransferPayload.booking,
+            checkOut: '2026-08-05',
+            checkOutTime: '12:00',
+            rooms: [sampleBooking.rooms[0]!],
+          },
+          priceBreakdown: {
+            version: 1,
+            segments: [],
+            total: '1800000.00',
+            lastAdjustment: { operation: 'extend', amount: '600000.00' },
+          },
+        },
+        'full',
+        'ru',
+      );
+      expect(text).toContain('<b>Продление</b>');
+      expect(text).toContain('03/08/2026 12:00');
+      expect(text).toContain('05/08/2026 12:00');
+      expect(text).toMatch(/Доплата: .*600.?000 UZS/);
+      expect(text).not.toContain('Момент переезда');
     });
   });
 

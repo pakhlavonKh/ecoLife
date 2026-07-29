@@ -1,6 +1,7 @@
 import type {
   BookingFieldChange,
   BookingSnapshot,
+  BookingTransferredPayload,
 } from '../bookings/events/booking.events';
 import { formatGuestName } from '../common/utils/guest-name';
 import type {
@@ -160,6 +161,109 @@ export function formatCleanerCheckout(
       }),
     )
     .join('\n');
+}
+
+/**
+ * Cleaner transfer-out — old room + freed beds only (TRANSFER.md §5).
+ * No names / money / codes; cleaning buffer is NOT applied on transfer-out.
+ */
+export function formatCleanerTransferOut(
+  payload: BookingTransferredPayload,
+  lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
+): string {
+  return tt(lang, 'cleaner.transferOut', {
+    number: escapeHtml(payload.from.roomNumber),
+    cottage: escapeHtml(payload.from.cottageName),
+    beds: String(payload.releasedBeds),
+  });
+}
+
+function transferTitleKey(
+  operation: BookingTransferredPayload['operation'],
+): TelegramMessageKey {
+  if (operation === 'upgrade') return 'events.upgrade';
+  if (operation === 'extend') return 'events.extend';
+  return 'events.transfer';
+}
+
+/** Parse `YYYY-MM-DD HH:mm` from formatTransferAt for display. */
+function formatTransferAtDisplay(transferAt: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})/.exec(
+    String(transferAt || '').trim(),
+  );
+  if (!m) return escapeHtml(transferAt);
+  return `${m[3]}/${m[2]}/${m[1]} ${escapeHtml(m[4])}`;
+}
+
+/**
+ * Upgrade / transfer / extend — staff see before→after (room, dates, surcharge);
+ * cleaner gets transfer-out notice only when beds were vacated (releasedBeds > 0).
+ */
+export function formatTransferred(
+  payload: BookingTransferredPayload,
+  scope: MessageScope = 'full',
+  lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
+): string | null {
+  if (scope === 'cleaner') {
+    if (payload.releasedBeds <= 0) {
+      return null;
+    }
+    return formatCleanerTransferOut(payload, lang);
+  }
+
+  const b = payload.booking;
+  const lines = [
+    `<b>${tt(lang, transferTitleKey(payload.operation))}</b>`,
+    `${tt(lang, 'common.code')}: <code>${escapeHtml(b.publicCode)}</code>`,
+    `${tt(lang, 'common.guest')}: ${guestLine(b)}`,
+    `${tt(lang, 'common.phone')}: ${escapeHtml(b.phone)}`,
+    '',
+    `<b>${tt(lang, 'events.was')}</b>`,
+    `${tt(lang, 'common.room')}: ${cottageLabel(payload.from.cottageName, lang)} / ${escapeHtml(payload.from.roomNumber)}`,
+    `${tt(lang, 'events.category')}: ${escapeHtml(payload.from.categoryCode)}`,
+  ];
+
+  if (payload.operation === 'extend' && payload.previousCheckOut) {
+    lines.push(
+      `${tt(lang, 'common.dates')}: ${formatDateTimeRu(b.checkIn, b.checkInTime)} → ${formatDateTimeRu(payload.previousCheckOut, payload.previousCheckOutTime)}`,
+    );
+  } else {
+    lines.push(
+      `${tt(lang, 'common.dates')}: ${formatDateTimeRu(b.checkIn, b.checkInTime)} → ${formatTransferAtDisplay(payload.transferAt)}`,
+    );
+  }
+
+  lines.push(
+    '',
+    `<b>${tt(lang, 'events.now')}</b>`,
+    `${tt(lang, 'common.room')}: ${cottageLabel(payload.to.cottageName, lang)} / ${escapeHtml(payload.to.roomNumber)}`,
+    `${tt(lang, 'events.category')}: ${escapeHtml(payload.to.categoryCode)}`,
+    `${tt(lang, 'common.dates')}: ${
+      payload.operation === 'extend'
+        ? `${formatDateTimeRu(b.checkIn, b.checkInTime)} → ${formatDateTimeRu(b.checkOut, b.checkOutTime)}`
+        : `${formatTransferAtDisplay(payload.transferAt)} → ${formatDateTimeRu(b.checkOut, b.checkOutTime)}`
+    }`,
+  );
+
+  if (payload.operation !== 'extend') {
+    lines.push(
+      `${tt(lang, 'events.transferAt')}: ${formatTransferAtDisplay(payload.transferAt)}`,
+    );
+  }
+
+  const surcharge = Number(payload.surchargeAmount);
+  if (Number.isFinite(surcharge) && surcharge > 0) {
+    lines.push(
+      `${tt(lang, 'events.surcharge')}: ${fmtMoney(payload.surchargeAmount, lang)}`,
+    );
+  } else {
+    lines.push(tt(lang, 'events.noSurcharge'));
+  }
+  lines.push(
+    `${tt(lang, 'fields.totalAmount')}: ${fmtMoney(b.totalAmount, lang)}`,
+  );
+
+  return lines.join('\n');
 }
 
 /** New booking — guests, room, beds taken / capacity. */

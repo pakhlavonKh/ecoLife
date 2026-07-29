@@ -1668,18 +1668,21 @@ export class BookingsService {
             from: {
               roomId: covering.roomId,
               roomNumber: covering.room.number,
+              cottageName: covering.room.cottage.name,
               categoryCode: covering.room.category.code,
               segmentIndex: covering.segmentIndex,
             },
             to: {
               roomId: newRoom.id,
               roomNumber: newRoom.number,
+              cottageName: newRoom.cottage.name,
               categoryCode: newRoom.category.code,
               segmentIndex: wholeStayMove
                 ? covering.segmentIndex
                 : nextIndex,
             },
-            releasedBeds: beds,
+            // Cleaner notice only on mid-stay vacate (no buffer); whole-stay move = 0.
+            releasedBeds: wholeStayMove ? 0 : beds,
             surchargeAmount: decimalToString(money.appliedSurcharge),
             priceBreakdown,
           };
@@ -1984,26 +1987,27 @@ export class BookingsService {
 
             const transferredPayload: BookingTransferredPayload = {
               booking: this.toSnapshot(after),
-              operation:
-                target.categoryId === last.room.categoryId
-                  ? 'transfer'
-                  : 'upgrade',
+              operation: 'extend',
               transferAt: formatTransferAt(extendFrom),
               from: {
                 roomId: last.roomId,
                 roomNumber: last.room.number,
+                cottageName: last.room.cottage.name,
                 categoryCode: last.room.category.code,
                 segmentIndex: last.segmentIndex,
               },
               to: {
                 roomId: target.id,
                 roomNumber: target.number,
+                cottageName: target.cottage.name,
                 categoryCode: target.category.code,
                 segmentIndex: last.segmentIndex + 1,
               },
               releasedBeds: beds,
               surchargeAmount: decimalToString(extendMoney.appliedAddedAmount),
               priceBreakdown,
+              previousCheckOut: formatLocalDate(booking.checkOut),
+              previousCheckOutTime: formatLocalTime(booking.checkOut),
             };
 
             return {
@@ -2202,12 +2206,37 @@ export class BookingsService {
             },
           });
 
+            const transferredPayload: BookingTransferredPayload = {
+              booking: this.toSnapshot(after),
+              operation: 'extend',
+              transferAt: formatTransferAt(extendFrom),
+              from: {
+                roomId: last.roomId,
+                roomNumber: last.room.number,
+                cottageName: last.room.cottage.name,
+                categoryCode: last.room.category.code,
+                segmentIndex: last.segmentIndex,
+              },
+              to: {
+                roomId: last.roomId,
+                roomNumber: last.room.number,
+                cottageName: last.room.cottage.name,
+                categoryCode: last.room.category.code,
+                segmentIndex: last.segmentIndex,
+              },
+              releasedBeds: 0,
+              surchargeAmount: decimalToString(money.appliedAddedAmount),
+              priceBreakdown,
+              previousCheckOut: formatLocalDate(booking.checkOut),
+              previousCheckOutTime: formatLocalTime(booking.checkOut),
+            };
+
             return {
               kind: 'ok' as const,
               booking: after,
               money,
               priceBreakdown,
-              transferredPayload: null,
+              transferredPayload,
               previousCheckOut: booking.checkOut,
             };
         },
@@ -2226,29 +2255,10 @@ export class BookingsService {
         });
       }
 
-      if (preview.transferredPayload) {
-        this.events.emit(
-          BOOKING_TRANSFERRED_EVENT,
-          preview.transferredPayload,
-        );
-      } else {
-        this.events.emit(BOOKING_UPDATED_EVENT, {
-          bookingId: preview.booking.id,
-          publicCode: preview.booking.publicCode,
-          changes: [
-            {
-              field: 'checkOut',
-              from: formatLocalDate(preview.previousCheckOut),
-              to: formatLocalDate(preview.booking.checkOut),
-            },
-            {
-              field: 'totalAmount',
-              from: decimalToString(preview.money.previousTotal),
-              to: decimalToString(preview.money.newTotal),
-            },
-          ],
-        });
-      }
+      this.events.emit(
+        BOOKING_TRANSFERRED_EVENT,
+        preview.transferredPayload,
+      );
 
       return {
         ...this.toView(preview.booking),

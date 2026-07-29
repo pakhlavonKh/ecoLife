@@ -83,6 +83,15 @@ export const uz: TelegramDict = {
       'Mehmon bilan bog‘laning yoki provayderni tekshiring.',
     latePaymentReview: 'Kechikkan to‘lov — tekshiruv',
     roomLocked: '{{number}}-xona {{from}}–{{to}} oralig‘ida to‘liq yopildi',
+    upgrade: 'Yaxshilash',
+    transfer: 'Ko‘chirish',
+    extend: 'Uzaytirish',
+    was: 'Edi',
+    now: 'Bo‘ldi',
+    surcharge: 'Qo‘shimcha to‘lov',
+    noSurcharge: 'Qo‘shimcha to‘lovsiz',
+    transferAt: 'Ko‘chirish vaqti',
+    category: 'Toifa',
   },
   cleaner: {
     freedGeneric: '🧹 Xona bo‘shadi.',
@@ -90,6 +99,9 @@ export const uz: TelegramDict = {
     canClean: 'Tozalash mumkin.',
     freedRoom:
       '🧹 {{number}}-xona bo‘shadi ({{cottage}}). Chiqish {{datetime}}. Tozalash mumkin.',
+    /** Transfer-out: room + freed beds only — no names/money; buffer not applied. */
+    transferOut:
+      '🧹 {{number}}-xona bo‘shadi ({{cottage}}). Bo‘shagan joylar: {{beds}}. Tozalash mumkin.',
     digestTitle: 'Ertalabki xulosa {{date}}',
     digestDepartures: 'Bugun bo‘shaydi ({{count}}):',
     digestNoDepartures: 'Bugun chiqishlar yo‘q.',

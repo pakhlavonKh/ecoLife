@@ -16,6 +16,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:preview:datetime": "node scripts/preview-datetime-backfill.mjs",
+    "db:preview:segments": "node scripts/preview-segments-backfill.mjs",
     "prisma:generate": "prisma generate",
     "setup": "npm run db:up && node scripts/wait-for-db.mjs && npm run db:migrate && npm run db:seed",
     "test": "jest --config jest.config.ts",

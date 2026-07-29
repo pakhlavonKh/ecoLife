@@ -9,6 +9,13 @@ Inventory: **Cottage → Room** (capacity = beds). Booking is **per bed** (share
 - Guest stay is half-open `[check_in, check_out)`. After every checkout the **released beds** stay blocked for `CLEANING_BUFFER_MINUTES` (default **60**) — other guests still in the room are unaffected.
 - Admin can lock a whole room for a datetime range (`room_locks`). Overbooking is blocked by row locks + interval-sweep occupancy checks in a transaction.
 
+**Transfer / upgrade / extend (admin-only, TRANSFER.md):**
+- **Upgrade** — move to a higher class mid-stay or before arrival; guest pays the price difference for remaining nights (editable surcharge). Stay splits into segments A (old room/price) + B (new room/price).
+- **Transfer (same class)** — move to another room of the same category; no surcharge.
+- **Extend** — later check-out in the same room; if blocked, API returns same-class transfer offers (`EXTEND_BLOCKED`).
+- Transfer-out frees old beds **without** the 1h cleaning buffer, but Telegram notifies cleaners (room + freed beds only).
+- Telegram: owner/admin/manager get before→after (room, dates, surcharge); cleaners only on transfer-out.
+
 ---
 
 ## Stack
@@ -61,13 +68,13 @@ npm run dev            # http://localhost:5174
 
 ```bash
 cd api
-npm run test:unit      # unit specs (occupancy sweep, datetime, payments, telegram, …)
-npm run test:e2e       # time-based concurrency gate + happy-path e2e (needs DB up + seeded)
+npm run test:unit      # unit specs (occupancy sweep, datetime, payments, telegram, transfer-math, …)
+npm run test:e2e       # concurrency gate (incl. transfer race) + happy-path e2e (needs DB up + seeded)
 npm run test:gate      # unit + e2e
 ```
 
 Happy path: create booking → mock pay → `deposit_paid` → confirm → check-in → check-out.
-Concurrency gate: parallel bookings for overlapping time ranges — total effective beds never exceed capacity; overflow → 409.
+Concurrency gate: parallel bookings for overlapping time ranges — total effective beds never exceed capacity; overflow → 409. Transfer racing a new booking for the same target beds also yields exactly one winner.
 
 ---
 
@@ -266,6 +273,24 @@ Run **in order**. Migration `20260728160000_stay_timestamptz` converts DATE → 
 - [ ] Smoke-test: public booking with custom times, admin datetime edit, шахматка time labels, Telegram new-booking / checkout (cleaners: room + checkout time only)
 - [ ] Confirm `CLEANING_BUFFER_MINUTES=60` in prod `.env`
 
+### Transfer / upgrade / extend cutover (TRANSFER.md Phase 4)
+
+Run **in order**. Migration `20260729160000_booking_transfer_segments` adds `segment_index` / `amount` / `price_breakdown` and backfills existing bookings as a **single segment**.
+
+- [ ] **Backup DB** first (copy latest dump out of the backup volume, or one-off `pg_dump`)
+- [ ] Confirm **1 GB swap** is on (`free -h`) — required before image rebuild on small VPS
+- [ ] `git pull` on the VPS
+- [ ] Rebuild & restart: `docker compose -f docker-compose.prod.yml up -d --build`
+- [ ] Apply migrations: `docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy`
+- [ ] **Preview / verify** segment backfill (read-only):
+  ```bash
+  docker compose -f docker-compose.prod.yml exec api npm run db:preview:segments
+  ```
+  Expect: every existing booking_rooms row has `segment_index=0` + `amount`; every booking has `price_breakdown` with one segment. Multi-segment rows appear only after admin transfer/extend.
+- [ ] Spot-check admin: booking card → «Перевести/апгрейд» and «Продлить»; шахматка shows both segments after a mid-stay move
+- [ ] Smoke-test Telegram: upgrade/transfer/extend → owner/admin/manager get before→after; cleaner gets transfer-out (room + freed beds, no names/money); confirm vacated beds are bookable immediately (no 1h buffer)
+- [ ] `npm run test:gate` green against a seeded DB (or CI)
+
 ### Bed-mode cutover (existing production DB)
 
 - [ ] **Backup DB** first (`pg_dump` / backup service volume)  
@@ -303,7 +328,8 @@ Run **in order**. Migration `20260728160000_stay_timestamptz` converts DATE → 
 ├── .env.prod.example
 ├── AGENTS.md            Original product master prompt
 ├── BED_MODE.md          Per-bed shared-room change prompt
-└── HOURLY.md            Datetime check-in/out + cleaning buffer prompt
+├── HOURLY.md            Datetime check-in/out + cleaning buffer prompt
+└── TRANSFER.md          Transfer / upgrade / extend prompt
 ```
 
 ---

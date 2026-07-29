@@ -5,10 +5,12 @@ import {
   BOOKING_CREATED_EVENT,
   BOOKING_HOLD_EXPIRED_EVENT,
   BOOKING_STATUS_CHANGED_EVENT,
+  BOOKING_TRANSFERRED_EVENT,
   BOOKING_UPDATED_EVENT,
   BookingCreatedPayload,
   BookingHoldExpiredPayload,
   BookingStatusChangedPayload,
+  BookingTransferredPayload,
   BookingUpdatedPayload,
 } from '../bookings/events/booking.events';
 import {
@@ -37,6 +39,7 @@ import {
   formatPaymentReceived,
   formatRoomLocked,
   formatStatusChanged,
+  formatTransferred,
   type TodayBrief,
 } from './telegram.messages';
 import { TelegramQueueService } from './telegram.queue.service';
@@ -103,6 +106,14 @@ export class TelegramNotifyService {
   handleHoldExpired(payload: BookingHoldExpiredPayload): void {
     void this.dispatch(NotificationEvent.system_hold_expired, (scope, lang) =>
       formatHoldExpired(payload, scope, lang),
+    );
+  }
+
+  /** Upgrade / transfer / extend — matrix includes cleaner for transfer-out only. */
+  @OnEvent(BOOKING_TRANSFERRED_EVENT, { async: true })
+  handleBookingTransferred(payload: BookingTransferredPayload): void {
+    void this.dispatch(NotificationEvent.booking_transferred, (scope, lang) =>
+      formatTransferred(payload, scope, lang),
     );
   }
 

@@ -95,25 +95,36 @@ export type BookingStatusChangedPayload = {
 
 export type BookingHoldExpiredPayload = BookingSnapshot;
 
-/** Scaffold for Phase 2 transfer/upgrade (not emitted in Phase 1). */
+/** Transfer / upgrade / extend — Telegram + audit (TRANSFER.md §5, Phase 4). */
 export type BookingTransferredPayload = {
   booking: BookingSnapshot;
-  operation: 'upgrade' | 'transfer';
+  operation: 'upgrade' | 'transfer' | 'extend';
+  /** Local wall clock `YYYY-MM-DD HH:mm` (split instant or extend-from). */
   transferAt: string;
   from: {
     roomId: string;
     roomNumber: string;
+    cottageName: string;
     categoryCode: string;
     segmentIndex: number;
   };
   to: {
     roomId: string;
     roomNumber: string;
+    cottageName: string;
     categoryCode: string;
     segmentIndex: number;
   };
-  /** Beds freed in the old room from transferAt (cleaner notice, no buffer). */
+  /**
+   * Beds freed in the OLD room from transferAt.
+   * > 0 → mid-stay transfer-out (cleaner notice, NO cleaning buffer).
+   * 0 → whole-stay move / same-room extend (no cleaner notice).
+   */
   releasedBeds: number;
+  /** Surcharge (upgrade) or added nights cost (extend); "0.00" for same-class transfer. */
   surchargeAmount: string;
   priceBreakdown: PriceBreakdown;
+  /** Previous check-out before extend (local date + time). */
+  previousCheckOut?: string;
+  previousCheckOutTime?: string;
 };

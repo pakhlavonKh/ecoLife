@@ -89,6 +89,15 @@ const ruSource = {
       'Свяжитесь с гостем или проверьте у провайдера.',
     latePaymentReview: 'Поздняя оплата — проверка',
     roomLocked: 'Номер {{number}} закрыт целиком на {{from}}–{{to}}',
+    upgrade: 'Апгрейд',
+    transfer: 'Переезд',
+    extend: 'Продление',
+    was: 'Было',
+    now: 'Стало',
+    surcharge: 'Доплата',
+    noSurcharge: 'Без доплаты',
+    transferAt: 'Момент переезда',
+    category: 'Категория',
   },
   cleaner: {
     freedGeneric: '🧹 Номер освободился.',
@@ -96,6 +105,9 @@ const ruSource = {
     canClean: 'Можно убирать.',
     freedRoom:
       '🧹 Освободился номер {{number}} ({{cottage}}). Выезд {{datetime}}. Можно убирать.',
+    /** Transfer-out: room + freed beds only — no names/money; buffer not applied. */
+    transferOut:
+      '🧹 Освободился номер {{number}} ({{cottage}}). Освободилось мест: {{beds}}. Можно убирать.',
     digestTitle: 'Утренняя сводка {{date}}',
     digestDepartures: 'Сегодня освобождаются ({{count}}):',
     digestNoDepartures: 'Сегодня выездов нет.',
