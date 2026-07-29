@@ -23,6 +23,53 @@ export type BookingRoom = {
   cottageName: string;
   categoryCode: string;
   isActive: boolean;
+  checkIn?: string;
+  checkOut?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  segmentIndex?: number;
+  amount?: string | null;
+  /** Transfer-out: no cleaning buffer, but cleaner notice (TRANSFER.md §5). */
+  skipCleaningBuffer?: boolean;
+};
+
+export type PriceBreakdownSegment = {
+  segmentIndex: number;
+  bookingRoomId: string;
+  roomId: string;
+  checkIn: string;
+  checkOut: string;
+  bedsBooked: number;
+  amount: string;
+  isActive: boolean;
+  nightlySubtotal?: string;
+  nights?: number;
+  categoryCode?: string;
+  roomNumber?: string;
+};
+
+export type PriceBreakdown = {
+  version: number;
+  segments: PriceBreakdownSegment[];
+  total: string;
+  lastAdjustment?: {
+    operation: 'upgrade' | 'transfer' | 'extend';
+    amount: string;
+    note?: string;
+  };
+};
+
+export type TransferOffer = {
+  id: string;
+  number: string;
+  capacity: number;
+  categoryCode: string;
+  cottageName: string;
+  priceAdult: string;
+  priceChild: string;
+  priceInfant: string;
 };
 
 export type BookingPayment = {
@@ -69,8 +116,24 @@ export type Booking = {
     phone: string;
   };
   rooms: BookingRoom[];
+  priceBreakdown?: PriceBreakdown | null;
   /** Present on booking detail; newest first. */
   payments?: BookingPayment[];
+};
+
+export type TransferBookingResult = Booking & {
+  operation: 'upgrade' | 'transfer';
+  surchargeAmount: string;
+  suggestedSurcharge: string;
+  livedNights: number;
+  remainingNights: number;
+};
+
+export type ExtendBookingResult = Booking & {
+  operation: 'extend';
+  addedNights: number;
+  addedAmount: string;
+  catalogAddedAmount: string;
 };
 
 export type Category = {
@@ -272,6 +335,8 @@ export type CalendarData = {
     roomId: string;
     roomNumber: string;
     bedsBooked: number;
+    skipCleaningBuffer?: boolean;
+    segmentIndex?: number;
   }>;
   locks: Array<{
     id: string;

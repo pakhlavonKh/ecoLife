@@ -2,14 +2,22 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import {
+  auditApi,
   availabilityApi,
   bookingsApi,
   roomLocksApi,
 } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
-import type { AvailableRoom, Booking, RoomLock } from '../api/types';
+import type {
+  AuditEntry,
+  AvailableRoom,
+  Booking,
+  RoomLock,
+} from '../api/types';
 import { DateField } from '../components/DateField';
+import { ExtendBookingModal } from '../components/ExtendBookingModal';
 import { TimeField } from '../components/TimeField';
+import { TransferBookingModal } from '../components/TransferBookingModal';
 import {
   Button,
   Card,
@@ -40,6 +48,17 @@ import {
   sourceLabel,
   statusActionLabel,
 } from '../lib/labels';
+
+const TRANSFER_EXTEND_STATUSES = new Set([
+  'pending_payment',
+  'deposit_paid',
+  'confirmed',
+  'checked_in',
+]);
+
+function segmentLetter(index: number): string {
+  return String.fromCharCode(65 + Math.min(Math.max(index, 0), 25));
+}
 
 const MANUAL_PAYMENT_METHODS = [
   'cash',
@@ -81,6 +100,9 @@ export function BookingDetailPage() {
     from: string;
     to: string;
   } | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
 
   const [form, setForm] = useState({
     guestName: '',
@@ -99,8 +121,12 @@ export function BookingDetailPage() {
 
   async function load() {
     const { data } = await bookingsApi.get(id);
-    const roomId = data.rooms[0]?.roomId ?? '';
-    const adults = data.adults ?? data.rooms[0]?.bedsBooked ?? data.bedsTotal;
+    const activeRooms = [...data.rooms]
+      .filter((r) => r.isActive)
+      .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
+    const primary = activeRooms[activeRooms.length - 1] ?? data.rooms[0];
+    const roomId = primary?.roomId ?? '';
+    const adults = data.adults ?? primary?.bedsBooked ?? data.bedsTotal;
     const children = data.children ?? 0;
     const infants = data.infants ?? 0;
     const checkInTime = data.checkInTime || DEFAULT_CHECK_IN_TIME;
@@ -128,6 +154,16 @@ export function BookingDetailPage() {
     setCashAmount(data.remainingAmount);
   }
 
+  async function loadAudit() {
+    if (!id) return;
+    const { data } = await auditApi.list({
+      entity: 'booking',
+      entityId: id,
+      limit: 20,
+    });
+    setAuditEntries(data);
+  }
+
   async function loadLocks(roomId?: string) {
     if (!roomId) {
       setLocks([]);
@@ -142,6 +178,9 @@ export function BookingDetailPage() {
     (async () => {
       try {
         await load();
+        await loadAudit().catch(() => {
+          if (!cancelled) setAuditEntries([]);
+        });
         if (!cancelled) setError('');
       } catch (err) {
         if (!cancelled) setError(getErrorMessage(err));
@@ -153,8 +192,22 @@ export function BookingDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const activeSegments = useMemo(() => {
+    if (!booking) return [];
+    return [...booking.rooms]
+      .filter((r) => r.isActive)
+      .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
+  }, [booking]);
+
+  const multiSegment = activeSegments.length > 1;
+
+  const canTransferExtend =
+    !!booking && TRANSFER_EXTEND_STATUSES.has(booking.status);
+
   useEffect(() => {
-    const roomId = booking?.rooms[0]?.roomId;
+    const roomId =
+      activeSegments[activeSegments.length - 1]?.roomId ??
+      booking?.rooms[0]?.roomId;
     if (!roomId) return;
     let cancelled = false;
     (async () => {
@@ -167,7 +220,10 @@ export function BookingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [booking?.rooms[0]?.roomId, booking?.id]);
+  }, [
+    activeSegments[activeSegments.length - 1]?.roomId,
+    booking?.id,
+  ]);
 
   useEffect(() => {
     if (!form.checkIn || !form.checkOut) return;
@@ -193,7 +249,8 @@ export function BookingDetailPage() {
           if (typeof data.cleaningBufferMinutes === 'number') {
             setBufferMinutes(data.cleaningBufferMinutes);
           }
-          const current = booking?.rooms[0];
+          const current =
+            activeSegments[activeSegments.length - 1] ?? booking?.rooms[0];
           if (
             current &&
             !list.some((r) => r.id === current.roomId)
@@ -519,6 +576,67 @@ export function BookingDetailPage() {
         </div>
       ) : null}
 
+      {activeSegments.length > 0 ? (
+        <Card className="mb-4 p-4">
+          <div className="mb-3 text-sm font-medium">
+            {t('bookingDetail.segmentsTitle')}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {activeSegments.map((seg) => {
+              const letter = segmentLetter(seg.segmentIndex ?? 0);
+              const nights = nightsBetween(
+                seg.checkIn ?? booking!.checkIn,
+                seg.checkOut ?? booking!.checkOut,
+              );
+              return (
+                <div
+                  key={seg.bookingRoomId}
+                  className="rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+                >
+                  <div className="font-medium">
+                    {t('bookingDetail.segmentHeading', {
+                      letter,
+                      room: seg.number,
+                      category: seg.categoryCode,
+                    })}
+                  </div>
+                  <div className="mt-1 text-[var(--muted)]">
+                    {t('bookingDetail.segmentDates', {
+                      checkIn: `${formatDate(seg.checkIn ?? booking!.checkIn)} ${seg.checkInTime || booking!.checkInTime}`,
+                      checkOut: `${formatDate(seg.checkOut ?? booking!.checkOut)} ${seg.checkOutTime || booking!.checkOutTime}`,
+                      nights,
+                    })}
+                  </div>
+                  <div className="mt-1">
+                    {t('bookingDetail.segmentAmount', {
+                      amount: formatMoney(seg.amount),
+                      cottage: seg.cottageName,
+                    })}
+                  </div>
+                  {seg.skipCleaningBuffer ? (
+                    <div className="mt-1 text-xs text-amber-800">
+                      {t('bookingDetail.segmentTransferExit')}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          {booking?.priceBreakdown?.lastAdjustment ? (
+            <p className="mt-3 text-xs text-[var(--muted)]">
+              {t('bookingDetail.lastAdjustment', {
+                operation: t(
+                  `bookingDetail.operation.${booking.priceBreakdown.lastAdjustment.operation}`,
+                ),
+                amount: formatMoney(
+                  booking.priceBreakdown.lastAdjustment.amount,
+                ),
+              })}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
         <Card className="p-4">
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={onSave}>
@@ -624,6 +742,7 @@ export function BookingDetailPage() {
                   setForm((f) => ({ ...f, roomId: e.target.value }))
                 }
                 required
+                disabled={multiSegment}
               >
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -638,6 +757,11 @@ export function BookingDetailPage() {
                 ))}
               </Select>
             </Field>
+            {multiSegment ? (
+              <p className="sm:col-span-2 -mt-1 text-xs text-amber-800">
+                {t('bookingDetail.multiSegmentRoomHint')}
+              </p>
+            ) : null}
 
             {calculated ? (
               <div className="sm:col-span-2 rounded-md border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900">
@@ -763,6 +887,24 @@ export function BookingDetailPage() {
                   {t('bookingDetail.noTransitions')}
                 </div>
               ) : null}
+              {canTransferExtend ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => setTransferOpen(true)}
+                  >
+                    {t('bookingDetail.transferAction')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => setExtendOpen(true)}
+                  >
+                    {t('bookingDetail.extendAction')}
+                  </Button>
+                </>
+              ) : null}
             </div>
           </Card>
 
@@ -878,8 +1020,64 @@ export function BookingDetailPage() {
               </p>
             )}
           </Card>
+
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-medium">
+                {t('bookingDetail.auditTitle')}
+              </div>
+              <Link
+                to={`/audit?entity=booking&entityId=${id}`}
+                className="text-xs text-[var(--accent)] underline"
+              >
+                {t('bookingDetail.auditAll')}
+              </Link>
+            </div>
+            {auditEntries.length > 0 ? (
+              <ul className="space-y-1.5 text-xs text-[var(--muted)]">
+                {auditEntries.slice(0, 8).map((a) => (
+                  <li key={a.id}>
+                    {t('bookingDetail.auditLine', {
+                      date: formatDateTime(a.createdAt),
+                      action: a.action,
+                      actor: a.actorType,
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-[var(--muted)]">
+                {t('bookingDetail.auditEmpty')}
+              </p>
+            )}
+          </Card>
         </div>
       </div>
+
+      {booking ? (
+        <>
+          <TransferBookingModal
+            booking={booking}
+            open={transferOpen}
+            onClose={() => setTransferOpen(false)}
+            onDone={(msg) => {
+              setMessage(msg);
+              void load();
+              void loadAudit().catch(() => setAuditEntries([]));
+            }}
+          />
+          <ExtendBookingModal
+            booking={booking}
+            open={extendOpen}
+            onClose={() => setExtendOpen(false)}
+            onDone={(msg) => {
+              setMessage(msg);
+              void load();
+              void loadAudit().catch(() => setAuditEntries([]));
+            }}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

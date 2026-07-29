@@ -8,12 +8,14 @@ import type {
   CustomerDetail,
   CustomerListItem,
   DashboardStats,
+  ExtendBookingResult,
   Room,
   RoomLock,
   TelegramInvite,
   TelegramRecipient,
   TelegramStaffRole,
   Tokens,
+  TransferBookingResult,
   User,
   AvailableRoom,
 } from './types';
@@ -55,6 +57,35 @@ export const bookingsApi = {
       ...(amount ? { amount } : {}),
       ...(note ? { note } : {}),
     }),
+  transfer: (
+    id: string,
+    body: {
+      roomId: string;
+      transferDate: string;
+      transferTime?: string;
+      surchargeAmount?: number;
+      note?: string;
+    },
+  ) =>
+    api.post<TransferBookingResult>(
+      `/api/v1/admin/bookings/${id}/transfer`,
+      body,
+    ),
+  extend: (
+    id: string,
+    body: {
+      newCheckOut: string;
+      newCheckOutTime?: string;
+      addedAmount?: number;
+      offerCategoryCode?: string;
+      transferToRoomId?: string;
+      note?: string;
+    },
+  ) =>
+    api.post<ExtendBookingResult>(
+      `/api/v1/admin/bookings/${id}/extend`,
+      body,
+    ),
 };
 
 export const availabilityApi = {

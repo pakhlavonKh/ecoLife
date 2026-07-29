@@ -1136,6 +1136,9 @@ export class BookingsService {
       roomId: string;
       roomNumber: string;
       bedsBooked: number;
+      /** Transfer-out: cleaning notice without 1h buffer tail (TRANSFER.md §5). */
+      skipCleaningBuffer: boolean;
+      segmentIndex: number;
     }> = [];
 
     for (const b of bookings) {
@@ -1158,6 +1161,8 @@ export class BookingsService {
           roomId: br.roomId,
           roomNumber: br.room.number,
           bedsBooked: br.bedsBooked,
+          skipCleaningBuffer: Boolean(br.skipCleaningBuffer),
+          segmentIndex: br.segmentIndex ?? 0,
         });
       }
     }

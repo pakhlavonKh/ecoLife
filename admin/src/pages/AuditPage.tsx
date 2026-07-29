@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { auditApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { AuditEntry } from '../api/types';
@@ -17,8 +18,10 @@ import { formatDateTime } from '../lib/format';
 
 export function AuditPage() {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<AuditEntry[]>([]);
-  const [entity, setEntity] = useState('');
+  const [entity, setEntity] = useState(searchParams.get('entity') ?? '');
+  const [entityId] = useState(searchParams.get('entityId') ?? '');
   const [actorType, setActorType] = useState('');
   const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
@@ -32,6 +35,7 @@ export function AuditPage() {
       try {
         const { data } = await auditApi.list({
           entity: entity || undefined,
+          entityId: entityId || undefined,
           actorType: actorType || undefined,
           action: action || undefined,
           from: from || undefined,
@@ -49,7 +53,7 @@ export function AuditPage() {
     return () => {
       cancelled = true;
     };
-  }, [entity, actorType, action, from, to]);
+  }, [entity, entityId, actorType, action, from, to]);
 
   return (
     <div>

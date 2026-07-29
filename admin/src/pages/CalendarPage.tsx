@@ -132,6 +132,7 @@ export function CalendarPage() {
           if (occupiesStayDay(b.checkIn, b.checkOut, inTime, outTime, day)) {
             n += 1;
           } else if (
+            !b.skipCleaningBuffer &&
             occupiesBufferDay(b.checkOut, outTime, bufferMinutes, day)
           ) {
             n += 1;
@@ -184,6 +185,10 @@ export function CalendarPage() {
               style={BUFFER_STYLE}
             />
             {t('calendar.legendBuffer')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-4 rounded-sm bg-amber-400" />
+            {t('calendar.legendTransferClean')}
           </span>
           <span className="inline-flex items-center gap-1">
             <span
@@ -264,6 +269,7 @@ export function CalendarPage() {
                     );
                   });
                   const bufferOnly = roomBookings.filter((b) => {
+                    if (b.skipCleaningBuffer) return false;
                     const { inTime, outTime } = stayTimes(b);
                     if (
                       occupiesStayDay(
@@ -282,6 +288,11 @@ export function CalendarPage() {
                       bufferMinutes,
                       day,
                     );
+                  });
+                  const cleaningNotice = roomBookings.filter((b) => {
+                    if (!b.skipCleaningBuffer) return false;
+                    // Marker on the checkout day only (no buffer tail).
+                    return b.checkOut.slice(0, 10) === day;
                   });
                   const dayLocks = roomLocks.filter((l) => {
                     const { inTime, outTime } = stayTimes(l);
@@ -327,6 +338,7 @@ export function CalendarPage() {
                       {dayBookings.map((bar) => {
                         const { inTime, outTime } = stayTimes(bar);
                         const showBufferTail =
+                          !bar.skipCleaningBuffer &&
                           bufferMinutes > 0 &&
                           occupiesBufferDay(
                             bar.checkOut,
@@ -334,15 +346,20 @@ export function CalendarPage() {
                             bufferMinutes,
                             day,
                           );
+                        const showCleaningNotice =
+                          Boolean(bar.skipCleaningBuffer) &&
+                          bar.checkOut.slice(0, 10) === day;
                         return (
                           <div
-                            key={`${bar.bookingId}-${day}`}
+                            key={`${bar.bookingId}-${bar.segmentIndex ?? 0}-${day}`}
                             className="flex w-full items-stretch gap-px"
                           >
                             <Link
                               to={`/bookings/${bar.bookingId}`}
                               className={`block min-w-0 flex-1 truncate rounded-l px-0.5 text-center text-[9px] font-medium leading-4 text-white shadow-sm ${
-                                showBufferTail ? '' : 'rounded-r'
+                                showBufferTail || showCleaningNotice
+                                  ? ''
+                                  : 'rounded-r'
                               }`}
                               style={{
                                 background:
@@ -367,6 +384,15 @@ export function CalendarPage() {
                                 checkOutTime: outTime,
                               })}
                             </Link>
+                            {showCleaningNotice ? (
+                              <span
+                                className="w-2 shrink-0 rounded-r bg-amber-400"
+                                title={t('calendar.transferCleanTitle', {
+                                  from: outTime,
+                                  room: bar.roomNumber,
+                                })}
+                              />
+                            ) : null}
                             {showBufferTail ? (
                               <span
                                 className="w-2 shrink-0 rounded-r"
@@ -381,11 +407,38 @@ export function CalendarPage() {
                         );
                       })}
 
+                      {cleaningNotice
+                        .filter(
+                          (b) =>
+                            !dayBookings.some(
+                              (d) =>
+                                d.bookingId === b.bookingId &&
+                                (d.segmentIndex ?? 0) === (b.segmentIndex ?? 0),
+                            ),
+                        )
+                        .map((bar) => {
+                          const { outTime } = stayTimes(bar);
+                          return (
+                            <Link
+                              key={`xfer-${bar.bookingId}-${bar.segmentIndex ?? 0}-${day}`}
+                              to={`/bookings/${bar.bookingId}`}
+                              className="block w-full truncate rounded px-0.5 text-center text-[8px] font-medium leading-4 text-amber-950 shadow-sm"
+                              style={{ background: '#fbbf24' }}
+                              title={t('calendar.transferCleanTitle', {
+                                from: outTime,
+                                room: bar.roomNumber,
+                              })}
+                            >
+                              {t('calendar.transferCleanLabel')}
+                            </Link>
+                          );
+                        })}
+
                       {bufferOnly.map((bar) => {
                         const { outTime } = stayTimes(bar);
                         return (
                           <Link
-                            key={`buf-${bar.bookingId}-${day}`}
+                            key={`buf-${bar.bookingId}-${bar.segmentIndex ?? 0}-${day}`}
                             to={`/bookings/${bar.bookingId}`}
                             className="block w-full truncate rounded px-0.5 text-center text-[8px] font-medium leading-4 shadow-sm"
                             style={BUFFER_STYLE}
@@ -399,7 +452,10 @@ export function CalendarPage() {
                         );
                       })}
 
-                      {(occupied > 0 || locked || bufferOnly.length > 0) && (
+                      {(occupied > 0 ||
+                        locked ||
+                        bufferOnly.length > 0 ||
+                        cleaningNotice.length > 0) && (
                         <div className="mt-auto text-center text-[8px] leading-3 text-[var(--muted)]">
                           {locked
                             ? t('calendar.fullLockHint')

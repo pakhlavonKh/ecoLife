@@ -100,3 +100,15 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return i18n.t('common.unknownError');
 }
+
+/** Typed API error body (e.g. EXTEND_BLOCKED 409 with transferOffers). */
+export function getErrorPayload<T extends Record<string, unknown>>(
+  error: unknown,
+): (T & { statusCode?: number; message?: string | string[]; code?: string }) | null {
+  if (!axios.isAxiosError(error) || !error.response?.data) return null;
+  return error.response.data as T & {
+    statusCode?: number;
+    message?: string | string[];
+    code?: string;
+  };
+}
