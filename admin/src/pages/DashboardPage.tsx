@@ -175,6 +175,30 @@ export function DashboardPage() {
           label: t('dashboard.revenuePeriod'),
           value: formatMoney(data.revenue),
         },
+        ...(data.revenueByMethod
+          ? [
+              {
+                label: t('dashboard.revenueCash'),
+                value: formatMoney(data.revenueByMethod.cash),
+              },
+              {
+                label: t('dashboard.revenueCard'),
+                value: formatMoney(data.revenueByMethod.card),
+              },
+              {
+                label: t('dashboard.revenueTransfer'),
+                value: formatMoney(data.revenueByMethod.transfer),
+              },
+              {
+                label: t('dashboard.revenueTerminal'),
+                value: formatMoney(data.revenueByMethod.terminal),
+              },
+              {
+                label: t('dashboard.revenueOnline'),
+                value: formatMoney(data.revenueByMethod.online),
+              },
+            ]
+          : []),
         {
           label: t('dashboard.pendingPayments'),
           value: String(data.pendingPayments),

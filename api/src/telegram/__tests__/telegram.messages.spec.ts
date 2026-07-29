@@ -8,11 +8,17 @@ import {
   formatDateRu,
   formatMorningDigest,
   formatNewBooking,
+  formatOwnerStats,
   formatPaymentReceived,
   formatRoomLocked,
+  formatStatsPeriodLabel,
   formatToday,
 } from '../telegram.messages';
 import type { BookingSnapshot } from '../../bookings/events/booking.events';
+import {
+  parseCustomStatsRange,
+  resolveStatsPresetRange,
+} from '../stats-period';
 
 const sampleBooking: BookingSnapshot = {
   bookingId: 'b1',
@@ -362,6 +368,162 @@ describe('telegram.messages', () => {
       expect(digest).not.toContain('Secret');
       expect(digest).not.toContain('BK-OUT');
       expect(digest).not.toContain('998901111111');
+    });
+  });
+
+  describe('owner /stats', () => {
+    it('formats day / week / month / custom period labels (ru)', () => {
+      expect(formatStatsPeriodLabel('2026-07-29', '2026-07-29', 'ru')).toBe(
+        'за 29 июля 2026',
+      );
+      expect(formatStatsPeriodLabel('2026-07-23', '2026-07-29', 'ru')).toBe(
+        'за 23–29 июля 2026',
+      );
+      expect(formatStatsPeriodLabel('2026-07-01', '2026-07-31', 'ru')).toBe(
+        'за 1–31 июля 2026',
+      );
+      expect(formatStatsPeriodLabel('2026-08-01', '2026-08-07', 'ru')).toBe(
+        'за 1–7 августа 2026',
+      );
+    });
+
+    it('formats compact cash-in report and hides zero methods', () => {
+      const day = formatOwnerStats(
+        {
+          period: { from: '2026-07-29', to: '2026-07-29' },
+          arrivalsBookings: 3,
+          arrivalsGuests: 8,
+          departures: 2,
+          stayingGuests: 18,
+          paymentsByProvider: {
+            cash: '4500000',
+            transfer: '1200000',
+            click: '0',
+          },
+          revenue: '5700000',
+        },
+        'ru',
+      );
+
+      expect(day).toContain('📊 Отчёт за 29 июля 2026');
+      expect(day).toContain('Заезды: 8 гостей');
+      expect(day).toContain('Выезды: 2');
+      expect(day).toContain('Сейчас проживает: 18 гостей');
+      expect(day).toContain('💳 Оплаты:');
+      expect(day).toMatch(/Наличные: 4.?500.?000/);
+      expect(day).toMatch(/Перечисление: 1.?200.?000/);
+      expect(day).not.toContain('Click:');
+      expect(day).not.toContain('Payme:');
+      expect(day).toMatch(/💰 Всего: 5.?700.?000 UZS/);
+
+      const week = formatOwnerStats(
+        {
+          period: { from: '2026-07-23', to: '2026-07-29' },
+          arrivalsBookings: 12,
+          arrivalsGuests: 34,
+          departures: 9,
+          stayingGuests: 18,
+          paymentsByProvider: { cash: '4500000', transfer: '1200000' },
+          revenue: '5700000',
+        },
+        'ru',
+      );
+      expect(week).toContain('📊 Отчёт за 23–29 июля 2026');
+      expect(week).toContain('Заезды: 34 гостей');
+
+      const month = formatOwnerStats(
+        {
+          period: { from: '2026-07-01', to: '2026-07-31' },
+          arrivalsBookings: 40,
+          arrivalsGuests: 110,
+          departures: 35,
+          stayingGuests: 18,
+          paymentsByProvider: {
+            click: '2000000',
+            payme: '1500000',
+            cash: '3000000',
+          },
+          revenue: '6500000',
+        },
+        'ru',
+      );
+      expect(month).toContain('📊 Отчёт за 1–31 июля 2026');
+      expect(month).toMatch(/Click: 2.?000.?000/);
+      expect(month).toMatch(/Payme: 1.?500.?000/);
+      expect(month).toMatch(/Наличные: 3.?000.?000/);
+
+      const custom = formatOwnerStats(
+        {
+          period: { from: '2026-08-01', to: '2026-08-07' },
+          arrivalsBookings: 12,
+          arrivalsGuests: 34,
+          departures: 9,
+          stayingGuests: 18,
+          paymentsByProvider: {
+            cash: '4500000',
+            transfer: '1200000',
+          },
+          revenue: '5700000',
+        },
+        'ru',
+      );
+      expect(custom).toContain('📊 Отчёт за 1–7 августа 2026');
+      expect(custom).toContain('Заезды: 34 гостей');
+      expect(custom).toContain('Выезды: 9');
+      expect(custom).toContain('Сейчас проживает: 18 гостей');
+      expect(custom).toMatch(/Наличные: 4.?500.?000/);
+      expect(custom).toMatch(/Перечисление: 1.?200.?000/);
+      expect(custom).toMatch(/💰 Всего: 5.?700.?000 UZS/);
+    });
+
+    it('formats uz locale report', () => {
+      const text = formatOwnerStats(
+        {
+          period: { from: '2026-08-01', to: '2026-08-07' },
+          arrivalsBookings: 12,
+          arrivalsGuests: 34,
+          departures: 9,
+          stayingGuests: 18,
+          paymentsByProvider: { cash: '4500000' },
+          revenue: '4500000',
+        },
+        'uz',
+      );
+      expect(text).toContain('📊 Hisobot');
+      expect(text).toContain('Kelishlar: 34 mehmon');
+      expect(text).toContain('Naqd:');
+    });
+  });
+
+  describe('stats period helpers', () => {
+    it('resolves day / week / month presets', () => {
+      const now = new Date('2026-07-29T10:00:00+05:00');
+      expect(resolveStatsPresetRange('day', now)).toEqual({
+        from: '2026-07-29',
+        to: '2026-07-29',
+      });
+      expect(resolveStatsPresetRange('week', now)).toEqual({
+        from: '2026-07-23',
+        to: '2026-07-29',
+      });
+      expect(resolveStatsPresetRange('month', now)).toEqual({
+        from: '2026-07-01',
+        to: '2026-07-31',
+      });
+    });
+
+    it('parses custom DD.MM.YYYY ranges and rejects invalid', () => {
+      expect(parseCustomStatsRange('01.08.2026-07.08.2026')).toEqual({
+        from: '2026-08-01',
+        to: '2026-08-07',
+      });
+      expect(parseCustomStatsRange('01.08.2026 – 07.08.2026')).toEqual({
+        from: '2026-08-01',
+        to: '2026-08-07',
+      });
+      expect(parseCustomStatsRange('07.08.2026-01.08.2026')).toBeNull();
+      expect(parseCustomStatsRange('32.08.2026-07.08.2026')).toBeNull();
+      expect(parseCustomStatsRange('not-a-range')).toBeNull();
     });
   });
 });

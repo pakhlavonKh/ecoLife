@@ -96,8 +96,9 @@ fixture booking (regression guard for privacy).
 
 - `/today` — owner/admin/manager: заезды и выезды на сегодня (guests, rooms);
   cleaner: только список номеров, освобождающихся сегодня (cottage + room, no guest data).
-- `/stats` — owner/admin only: сегодня/этот месяц — брони, загрузка %, выручка (paid),
-  ожидающие оплаты.
+- `/stats` — **owner only**: period picker (day / week / month / custom) → cash-in
+  report (arrivals, departures, staying guests, payments by method, total revenue).
+  Admin/manager/cleaner and unbound chats get a polite refusal.
 - `/mute 2h` / `/mute 1d` / `/unmute` — any bound user; sets `muted_until` for themselves.
 - `/whoami` — shows the user's role and status.
 - `/help` — commands available for the user's role only.

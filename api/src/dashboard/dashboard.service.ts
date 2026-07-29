@@ -42,6 +42,7 @@ export class DashboardService {
       totalBedsAgg,
       occupiedBedsToday,
       revenueAgg,
+      revenueByProvider,
     ] = await Promise.all([
       this.prisma.booking.count({
         where: {
@@ -116,6 +117,14 @@ export class DashboardService {
         },
         _sum: { amount: true },
       }),
+      this.prisma.payment.groupBy({
+        by: ['provider'],
+        where: {
+          status: PaymentRecordStatus.succeeded,
+          createdAt: { gte: from, lt: toExclusive },
+        },
+        _sum: { amount: true },
+      }),
     ]);
 
     const totalBeds = totalBedsAgg._sum.capacity ?? 0;
@@ -127,6 +136,24 @@ export class DashboardService {
       totalBeds > 0
         ? Math.round((occupiedBeds / totalBeds) * 1000) / 10
         : 0;
+
+    const amountOf = (providers: string[]) => {
+      let sum = 0;
+      for (const row of revenueByProvider) {
+        if (providers.includes(row.provider)) {
+          sum += Number(row._sum.amount ?? 0);
+        }
+      }
+      return decimalToString(sum);
+    };
+
+    const revenueByMethod = {
+      cash: amountOf(['cash']),
+      card: amountOf(['card']),
+      transfer: amountOf(['transfer']),
+      terminal: amountOf(['terminal']),
+      online: amountOf(['payme', 'click', 'mock']),
+    };
 
     const todayArrivals = await this.prisma.booking.findMany({
       where: {
@@ -166,9 +193,7 @@ export class DashboardService {
       take: 50,
     });
 
-    const mapBrief = (
-      b: (typeof todayArrivals)[number],
-    ) => ({
+    const mapBrief = (b: (typeof todayArrivals)[number]) => ({
       id: b.id,
       publicCode: b.publicCode,
       status: b.status,
@@ -203,9 +228,102 @@ export class DashboardService {
       occupiedBeds,
       totalBeds,
       revenue: decimalToString(revenueAgg._sum.amount ?? 0),
+      revenueByMethod,
       pendingPayments,
       arrivalsList: todayArrivals.map(mapBrief),
       departuresList: todayDepartures.map(mapBrief),
+    };
+  }
+
+  /**
+   * Owner /stats report for an inclusive local-date range [fromDate, toDate].
+   * Revenue is by payment createdAt (cash-in), not booking/check-in date.
+   */
+  async getOwnerPeriodStats(fromDate: string, toDate: string) {
+    const from = parseLocalDateTime(fromDate, undefined, 'from');
+    const to = parseLocalDateTime(toDate, undefined, 'to');
+    const toExclusive = addLocalDays(to, 1);
+    const now = new Date();
+
+    const arrivalStatuses: BookingStatus[] = [
+      BookingStatus.deposit_paid,
+      BookingStatus.confirmed,
+      BookingStatus.checked_in,
+      BookingStatus.checked_out,
+    ];
+    const departureStatuses: BookingStatus[] = [
+      BookingStatus.checked_in,
+      BookingStatus.checked_out,
+    ];
+    const stayingStatuses: BookingStatus[] = [
+      BookingStatus.deposit_paid,
+      BookingStatus.confirmed,
+      BookingStatus.checked_in,
+    ];
+
+    const [arrivalBookings, departureCount, stayingBookings, revenueByProvider] =
+      await Promise.all([
+        this.prisma.booking.findMany({
+          where: {
+            checkIn: { gte: from, lt: toExclusive },
+            status: { in: arrivalStatuses },
+          },
+          select: { bedsTotal: true },
+        }),
+        this.prisma.booking.count({
+          where: {
+            checkOut: { gte: from, lt: toExclusive },
+            status: { in: departureStatuses },
+          },
+        }),
+        this.prisma.booking.findMany({
+          where: {
+            checkIn: { lte: now },
+            checkOut: { gt: now },
+            status: { in: stayingStatuses },
+          },
+          select: { bedsTotal: true },
+        }),
+        this.prisma.payment.groupBy({
+          by: ['provider'],
+          where: {
+            status: PaymentRecordStatus.succeeded,
+            createdAt: { gte: from, lt: toExclusive },
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+    const arrivalsBookings = arrivalBookings.length;
+    const arrivalsGuests = arrivalBookings.reduce(
+      (sum, b) => sum + b.bedsTotal,
+      0,
+    );
+    const stayingGuests = stayingBookings.reduce(
+      (sum, b) => sum + b.bedsTotal,
+      0,
+    );
+
+    const paymentsByProvider: Record<string, string> = {};
+    let revenueTotal = 0;
+    for (const row of revenueByProvider) {
+      const amount = Number(row._sum.amount ?? 0);
+      if (amount <= 0) continue;
+      paymentsByProvider[row.provider] = decimalToString(amount);
+      revenueTotal += amount;
+    }
+
+    return {
+      period: {
+        from: formatLocalDate(from),
+        to: formatLocalDate(to),
+      },
+      arrivalsBookings,
+      arrivalsGuests,
+      departures: departureCount,
+      stayingGuests,
+      paymentsByProvider,
+      revenue: decimalToString(revenueTotal),
     };
   }
 }

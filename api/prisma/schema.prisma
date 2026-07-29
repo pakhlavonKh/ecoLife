@@ -48,6 +48,9 @@ enum PaymentProvider {
   payme
   click
   cash
+  card
+  transfer
+  terminal
   mock
 
   @@map("payment_provider")

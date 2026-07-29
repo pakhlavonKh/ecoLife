@@ -25,6 +25,17 @@ export type BookingRoom = {
   isActive: boolean;
 };
 
+export type BookingPayment = {
+  id: string;
+  provider: string;
+  amount: string;
+  status: string;
+  currency: string;
+  createdAt: string;
+  recordedById: string | null;
+  recordedByName: string | null;
+};
+
 export type Booking = {
   id: string;
   publicCode: string;
@@ -55,6 +66,8 @@ export type Booking = {
     phone: string;
   };
   rooms: BookingRoom[];
+  /** Present on booking detail; newest first. */
+  payments?: BookingPayment[];
 };
 
 export type Category = {
@@ -134,6 +147,13 @@ export type DashboardStats = {
   occupiedBeds: number;
   totalBeds: number;
   revenue: string;
+  revenueByMethod?: {
+    cash: string;
+    card: string;
+    transfer: string;
+    terminal: string;
+    online: string;
+  };
   pendingPayments: number;
   arrivalsList: Array<{
     id: string;

@@ -14,6 +14,7 @@ import {
   dict,
   tt,
   type TelegramLang,
+  type TelegramMessageKey,
 } from './i18n';
 import type { MessageScope } from './telegram.routing';
 
@@ -513,4 +514,153 @@ function uniqueCheckoutRooms(
     }
   }
   return out;
+}
+
+/** Payment methods shown in owner /stats (zero amounts are hidden). */
+const STATS_PAYMENT_ORDER = [
+  'click',
+  'payme',
+  'cash',
+  'card',
+  'transfer',
+  'terminal',
+  'mock',
+] as const;
+
+const STATS_METHOD_KEYS: Record<(typeof STATS_PAYMENT_ORDER)[number], TelegramMessageKey> = {
+  click: 'stats.methodClick',
+  payme: 'stats.methodPayme',
+  cash: 'stats.methodCash',
+  card: 'stats.methodCard',
+  transfer: 'stats.methodTransfer',
+  terminal: 'stats.methodTerminal',
+  mock: 'stats.methodMock',
+};
+
+export type OwnerPeriodStatsInput = {
+  period: { from: string; to: string };
+  arrivalsBookings: number;
+  arrivalsGuests: number;
+  departures: number;
+  stayingGuests: number;
+  paymentsByProvider: Record<string, string>;
+  revenue: string;
+};
+
+function monthGenitive(month: number, lang: TelegramLang): string {
+  const key = `stats.months.m${month}` as TelegramMessageKey;
+  return tt(lang, key);
+}
+
+function parseYmd(iso: string): { year: number; month: number; day: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return null;
+  return {
+    year: Number(m[1]),
+    month: Number(m[2]),
+    day: Number(m[3]),
+  };
+}
+
+/** Human-readable period label without leading «за» (e.g. «1–7 августа 2026»). */
+export function formatStatsPeriodLabel(
+  fromIso: string,
+  toIso: string,
+  lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
+): string {
+  const from = parseYmd(fromIso);
+  const to = parseYmd(toIso);
+  if (!from || !to) {
+    return `${escapeHtml(fromIso)} – ${escapeHtml(toIso)}`;
+  }
+
+  if (from.year === to.year && from.month === to.month && from.day === to.day) {
+    return tt(lang, 'stats.periodDay', {
+      day: from.day,
+      month: monthGenitive(from.month, lang),
+      year: from.year,
+    });
+  }
+
+  if (from.year === to.year && from.month === to.month) {
+    return tt(lang, 'stats.periodRangeSameMonth', {
+      fromDay: from.day,
+      toDay: to.day,
+      month: monthGenitive(from.month, lang),
+      year: from.year,
+    });
+  }
+
+  if (from.year === to.year) {
+    return tt(lang, 'stats.periodRange', {
+      fromDay: from.day,
+      fromMonth: monthGenitive(from.month, lang),
+      toDay: to.day,
+      toMonth: monthGenitive(to.month, lang),
+      year: from.year,
+    });
+  }
+
+  return tt(lang, 'stats.periodRangeYears', {
+    fromDay: from.day,
+    fromMonth: monthGenitive(from.month, lang),
+    fromYear: from.year,
+    toDay: to.day,
+    toMonth: monthGenitive(to.month, lang),
+    toYear: to.year,
+  });
+}
+
+/** Owner /stats cash-in report (HTML). */
+export function formatOwnerStats(
+  stats: OwnerPeriodStatsInput,
+  lang: TelegramLang = DEFAULT_TELEGRAM_LANG,
+): string {
+  const periodLabel = formatStatsPeriodLabel(
+    stats.period.from,
+    stats.period.to,
+    lang,
+  );
+
+  const lines: string[] = [
+    `<b>${tt(lang, 'stats.title', { period: periodLabel })}</b>`,
+    tt(lang, 'stats.arrivals', {
+      guests: stats.arrivalsGuests,
+    }),
+    tt(lang, 'stats.departures', { count: stats.departures }),
+    tt(lang, 'stats.staying', { guests: stats.stayingGuests }),
+    '',
+    `<b>${tt(lang, 'stats.paymentsTitle')}</b>`,
+  ];
+
+  const paymentLines: string[] = [];
+  for (const provider of STATS_PAYMENT_ORDER) {
+    const amount = stats.paymentsByProvider[provider];
+    if (!amount || Number(amount) <= 0) continue;
+    paymentLines.push(
+      `${tt(lang, STATS_METHOD_KEYS[provider])}: ${fmtMoneyAmount(amount, lang)}`,
+    );
+  }
+  for (const [provider, amount] of Object.entries(stats.paymentsByProvider)) {
+    if ((STATS_PAYMENT_ORDER as readonly string[]).includes(provider)) continue;
+    if (!amount || Number(amount) <= 0) continue;
+    paymentLines.push(
+      `${escapeHtml(provider)}: ${fmtMoneyAmount(amount, lang)}`,
+    );
+  }
+
+  if (paymentLines.length === 0) {
+    lines.push(tt(lang, 'stats.noPayments'));
+  } else {
+    lines.push(...paymentLines);
+  }
+
+  lines.push('');
+  lines.push(
+    `<b>${tt(lang, 'stats.total', {
+      amount: fmtMoneyAmount(stats.revenue, lang),
+    })}</b>`,
+  );
+
+  return lines.join('\n');
 }

@@ -26,7 +26,7 @@ import { BookingsService } from './bookings.service';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
-import { MarkPaymentDto } from './dto/mark-payment.dto';
+import { MarkPaymentAmountDto, MarkPaymentDto } from './dto/mark-payment.dto';
 import { TransitionStatusDto } from './dto/transition-status.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 
@@ -113,17 +113,40 @@ export class BookingsAdminController {
     });
   }
 
-  @Post('bookings/:id/payments/cash')
+  @Post('bookings/:id/payments')
   @ApiOperation({
     summary:
-      'Record offline cash payment. When paid_amount == total → paid_full.',
+      'Record offline payment (cash / card / transfer / terminal). When paid_amount == total → paid_full. Online Payme/Click are set by webhooks only.',
   })
-  markCash(
+  markPayment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MarkPaymentDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.paymentsService.recordCashPayment(id, dto.amount, {
+    return this.paymentsService.recordManualPayment(
+      id,
+      dto.provider,
+      dto.amount,
+      {
+        type: ActorType.admin,
+        id: user.id,
+        note: dto.note,
+      },
+    );
+  }
+
+  /** @deprecated Use POST …/payments with provider: "cash". */
+  @Post('bookings/:id/payments/cash')
+  @ApiOperation({
+    summary: 'Record offline cash payment (alias of POST …/payments).',
+    deprecated: true,
+  })
+  markCash(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkPaymentAmountDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.paymentsService.recordManualPayment(id, 'cash', dto.amount, {
       type: ActorType.admin,
       id: user.id,
       note: dto.note,

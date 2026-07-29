@@ -33,6 +33,10 @@ import {
   ProviderWebhookContext,
   ProviderWebhookResult,
 } from './payment-provider.interface';
+import {
+  isManualPaymentProvider,
+  ManualPaymentProvider,
+} from './manual-payment.constants';
 import { ClickProvider } from './providers/click.provider';
 import { MockProvider } from './providers/mock.provider';
 import { PaymeProvider } from './providers/payme.provider';
@@ -180,15 +184,33 @@ export class PaymentsService {
     };
   }
 
-  /**
-   * Admin offline cash payment. Adds to paid_amount; sets paid_full when complete.
-   * If booking is still pending_payment and cash covers deposit → deposit_paid.
-   */
+  /** @deprecated Prefer recordManualPayment — kept for /payments/cash alias. */
   async recordCashPayment(
     bookingId: string,
     amountStr: string | undefined,
     actor: { type: ActorType; id: string; note?: string },
   ) {
+    return this.recordManualPayment(bookingId, 'cash', amountStr, actor);
+  }
+
+  /**
+   * Admin offline payment (cash / card / transfer / terminal).
+   * Adds to paid_amount; sets paid_full when complete.
+   * If booking is still pending_payment and payment covers deposit → deposit_paid.
+   */
+  async recordManualPayment(
+    bookingId: string,
+    provider: ManualPaymentProvider | string,
+    amountStr: string | undefined,
+    actor: { type: ActorType; id: string; note?: string },
+  ) {
+    if (!isManualPaymentProvider(provider)) {
+      throw new BadRequestException(
+        `Invalid offline payment method "${provider}". Allowed: cash, card, transfer, terminal`,
+      );
+    }
+    const method = provider;
+
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -251,13 +273,13 @@ export class PaymentsService {
       const payment = await tx.payment.create({
         data: {
           bookingId,
-          provider: PrismaPaymentProvider.cash,
-          providerTxnId: `cash-${randomUUID()}`,
+          provider: method as PrismaPaymentProvider,
+          providerTxnId: `${method}-${randomUUID()}`,
           amount,
           currency: 'UZS',
           status: PaymentRecordStatus.succeeded,
           payload: {
-            purpose: 'admin_cash',
+            purpose: 'admin_manual',
             note: actor.note ?? null,
             recordedBy: actor.id,
           },
@@ -293,7 +315,7 @@ export class PaymentsService {
           actorId: actor.id,
           entity: 'payment',
           entityId: payment.id,
-          action: 'cash_received',
+          action: 'manual_received',
           diff: {
             before: {
               paidAmount: decimalToString(booking.paidAmount),
@@ -305,6 +327,7 @@ export class PaymentsService {
               paymentStatus,
               status,
               amount: decimalToString(amount),
+              provider: method,
               note: actor.note ?? null,
             },
           },
@@ -318,7 +341,7 @@ export class PaymentsService {
       bookingId,
       paymentId: result.payment.id,
       publicCode: booking.publicCode,
-      provider: 'cash',
+      provider: method,
       amount: decimalToString(amount),
       providerTxnId: result.payment.providerTxnId ?? '',
       ...(result.booking.totalAmount.eq(result.booking.priceOriginal)

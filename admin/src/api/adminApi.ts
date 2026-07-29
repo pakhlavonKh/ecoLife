@@ -44,6 +44,17 @@ export const bookingsApi = {
       ...(amount ? { amount } : {}),
       ...(note ? { note } : {}),
     }),
+  markPayment: (
+    id: string,
+    provider: 'cash' | 'card' | 'transfer' | 'terminal',
+    amount?: string,
+    note?: string,
+  ) =>
+    api.post(`/api/v1/admin/bookings/${id}/payments`, {
+      provider,
+      ...(amount ? { amount } : {}),
+      ...(note ? { note } : {}),
+    }),
 };
 
 export const availabilityApi = {

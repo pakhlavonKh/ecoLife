@@ -34,7 +34,20 @@ import {
   nightsBetween,
 } from '../lib/format';
 import { formatGuestName, splitGuestName } from '../lib/guest-name';
-import { sourceLabel, statusActionLabel } from '../lib/labels';
+import {
+  paymentProviderLabel,
+  sourceLabel,
+  statusActionLabel,
+} from '../lib/labels';
+
+const MANUAL_PAYMENT_METHODS = [
+  'cash',
+  'card',
+  'transfer',
+  'terminal',
+] as const;
+
+type ManualPaymentMethod = (typeof MANUAL_PAYMENT_METHODS)[number];
 
 function liveRemaining(totalStr: string, paidStr: string): number {
   const total = Number(totalStr);
@@ -56,6 +69,8 @@ export function BookingDetailPage() {
   >({});
   const [bufferMinutes, setBufferMinutes] = useState(60);
   const [cashAmount, setCashAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] =
+    useState<ManualPaymentMethod>('cash');
   const [locks, setLocks] = useState<RoomLock[]>([]);
   const [lockReason, setLockReason] = useState('');
   /** Snapshot of guests|dates|times|roomId from last load — used to skip price sync until user edits inventory. */
@@ -328,13 +343,18 @@ export function BookingDetailPage() {
     }
   }
 
-  async function onCash() {
+  async function onMarkPayment() {
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      await bookingsApi.cash(id, cashAmount || undefined);
+      await bookingsApi.markPayment(
+        id,
+        paymentMethod,
+        cashAmount || undefined,
+      );
       await load();
+      setCashAmount('');
       setMessage(t('bookingDetail.cashRecorded'));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -730,24 +750,66 @@ export function BookingDetailPage() {
             <div className="mb-3 text-sm font-medium">
               {t('bookingDetail.cashTitle')}
             </div>
-            <Field label={t('bookingDetail.cashAmountLabel')}>
-              <Input
-                value={cashAmount}
-                onChange={(e) => setCashAmount(e.target.value)}
-                placeholder={
-                  previewRemaining != null
-                    ? String(previewRemaining)
-                    : booking?.remainingAmount
-                }
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('bookingDetail.cashAmountLabel')}>
+                <Input
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  placeholder={
+                    previewRemaining != null
+                      ? String(previewRemaining)
+                      : booking?.remainingAmount
+                  }
+                />
+              </Field>
+              <Field label={t('bookingDetail.paymentMethodLabel')}>
+                <Select
+                  value={paymentMethod}
+                  onChange={(e) =>
+                    setPaymentMethod(e.target.value as ManualPaymentMethod)
+                  }
+                >
+                  {MANUAL_PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {paymentProviderLabel(m)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
             <Button
               className="mt-3 w-full"
               disabled={busy || booking?.paymentStatus === 'paid_full'}
-              onClick={() => void onCash()}
+              onClick={() => void onMarkPayment()}
             >
               {t('bookingDetail.markCashPaid')}
             </Button>
+          </Card>
+
+          <Card className="p-4">
+            <div className="mb-3 text-sm font-medium">
+              {t('bookingDetail.paymentsTitle')}
+            </div>
+            {(booking?.payments?.length ?? 0) > 0 ? (
+              <ul className="space-y-1.5 text-xs text-[var(--muted)]">
+                {booking!.payments!.map((p) => (
+                  <li key={p.id}>
+                    {t('bookingDetail.paymentLine', {
+                      date: formatDateTime(p.createdAt),
+                      amount: formatMoney(p.amount),
+                      method: paymentProviderLabel(p.provider),
+                      who:
+                        p.recordedByName ??
+                        t('bookingDetail.paymentRecordedBySystem'),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-[var(--muted)]">
+                {t('bookingDetail.paymentsEmpty')}
+              </p>
+            )}
           </Card>
         </div>
       </div>

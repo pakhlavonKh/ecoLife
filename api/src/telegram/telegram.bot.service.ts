@@ -18,7 +18,12 @@ import {
   type TelegramLang,
 } from './i18n';
 import { setTelegramBotUsername } from './telegram.bot-username';
-import { formatToday } from './telegram.messages';
+import { formatOwnerStats, formatToday } from './telegram.messages';
+import {
+  parseCustomStatsRange,
+  resolveStatsPresetRange,
+  type StatsPeriodPreset,
+} from './stats-period';
 import { TelegramInvitesService } from './telegram-invites.service';
 import { TelegramQueueService } from './telegram.queue.service';
 import { TelegramRecipientsService } from './telegram-recipients.service';
@@ -45,6 +50,15 @@ function langKeyboard(): InlineKeyboard {
     .text(tt('uz', 'commands.langButtonUz'), 'lang:uz');
 }
 
+function statsPeriodKeyboard(lang: TelegramLang): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(tt(lang, 'stats.buttonDay'), 'stats:day')
+    .text(tt(lang, 'stats.buttonWeek'), 'stats:week')
+    .row()
+    .text(tt(lang, 'stats.buttonMonth'), 'stats:month')
+    .text(tt(lang, 'stats.buttonCustom'), 'stats:custom');
+}
+
 @Injectable()
 export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramBotService.name);
@@ -52,6 +66,8 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
   private enabled = false;
   /** Env fallback chat IDs (used only when recipients table is empty). */
   private readonly envChatIds = new Set<string>();
+  /** Owner chats awaiting custom /stats date range text. */
+  private readonly awaitingStatsCustom = new Set<string>();
 
   constructor(
     private readonly config: ConfigService,
@@ -168,6 +184,8 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      this.clearStatsCustomAwait(chatId);
+
       const payload =
         typeof ctx.match === 'string' ? ctx.match.trim() : '';
       const lang = await this.langForChat(chatId);
@@ -209,6 +227,8 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      this.clearStatsCustomAwait(chatId);
+
       const recipient = await this.recipients.findByChatId(BigInt(chatId));
       const lang = toTelegramLang(recipient?.language);
       if (!recipient) {
@@ -243,6 +263,8 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       if (chatId === undefined) {
         return;
       }
+
+      this.clearStatsCustomAwait(chatId);
 
       const access = await this.resolveCommandAccess(chatId);
       if (access.status === 'denied') {
@@ -300,6 +322,7 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
     });
 
     bot.command('today', async (ctx) => {
+      this.clearStatsCustomAwait(ctx.chat?.id);
       const access = await this.resolveCommandAccess(ctx.chat?.id);
       const lang = await this.langForChat(ctx.chat?.id);
       if (access.status === 'denied') {
@@ -336,6 +359,111 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
           /* ignore */
         }
       }
+    });
+
+    bot.command('stats', async (ctx) => {
+      const chatId = ctx.chat?.id;
+      const access = await this.resolveOwnerStatsAccess(chatId);
+      const lang = await this.langForChat(chatId);
+      if (access.status === 'denied') {
+        this.logger.warn(
+          { chatId },
+          'Ignored /stats from unauthorized chat',
+        );
+        await ctx.reply(tt(lang, 'commands.statsForbidden'));
+        return;
+      }
+      if (access.status === 'inactive') {
+        await ctx.reply(tt(lang, 'commands.accessDisabled'));
+        return;
+      }
+      if (access.status === 'forbidden') {
+        await ctx.reply(tt(lang, 'commands.statsForbidden'));
+        return;
+      }
+
+      this.clearStatsCustomAwait(chatId);
+      await ctx.reply(tt(lang, 'stats.prompt'), {
+        reply_markup: statsPeriodKeyboard(lang),
+      });
+    });
+
+    bot.callbackQuery(/^stats:(day|week|month|custom)$/, async (ctx) => {
+      const chatId = ctx.chat?.id;
+      const access = await this.resolveOwnerStatsAccess(chatId);
+      const lang = await this.langForChat(chatId);
+      const preset = ctx.match?.[1] as
+        | StatsPeriodPreset
+        | 'custom'
+        | undefined;
+
+      try {
+        await ctx.answerCallbackQuery();
+      } catch {
+        /* ignore */
+      }
+
+      if (access.status !== 'ok' || !preset) {
+        if (access.status === 'forbidden' || access.status === 'denied') {
+          try {
+            await ctx.reply(tt(lang, 'commands.statsForbidden'));
+          } catch {
+            /* ignore */
+          }
+        } else if (access.status === 'inactive') {
+          try {
+            await ctx.reply(tt(lang, 'commands.accessDisabled'));
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+
+      if (preset === 'custom') {
+        this.setStatsCustomAwait(chatId);
+        await ctx.reply(tt(lang, 'stats.customPrompt'));
+        return;
+      }
+
+      this.clearStatsCustomAwait(chatId);
+      await this.replyOwnerStatsReport(ctx, lang, resolveStatsPresetRange(preset));
+    });
+
+    bot.on('message:text', async (ctx, next) => {
+      const chatId = ctx.chat?.id;
+      if (chatId === undefined || !this.awaitingStatsCustom.has(String(chatId))) {
+        await next();
+        return;
+      }
+
+      const text = ctx.message.text.trim();
+      if (text.startsWith('/')) {
+        this.clearStatsCustomAwait(chatId);
+        await next();
+        return;
+      }
+
+      const access = await this.resolveOwnerStatsAccess(chatId);
+      const lang = await this.langForChat(chatId);
+      if (access.status !== 'ok') {
+        this.clearStatsCustomAwait(chatId);
+        if (access.status === 'inactive') {
+          await ctx.reply(tt(lang, 'commands.accessDisabled'));
+        } else {
+          await ctx.reply(tt(lang, 'commands.statsForbidden'));
+        }
+        return;
+      }
+
+      const range = parseCustomStatsRange(text);
+      if (!range) {
+        await ctx.reply(tt(lang, 'stats.customInvalid'));
+        return;
+      }
+
+      this.clearStatsCustomAwait(chatId);
+      await this.replyOwnerStatsReport(ctx, lang, range);
     });
 
     bot.catch((err) => {
@@ -434,6 +562,55 @@ export class TelegramBotService implements OnModuleInit, OnModuleDestroy {
       }
     }
     await ctx.reply(text);
+  }
+
+  private async replyOwnerStatsReport(
+    ctx: { reply: (text: string, other?: object) => Promise<unknown> },
+    lang: TelegramLang,
+    range: { from: string; to: string },
+  ): Promise<void> {
+    try {
+      const stats = await this.dashboard.getOwnerPeriodStats(
+        range.from,
+        range.to,
+      );
+      const text = formatOwnerStats(stats, lang);
+      await ctx.reply(text, { parse_mode: 'HTML' });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error({ err: msg, range }, 'Failed to handle /stats');
+      try {
+        await ctx.reply(tt(lang, 'commands.statsFailed'));
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  private setStatsCustomAwait(chatId: number | undefined): void {
+    if (chatId === undefined) return;
+    this.awaitingStatsCustom.add(String(chatId));
+  }
+
+  private clearStatsCustomAwait(chatId: number | undefined): void {
+    if (chatId === undefined) return;
+    this.awaitingStatsCustom.delete(String(chatId));
+  }
+
+  private async resolveOwnerStatsAccess(
+    chatId: number | undefined,
+  ): Promise<{
+    status: 'ok' | 'inactive' | 'denied' | 'forbidden';
+    role?: TelegramStaffRole;
+  }> {
+    const access = await this.resolveCommandAccess(chatId);
+    if (access.status !== 'ok') {
+      return access;
+    }
+    if (access.role !== TelegramStaffRole.owner) {
+      return { status: 'forbidden', role: access.role };
+    }
+    return access;
   }
 
   private async resolveCommandAccess(

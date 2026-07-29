@@ -343,12 +343,49 @@ export class BookingsService {
             room: { include: { cottage: true, category: true } },
           },
         },
+        payments: { orderBy: { createdAt: 'desc' } },
       },
     });
     if (!booking) {
       throw new NotFoundException('Booking not found');
     }
-    return this.toView(booking);
+    const view = this.toView(booking);
+    const recordedByIds = new Set<string>();
+    for (const p of booking.payments) {
+      const payload = p.payload as { recordedBy?: unknown } | null;
+      if (typeof payload?.recordedBy === 'string' && payload.recordedBy) {
+        recordedByIds.add(payload.recordedBy);
+      }
+    }
+    const users =
+      recordedByIds.size > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: [...recordedByIds] } },
+            select: { id: true, name: true },
+          })
+        : [];
+    const nameById = new Map(users.map((u) => [u.id, u.name]));
+
+    return {
+      ...view,
+      payments: booking.payments.map((p) => {
+        const payload = p.payload as { recordedBy?: unknown } | null;
+        const recordedById =
+          typeof payload?.recordedBy === 'string' ? payload.recordedBy : null;
+        return {
+          id: p.id,
+          provider: p.provider,
+          amount: decimalToString(p.amount),
+          status: p.status,
+          currency: p.currency,
+          createdAt: p.createdAt.toISOString(),
+          recordedById,
+          recordedByName: recordedById
+            ? (nameById.get(recordedById) ?? null)
+            : null,
+        };
+      }),
+    };
   }
 
   async getByPublicCode(publicCode: string) {
