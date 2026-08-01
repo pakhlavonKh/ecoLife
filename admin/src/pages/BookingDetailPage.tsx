@@ -267,9 +267,13 @@ export function BookingDetailPage() {
             });
           }
           setRooms(list);
+          setError('');
         }
-      } catch {
-        /* availability validation may fail for past stays — ignore */
+      } catch (err) {
+        if (!cancelled) {
+          setRooms([]);
+          setError(getErrorMessage(err));
+        }
       }
     })();
     return () => {

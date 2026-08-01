@@ -72,7 +72,7 @@ export type StayValidationOptions = {
   now?: Date;
   /** @deprecated Prefer `now`. Kept so existing tests can pass a frozen clock. */
   today?: Date;
-  /** Admin edits of existing stays may keep a past check-in. */
+  /** Admin/manual flows may create or edit stays with a past check-in. */
   allowPast?: boolean;
   /** Local wall-clock check-in time, HH:mm. Defaults to 14:00. */
   checkInTime?: string;

@@ -115,11 +115,17 @@ export class AvailabilityService {
   validateQuery(
     checkIn: string,
     checkOut: string,
-    times?: { checkInTime?: string; checkOutTime?: string },
+    times?: {
+      checkInTime?: string;
+      checkOutTime?: string;
+      /** Admin/manual flows may create or inspect past stays (migration). */
+      allowPast?: boolean;
+    },
   ): ValidatedStay {
     return validateStayDates(checkIn, checkOut, {
       minNights: Number(this.config.get('MIN_STAY_NIGHTS') ?? 1),
       maxNights: Number(this.config.get('MAX_STAY_NIGHTS') ?? 30),
+      allowPast: times?.allowPast === true,
       checkInTime: times?.checkInTime ?? getDefaultCheckInTime(this.config),
       checkOutTime: times?.checkOutTime ?? getDefaultCheckOutTime(this.config),
     });
@@ -553,6 +559,7 @@ export class AvailabilityService {
     const stay = this.validateQuery(checkInStr, checkOutStr, {
       checkInTime: options?.checkInTime,
       checkOutTime: options?.checkOutTime,
+      allowPast: true,
     });
 
     const categories = await this.prisma.roomCategory.findMany({

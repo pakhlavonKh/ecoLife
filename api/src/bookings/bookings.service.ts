@@ -551,6 +551,7 @@ export class BookingsService {
     const stay = this.availability.validateQuery(dto.checkIn, dto.checkOut, {
       checkInTime: dto.checkInTime,
       checkOutTime: dto.checkOutTime,
+      allowPast: true,
     });
 
     try {
