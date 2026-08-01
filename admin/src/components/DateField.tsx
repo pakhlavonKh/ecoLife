@@ -15,6 +15,23 @@ type Props = {
   className?: string;
 };
 
+function digitsBefore(value: string, caret: number): number {
+  return value.slice(0, Math.max(0, caret)).replace(/\D/g, '').length;
+}
+
+/** Place caret after `count` digits in a masked DD/MM/YYYY string. */
+function caretAfterDigits(masked: string, count: number): number {
+  if (count <= 0) return 0;
+  let seen = 0;
+  for (let i = 0; i < masked.length; i++) {
+    if (/\d/.test(masked[i])) {
+      seen += 1;
+      if (seen >= count) return i + 1;
+    }
+  }
+  return masked.length;
+}
+
 /**
  * Text input as DD/MM/YYYY; value/onChange use ISO YYYY-MM-DD for the API.
  */
@@ -30,14 +47,29 @@ export function DateField({
   const autoId = useId();
   const id = idProp || autoId;
   const pickerRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusedRef = useRef(false);
+  const caretRef = useRef<number | null>(null);
   const [text, setText] = useState(() => isoToDisplayDate(value));
 
+  // Sync from parent only when not editing — avoids jumping the caret to the end.
   useEffect(() => {
+    if (focusedRef.current) return;
     setText(isoToDisplayDate(value));
   }, [value]);
 
-  const commit = (nextText: string) => {
-    const masked = maskDateInput(nextText);
+  useEffect(() => {
+    if (caretRef.current == null) return;
+    const el = inputRef.current;
+    const pos = caretRef.current;
+    caretRef.current = null;
+    if (!el) return;
+    el.setSelectionRange(pos, pos);
+  }, [text]);
+
+  const commit = (raw: string, caret: number) => {
+    const masked = maskDateInput(raw);
+    caretRef.current = caretAfterDigits(masked, digitsBefore(raw, caret));
     setText(masked);
     const iso = displayToIsoDate(masked);
     if (iso) {
@@ -67,6 +99,7 @@ export function DateField({
   return (
     <div className={`relative ${className}`}>
       <input
+        ref={inputRef}
         id={id}
         type="text"
         inputMode="numeric"
@@ -74,14 +107,22 @@ export function DateField({
         placeholder={t('dateField.placeholder')}
         value={text}
         required={required}
-        onChange={(e) => commit(e.target.value)}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onChange={(e) =>
+          commit(e.target.value, e.target.selectionStart ?? e.target.value.length)
+        }
         onBlur={() => {
+          focusedRef.current = false;
           const iso = displayToIsoDate(text);
           if (iso) {
             setText(isoToDisplayDate(iso));
             if (min && iso < min) {
               onChange(min);
               setText(isoToDisplayDate(min));
+            } else {
+              onChange(iso);
             }
           } else if (text.length > 0 && !iso) {
             setText(isoToDisplayDate(value));
