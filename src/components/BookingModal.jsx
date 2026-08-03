@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchAvailability } from '../api/availability';
 import { createBooking } from '../api/bookings';
+import { paymeCreateCard, paymePayReceipt } from '../api/payments';
 import { getErrorMessage, isConflictError } from '../api/client';
 import {
   fetchPublicConfig,
@@ -29,6 +30,39 @@ import {
   todayStr,
   translateCottageName,
 } from '../utils/booking';
+
+const dict = {
+  ru: {
+    paymeSubscribeTitle: "Оплата картой Payme",
+    paymeCardNumber: "Номер карты",
+    paymeCardExpiry: "Срок действия (ММ/ГГ)",
+    paymeOtpTitle: "Подтверждение оплаты",
+    paymeOtpText: "Мы отправили СМС-код на номер",
+    paymeOtpCode: "Код из СМС",
+    paymeConfirmAndPay: "Подтвердить и оплатить",
+    paymeBackButton: "Назад",
+  },
+  uz: {
+    paymeSubscribeTitle: "Payme kartasi orqali to‘lov",
+    paymeCardNumber: "Karta raqami",
+    paymeCardExpiry: "Amal qilish muddati (OO/YY)",
+    paymeOtpTitle: "To‘lovni tasdiqlash",
+    paymeOtpText: "Biz SMS kodni quyidagi raqamga yubordik:",
+    paymeOtpCode: "SMS dan kod",
+    paymeConfirmAndPay: "Tasdiqlash va to‘lash",
+    paymeBackButton: "Orqaga",
+  },
+  en: {
+    paymeSubscribeTitle: "Payme Card Payment",
+    paymeCardNumber: "Card Number",
+    paymeCardExpiry: "Expiration Date (MM/YY)",
+    paymeOtpTitle: "Payment Confirmation",
+    paymeOtpText: "We sent an SMS code to the phone number",
+    paymeOtpCode: "SMS Code",
+    paymeConfirmAndPay: "Confirm and Pay",
+    paymeBackButton: "Back",
+  }
+};
 
 /**
  * Age-based guest booking modal — adults/children occupy beds; infants do not.
@@ -70,6 +104,14 @@ function BookingModal({
   const [error, setError] = useState('');
   const [nights, setNights] = useState(0);
   const [requestResult, setRequestResult] = useState(null);
+
+  const [step, setStep] = useState('form'); // 'form' | 'card_input' | 'sms_otp'
+  const [paymentId, setPaymentId] = useState('');
+  const [cardToken, setCardToken] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpire, setCardExpire] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [smsPhone, setSmsPhone] = useState('');
 
   const depositPercent =
     category.depositPercent ??
@@ -244,6 +286,12 @@ function BookingModal({
 
       const result = await createBooking(payload);
 
+      if (paymentsEnabled && provider === 'payme' && result.paymentId) {
+        setPaymentId(result.paymentId);
+        setStep('card_input');
+        return;
+      }
+
       if (result.paymentUrl) {
         onBooked?.(result);
         window.location.assign(result.paymentUrl);
@@ -271,11 +319,119 @@ function BookingModal({
     }
   };
 
+  const handleCardNumberChange = (e) => {
+    const rawValue = e.target.value;
+    const cleanValue = rawValue.replace(/\D/g, '');
+    const formattedParts = [];
+    for (let i = 0; i < cleanValue.length; i += 4) {
+      formattedParts.push(cleanValue.substring(i, i + 4));
+    }
+    setCardNumber(formattedParts.join(' '));
+  };
+
+  const handleCardExpireChange = (e) => {
+    const rawValue = e.target.value;
+    const cleanValue = rawValue.replace(/\D/g, '');
+    if (cleanValue.length > 2) {
+      setCardExpire(`${cleanValue.substring(0, 2)}/${cleanValue.substring(2, 4)}`);
+    } else {
+      setCardExpire(cleanValue);
+    }
+  };
+
+  const handleCardSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const rawNumber = cardNumber.replace(/\s+/g, '');
+    const rawExpire = cardExpire.replace(/[\s/]+/g, '');
+
+    if (rawNumber.length < 16) {
+      setError('Номер карты должен состоять из 16-20 цифр');
+      return;
+    }
+    if (rawExpire.length < 4) {
+      setError('Срок действия должен быть в формате ММ/ГГ');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await paymeCreateCard({
+        number: rawNumber,
+        expire: rawExpire,
+      });
+
+      setCardToken(res.token);
+
+      if (res.verify) {
+        setSmsPhone(res.phone || '');
+        setStep('sms_otp');
+      } else {
+        const payRes = await paymePayReceipt({
+          paymentId,
+          token: res.token,
+        });
+        const mockBookingResult = {
+          publicCode: payRes.bookingCode,
+          requiresOperator: false,
+        };
+        onBooked?.(mockBookingResult);
+        window.location.assign(
+          `/booking/success?code=${encodeURIComponent(payRes.bookingCode)}`
+        );
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, t('bookingError')));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSmsSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (smsCode.length < 6) {
+      setError('СМС-код должен содержать 6 цифр');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payRes = await paymePayReceipt({
+        paymentId,
+        token: cardToken,
+        code: smsCode,
+      });
+
+      const mockBookingResult = {
+        publicCode: payRes.bookingCode,
+        requiresOperator: false,
+      };
+      onBooked?.(mockBookingResult);
+      window.location.assign(
+        `/booking/success?code=${encodeURIComponent(payRes.bookingCode)}`
+      );
+    } catch (err) {
+      setError(getErrorMessage(err, t('bookingError')));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const locale = i18n.language?.startsWith('uz')
     ? 'uz-UZ'
     : i18n.language?.startsWith('en')
       ? 'en-US'
       : 'ru-RU';
+
+  const lang = i18n.language?.startsWith('uz')
+    ? 'uz'
+    : i18n.language?.startsWith('en')
+      ? 'en'
+      : 'ru';
+  const mTrans = dict[lang];
 
   const formatFromHint = (hint) => {
     if (!hint) return '';
@@ -360,6 +516,120 @@ function BookingModal({
               </button>
             </div>
           </div>
+        ) : step === 'card_input' ? (
+          <form className="booking-modal__form" onSubmit={handleCardSubmit}>
+            <div style={{ marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '8px', fontWeight: '600' }}>
+                {mTrans.paymeSubscribeTitle}
+              </h3>
+              {preview && (
+                <p style={{ color: '#555', fontSize: '0.95rem' }}>
+                  {t('bookingModal.deposit', { percent: depositPercent })}: <strong>{formatMoney(preview.deposit, locale)}</strong>
+                </p>
+              )}
+            </div>
+
+            <div className="booking-modal__grid">
+              <label className="field field--full">
+                <span>{mTrans.paymeCardNumber}</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={cardNumber}
+                  onChange={handleCardNumberChange}
+                  placeholder="0000 0000 0000 0000"
+                  maxLength={19}
+                  required
+                />
+              </label>
+              <label className="field field--full">
+                <span>{mTrans.paymeCardExpiry}</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={cardExpire}
+                  onChange={handleCardExpireChange}
+                  placeholder="ММ/ГГ"
+                  maxLength={5}
+                  required
+                />
+              </label>
+            </div>
+
+            {error ? (
+              <p className="booking-modal__error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="booking-modal__actions">
+              <button
+                type="button"
+                className="btn btn--outline"
+                onClick={() => setStep('form')}
+                disabled={submitting}
+              >
+                {mTrans.paymeBackButton}
+              </button>
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={submitting || cardNumber.length < 19 || cardExpire.length < 5}
+              >
+                {submitting ? t('loading') : t('bookingModal.confirmPay')}
+              </button>
+            </div>
+          </form>
+        ) : step === 'sms_otp' ? (
+          <form className="booking-modal__form" onSubmit={handleSmsSubmit}>
+            <div style={{ marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '8px', fontWeight: '600' }}>
+                {mTrans.paymeOtpTitle}
+              </h3>
+              <p style={{ color: '#555', fontSize: '0.95rem' }}>
+                {mTrans.paymeOtpText} <strong>{smsPhone}</strong>
+              </p>
+            </div>
+
+            <div className="booking-modal__grid">
+              <label className="field field--full">
+                <span>{mTrans.paymeOtpCode}</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="000000"
+                  maxLength={6}
+                  required
+                />
+              </label>
+            </div>
+
+            {error ? (
+              <p className="booking-modal__error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="booking-modal__actions">
+              <button
+                type="button"
+                className="btn btn--outline"
+                onClick={() => setStep('card_input')}
+                disabled={submitting}
+              >
+                {mTrans.paymeBackButton}
+              </button>
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={submitting || smsCode.length < 6}
+              >
+                {submitting ? t('loading') : t('bookingModal.confirmPay')}
+              </button>
+            </div>
+          </form>
         ) : (
           <form className="booking-modal__form" onSubmit={handleSubmit}>
             <div className="booking-modal__grid">

@@ -530,6 +530,82 @@ export class PaymeProvider implements PaymentProvider {
     }
     return payme as PaymeTxnMeta;
   }
+
+  private async sendPaymeRpcRequest(method: string, params: any): Promise<any> {
+    const host = this.config.get<string>('PAYME_CHECKOUT_URL') ?? 'https://checkout.paycom.uz';
+    const endpoint = `${host.replace(/\/$/, '')}/api`;
+    const merchantId = this.config.get<string>('PAYME_MERCHANT_ID') ?? '';
+    const paymeKey = this.config.get<string>('PAYME_KEY') ?? '';
+
+    if (!merchantId || !paymeKey) {
+      throw new Error('Payme credentials (PAYME_MERCHANT_ID or PAYME_KEY) not configured');
+    }
+
+    const payload = {
+      jsonrpc: '2.0',
+      id: Math.floor(Math.random() * 1000000),
+      method,
+      params,
+    };
+
+    this.logger.debug({ method, endpoint }, 'Sending JSON-RPC request to Payme');
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'X-Auth': `${merchantId}:${paymeKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Payme HTTP error: ${response.status} ${response.statusText}`);
+      }
+
+      const responseBody: any = await response.json();
+
+      if (responseBody.error) {
+        this.logger.warn({ error: responseBody.error, method }, 'Payme RPC returned error');
+        throw new Error(`${responseBody.error.message} (${responseBody.error.code})`);
+      }
+
+      return responseBody.result;
+    } catch (error) {
+      this.logger.error({ error, method }, 'Payme RPC request failed');
+      throw error;
+    }
+  }
+
+  async cardsCreate(number: string, expire: string): Promise<any> {
+    return this.sendPaymeRpcRequest('cards.create', {
+      card: { number, expire },
+      save: true,
+    });
+  }
+
+  async cardsGetVerifyCode(token: string): Promise<any> {
+    return this.sendPaymeRpcRequest('cards.get_verify_code', { token });
+  }
+
+  async cardsVerify(token: string, code: string): Promise<any> {
+    return this.sendPaymeRpcRequest('cards.verify', { token, code });
+  }
+
+  async receiptsCreate(amountTiyin: number, paymentId: string): Promise<any> {
+    return this.sendPaymeRpcRequest('receipts.create', {
+      amount: amountTiyin,
+      account: { payment_id: paymentId },
+    });
+  }
+
+  async receiptsPay(receiptId: string, token: string): Promise<any> {
+    return this.sendPaymeRpcRequest('receipts.pay', {
+      id: receiptId,
+      token,
+    });
+  }
 }
 
 function headerValue(

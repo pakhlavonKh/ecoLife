@@ -40,6 +40,8 @@ import {
 import { ClickProvider } from './providers/click.provider';
 import { MockProvider } from './providers/mock.provider';
 import { PaymeProvider } from './providers/payme.provider';
+import { PaymeCreateCardDto, PaymePayReceiptDto } from './dto/payme-subscribe.dto';
+import { uzsToTiyin } from './providers/payme.auth';
 
 @Injectable()
 export class PaymentsService {
@@ -384,6 +386,92 @@ export class PaymentsService {
         depositAmount: decimalToString(result.booking.depositAmount),
       },
     };
+  }
+
+  async paymeCreateCard(dto: PaymeCreateCardDto) {
+    const number = dto.number.replace(/\s+/g, '');
+    const expire = dto.expire.replace(/[\s/]+/g, '');
+
+    try {
+      const cardResult = await this.payme.cardsCreate(number, expire);
+      const card = cardResult.card;
+
+      if (card.verify) {
+        const verifyResult = await this.payme.cardsGetVerifyCode(card.token);
+        return {
+          token: card.token,
+          verify: true,
+          phone: verifyResult.phone || null,
+        };
+      }
+
+      return {
+        token: card.token,
+        verify: false,
+        phone: null,
+      };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Failed to register card with Payme');
+    }
+  }
+
+  async paymePayReceipt(dto: PaymePayReceiptDto) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+      include: { booking: true },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (payment.status === PaymentRecordStatus.succeeded) {
+      return {
+        success: true,
+        bookingCode: payment.booking.publicCode,
+      };
+    }
+
+    if (payment.status === PaymentRecordStatus.failed) {
+      throw new BadRequestException('Payment already marked as failed');
+    }
+
+    let token = dto.token;
+
+    try {
+      if (dto.code) {
+        const verifyResult = await this.payme.cardsVerify(token, dto.code);
+        token = verifyResult.card.token || token;
+      }
+
+      const amountTiyin = uzsToTiyin(decimalToString(payment.amount));
+
+      const receiptResult = await this.payme.receiptsCreate(amountTiyin, payment.id);
+      const receiptId = receiptResult.receipt._id;
+
+      const payResult = await this.payme.receiptsPay(receiptId, token);
+
+      if (payResult.receipt.state !== 2) {
+        throw new BadRequestException(`Receipt pay status is not paid (state = ${payResult.receipt.state})`);
+      }
+
+      const event: NormalizedWebhookEvent = {
+        type: 'payment.succeeded',
+        paymentId: payment.id,
+        providerTxnId: receiptId,
+        amountUzs: decimalToString(payment.amount),
+        raw: payResult,
+      };
+
+      await this.applyWebhookEvent('payme', event);
+
+      return {
+        success: true,
+        bookingCode: payment.booking.publicCode,
+      };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Payment failed');
+    }
   }
 
   async getPaymentForMockPage(paymentId: string) {

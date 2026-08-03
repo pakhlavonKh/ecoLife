@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -13,6 +14,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { StrictThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { PaymentsService } from './payments.service';
+import { PaymeCreateCardDto, PaymePayReceiptDto } from './dto/payme-subscribe.dto';
 
 @ApiTags('payments')
 @Controller('payments')
@@ -152,6 +154,20 @@ export class PaymentsController {
       body: req.body,
     });
     return result.responseBody;
+  }
+
+  @Post('payme/cards/create')
+  @StrictThrottle(10)
+  @ApiOperation({ summary: 'Payme Subscribe API: register card and trigger OTP' })
+  async paymeCreateCard(@Body() dto: PaymeCreateCardDto) {
+    return this.payments.paymeCreateCard(dto);
+  }
+
+  @Post('payme/receipts/pay')
+  @StrictThrottle(10)
+  @ApiOperation({ summary: 'Payme Subscribe API: verify card (if OTP code provided) and pay receipt' })
+  async paymePayReceipt(@Body() dto: PaymePayReceiptDto) {
+    return this.payments.paymePayReceipt(dto);
   }
 }
 
