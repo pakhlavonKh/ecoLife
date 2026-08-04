@@ -276,7 +276,7 @@ export class AvailabilityService {
     checkIn: Date,
     checkOut: Date,
     tx: TxClient,
-    options?: { excludeBookingId?: string },
+    options?: { excludeBookingId?: string; maxExtraCapacity?: number },
   ): Promise<void> {
     const snap = await this.getRoomStaySnapshot(
       roomId,
@@ -287,7 +287,9 @@ export class AvailabilityService {
       options,
     );
     if (
-      !canAcceptGuests(capacity, snap.maxOccupied, guests, snap.locked)
+      !canAcceptGuests(capacity, snap.maxOccupied, guests, snap.locked, {
+        maxExtraCapacity: options?.maxExtraCapacity,
+      })
     ) {
       throw new ConflictException(BEDS_UNAVAILABLE_MESSAGE);
     }

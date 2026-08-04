@@ -102,8 +102,8 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
             list.filter(
               (r) =>
                 r.id !== covering?.roomId &&
-                r.remainingBeds >= beds &&
-                r.capacity >= beds,
+                r.remainingBeds + 2 >= beds &&
+                r.capacity + 2 >= beds,
             ),
           );
         }

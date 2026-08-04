@@ -74,7 +74,7 @@ export function BookingCreatePage() {
         }
         const list = data.categories
           .flatMap((c) => c.availableRooms ?? [])
-          .filter((r) => (r.remainingBeds ?? 0) >= bedsNeeded)
+          .filter((r) => (r.remainingBeds ?? 0) + 2 >= bedsNeeded)
           .sort((a, b) => {
             if (a.capacity !== b.capacity) return a.capacity - b.capacity;
             return a.number.localeCompare(b.number, undefined, {

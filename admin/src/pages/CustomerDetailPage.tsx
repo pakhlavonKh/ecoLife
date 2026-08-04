@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { customersApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { CustomerDetail } from '../api/types';
@@ -24,6 +24,7 @@ import {
 
 export function CustomerDetailPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { id = '' } = useParams();
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState('');
@@ -138,14 +139,15 @@ export function CustomerDetailPage() {
           </div>
           <ul className="divide-y divide-[var(--line)]">
             {(customer?.bookings ?? []).map((b) => (
-              <li key={b.id} className="px-4 py-3">
+              <li
+                key={b.id}
+                onClick={() => navigate(`/bookings/${b.id}`)}
+                className="cursor-pointer px-4 py-3 hover:bg-[var(--bg)]/60"
+              >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    to={`/bookings/${b.id}`}
-                    className="font-medium text-[var(--accent)] hover:underline"
-                  >
+                  <span className="font-medium text-[var(--accent)] hover:underline">
                     {b.publicCode}
-                  </Link>
+                  </span>
                   <StatusBadge status={b.status} />
                   <PaymentBadge status={b.paymentStatus} />
                 </div>

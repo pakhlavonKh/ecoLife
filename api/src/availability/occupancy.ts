@@ -124,11 +124,13 @@ export function canAcceptGuests(
   maxOccupied: number,
   guests: number,
   locked: boolean,
+  options?: { maxExtraCapacity?: number },
 ): boolean {
-  if (guests < 1) {
+  if (locked || guests < 1) {
     return false;
   }
-  return remainingBeds(capacity, maxOccupied, locked) >= guests;
+  const maxExtra = options?.maxExtraCapacity ?? 0;
+  return remainingBeds(capacity, maxOccupied, locked) + maxExtra >= guests;
 }
 
 /** True if any lock stay overlaps [checkIn, checkOut) (half-open). */

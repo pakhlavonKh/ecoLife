@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { bookingsApi, inventoryApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { Booking, Category, Cottage } from '../api/types';
@@ -34,6 +34,7 @@ const PAYMENTS = ['', 'unpaid', 'deposit_paid', 'paid_full', 'refunded'];
 
 export function BookingsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Booking[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cottages, setCottages] = useState<Cottage[]>([]);
@@ -185,15 +186,13 @@ export function BookingsPage() {
             {rows.map((b) => (
               <tr
                 key={b.id}
-                className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--bg)]/60"
+                onClick={() => navigate(`/bookings/${b.id}`)}
+                className="cursor-pointer border-b border-[var(--line)] last:border-0 hover:bg-[var(--bg)]/60"
               >
                 <td className="px-3 py-3">
-                  <Link
-                    to={`/bookings/${b.id}`}
-                    className="font-medium text-[var(--accent)] hover:underline"
-                  >
+                  <span className="font-medium text-[var(--accent)] hover:underline">
                     {b.publicCode}
-                  </Link>
+                  </span>
                   <div
                     className={
                       b.source === 'online_request'

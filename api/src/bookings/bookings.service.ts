@@ -204,6 +204,7 @@ export class BookingsService {
             stay.checkIn,
             stay.checkOut,
             tx,
+            { maxExtraCapacity: 0 },
           );
 
           const totalAmount = calcTotalAmount(stay.nights, counts, prices);
@@ -577,9 +578,9 @@ export class BookingsService {
           const counts = guestCountsFromDto(dto);
           const beds = occupyingBeds(counts);
 
-          if (room.capacity < beds) {
+          if (room.capacity + 2 < beds) {
             throw new BadRequestException(
-              `Room capacity (${room.capacity}) is less than occupying guests (${beds}; infants excluded)`,
+              `Room capacity (${room.capacity}) plus 2 extra allowed guests is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
@@ -592,6 +593,7 @@ export class BookingsService {
             stay.checkIn,
             stay.checkOut,
             tx,
+            { maxExtraCapacity: 2 },
           );
 
           const totalAmount = calcTotalAmount(stay.nights, counts, prices);
@@ -877,9 +879,9 @@ export class BookingsService {
           if (!room || !room.isActive || !room.cottage.isActive) {
             throw new BadRequestException('Room is not available for booking');
           }
-          if (room.capacity < beds) {
+          if (room.capacity + 2 < beds) {
             throw new BadRequestException(
-              `Room capacity (${room.capacity}) is less than occupying guests (${beds}; infants excluded)`,
+              `Room capacity (${room.capacity}) plus 2 extra allowed guests is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
@@ -907,7 +909,7 @@ export class BookingsService {
               stay.checkIn,
               stay.checkOut,
               tx,
-              { excludeBookingId: id },
+              { excludeBookingId: id, maxExtraCapacity: 2 },
             );
           }
 
@@ -1414,9 +1416,9 @@ export class BookingsService {
           if (!newRoom.category.isActive) {
             throw new BadRequestException('Target category is not available');
           }
-          if (newRoom.capacity < beds) {
+          if (newRoom.capacity + 2 < beds) {
             throw new BadRequestException(
-              `Room capacity (${newRoom.capacity}) is less than occupying guests (${beds}; infants excluded)`,
+              `Room capacity (${newRoom.capacity}) plus 2 extra allowed guests is less than occupying guests (${beds}; infants excluded)`,
             );
           }
 
@@ -1429,7 +1431,7 @@ export class BookingsService {
             transferAt,
             segmentEnd,
             tx,
-            { excludeBookingId: id },
+            { excludeBookingId: id, maxExtraCapacity: 2 },
           );
 
           const sameCategory =

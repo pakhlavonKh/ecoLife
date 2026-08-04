@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, exportsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { DashboardStats } from '../api/types';
@@ -359,6 +359,7 @@ function List({
   mode: 'arrival' | 'departure';
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   if (items.length === 0) {
     return (
       <div className="px-4 py-8 text-sm text-[var(--muted)]">
@@ -374,18 +375,19 @@ function List({
             ? item.checkInTime || DEFAULT_CHECK_IN_TIME
             : item.checkOutTime || DEFAULT_CHECK_OUT_TIME;
         return (
-          <li key={item.id} className="px-4 py-3">
+          <li
+            key={item.id}
+            onClick={() => navigate(`/bookings/${item.id}`)}
+            className="cursor-pointer px-4 py-3 hover:bg-[var(--bg)]/60"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="rounded bg-stone-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-stone-800">
                   {time}
                 </span>
-                <Link
-                  to={`/bookings/${item.id}`}
-                  className="font-medium text-[var(--accent)] hover:underline"
-                >
+                <span className="font-medium text-[var(--accent)] hover:underline">
                   {item.publicCode}
-                </Link>
+                </span>
               </div>
               <StatusBadge status={item.status} />
             </div>
