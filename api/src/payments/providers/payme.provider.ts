@@ -126,7 +126,11 @@ export class PaymeProvider implements PaymentProvider {
     booking: InvoiceBooking,
     paymentId: string,
   ): Promise<CreateInvoiceResult> {
-    const merchantId = (this.config.get<string>('PAYME_MERCHANT_ID') ?? '').trim();
+    const merchantId = (
+      this.config.get<string>('PAYME_MERCHANT_ID') ??
+      process.env.PAYME_MERCHANT_ID ??
+      ''
+    ).trim();
     if (!merchantId) {
       throw new BadRequestException(
         'PAYME_MERCHANT_ID is empty in api/.env. Please enter your Merchant ID from business.paycom.uz before initiating a Payme transaction.',
