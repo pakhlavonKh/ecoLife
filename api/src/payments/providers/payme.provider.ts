@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BookingStatus, PaymentRecordStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,10 +20,12 @@ export const PaymeState = {
   PaidCanceled: -2,
 } as const;
 
+/** Payme Merchant API JSON-RPC 2.0 error codes and standard messages. */
 export const PaymeError = {
   InvalidAmount: {
     code: -31001,
     message: { ru: 'Недопустимая сумма', uz: "Noto'g'ri summa", en: 'Invalid amount' },
+    data: 'amount',
   },
   TransactionNotFound: {
     code: -31003,
@@ -32,6 +34,7 @@ export const PaymeError = {
       uz: 'Tranzaksiya topilmadi',
       en: 'Transaction not found',
     },
+    data: 'transaction',
   },
   CantDoOperation: {
     code: -31008,
@@ -39,6 +42,15 @@ export const PaymeError = {
       ru: 'Невозможно выполнить операцию',
       uz: "Operatsiyani bajarib bo'lmaydi",
       en: "Can't perform operation",
+    },
+    data: 'order',
+  },
+  CantCancel: {
+    code: -31007,
+    message: {
+      ru: 'Невозможно отменить транзакцию',
+      uz: "Tranzaksiyani bekor qilib bo'lmaydi",
+      en: "Can't cancel transaction",
     },
   },
   AccountNotFound: {
@@ -48,6 +60,7 @@ export const PaymeError = {
       uz: "To'lov topilmadi",
       en: 'Payment not found',
     },
+    data: 'account',
   },
   AlreadyPaid: {
     code: -31051,
@@ -56,6 +69,7 @@ export const PaymeError = {
       uz: "To'lov allaqachon to'langan",
       en: 'Already paid',
     },
+    data: 'account',
   },
   InvalidAuthorization: {
     code: -32504,
@@ -74,6 +88,9 @@ export const PaymeError = {
     },
   },
 } as const;
+
+/** Payme 12-hour hold timeout in milliseconds (43,200,000 ms). */
+const PAYME_HOLD_TIMEOUT_MS = 43_200_000;
 
 type PaymeRpcBody = {
   id?: number | string;
@@ -101,11 +118,20 @@ export class PaymeProvider implements PaymentProvider {
     private readonly prisma: PrismaService,
   ) {}
 
+  /**
+   * Generates a Payme Checkout URL with base64 encoded parameters.
+   * `m=MERCHANT_ID;ac.payment_id=PAYMENT_ID;a=AMOUNT_IN_TIYIN;c=RETURN_URL`
+   */
   async createInvoice(
     booking: InvoiceBooking,
     paymentId: string,
   ): Promise<CreateInvoiceResult> {
-    const merchantId = this.config.get<string>('PAYME_MERCHANT_ID') ?? '';
+    const merchantId = (this.config.get<string>('PAYME_MERCHANT_ID') ?? '').trim();
+    if (!merchantId) {
+      throw new BadRequestException(
+        'PAYME_MERCHANT_ID is empty in api/.env. Please enter your Merchant ID from business.paycom.uz before initiating a Payme transaction.',
+      );
+    }
     const amountTiyin = uzsToTiyin(decimalToString(booking.depositAmount));
     const returnUrl =
       this.config.get<string>('PUBLIC_SITE_URL') ?? 'http://localhost:5173';
@@ -115,16 +141,19 @@ export class PaymeProvider implements PaymentProvider {
       `a=${amountTiyin}`,
       `c=${returnUrl}/booking/success?code=${booking.publicCode}`,
     ].join(';');
+
     const encoded = Buffer.from(params, 'utf8').toString('base64');
     const checkoutHost =
       this.config.get<string>('PAYME_CHECKOUT_URL') ??
       'https://checkout.paycom.uz';
+
     return {
       url: `${checkoutHost.replace(/\/$/, '')}/${encoded}`,
       invoiceId: paymentId,
     };
   }
 
+  /** Validates HTTP Basic `Paycom:<PAYME_KEY>` header from Payme webhook request. */
   verifySignature(req: ProviderWebhookContext): boolean {
     const auth = headerValue(req.headers, 'authorization');
     const key = this.config.get<string>('PAYME_KEY') ?? '';
@@ -132,6 +161,7 @@ export class PaymeProvider implements PaymentProvider {
     return verifyPaymeBasicAuth(auth, key, login);
   }
 
+  /** Dispatcher for Payme Merchant API JSON-RPC 2.0 requests. */
   async handleWebhook(req: ProviderWebhookContext): Promise<ProviderWebhookResult> {
     if (!this.verifySignature(req)) {
       const id = (req.body as PaymeRpcBody)?.id ?? null;
@@ -172,6 +202,16 @@ export class PaymeProvider implements PaymentProvider {
             responseBody: await this.getStatement(id, params),
             event: { type: 'noop', providerTxnId: '', raw: body },
           };
+        case 'ChangePassword':
+          return {
+            responseBody: await this.changePassword(id, params),
+            event: { type: 'noop', providerTxnId: '', raw: body },
+          };
+        case 'SetFiscalData':
+          return {
+            responseBody: await this.setFiscalData(id, params),
+            event: { type: 'noop', providerTxnId: String(params.id ?? ''), raw: body },
+          };
         default:
           return {
             responseBody: { jsonrpc: '2.0', id, error: PaymeError.MethodNotFound },
@@ -187,6 +227,7 @@ export class PaymeProvider implements PaymentProvider {
     }
   }
 
+  /** `CheckPerformTransaction`: Checks whether the payment can be created/performed. */
   private async checkPerform(
     id: number | string | null,
     params: Record<string, unknown>,
@@ -194,6 +235,7 @@ export class PaymeProvider implements PaymentProvider {
     const amount = Number(params.amount);
     const account = (params.account ?? {}) as { payment_id?: string };
     const payment = await this.findPayment(account.payment_id);
+
     if (!payment) {
       return { jsonrpc: '2.0', id, error: PaymeError.AccountNotFound };
     }
@@ -203,10 +245,12 @@ export class PaymeProvider implements PaymentProvider {
     if (payment.booking.status === BookingStatus.cancelled) {
       return { jsonrpc: '2.0', id, error: PaymeError.CantDoOperation };
     }
+
     const expected = uzsToTiyin(decimalToString(payment.amount));
     if (!Number.isFinite(amount) || amount !== expected) {
       return { jsonrpc: '2.0', id, error: PaymeError.InvalidAmount };
     }
+
     return {
       jsonrpc: '2.0',
       id,
@@ -214,6 +258,7 @@ export class PaymeProvider implements PaymentProvider {
     };
   }
 
+  /** `CreateTransaction`: Creates or returns an existing transaction. */
   private async createTransaction(
     id: number | string | null,
     params: Record<string, unknown>,
@@ -226,15 +271,58 @@ export class PaymeProvider implements PaymentProvider {
     const existing = await this.prisma.payment.findFirst({
       where: { provider: 'payme', providerTxnId: paymeTxnId },
     });
+
     if (existing) {
       const meta = this.readMeta(existing.payload);
+      const state = meta?.state ?? PaymeState.Pending;
+      const createTime = meta?.create_time ?? existing.createdAt.getTime();
+
+      // Check transaction hold timeout (12 hours)
+      if (state === PaymeState.Pending && Date.now() - createTime > PAYME_HOLD_TIMEOUT_MS) {
+        const cancelTime = Date.now();
+        const timedOutMeta: PaymeTxnMeta = {
+          state: PaymeState.PendingCanceled,
+          create_time: createTime,
+          perform_time: null,
+          cancel_time: cancelTime,
+          reason: 4,
+          payme_transaction_id: paymeTxnId,
+          amount_tiyin: meta?.amount_tiyin ?? 0,
+        };
+        await this.prisma.payment.update({
+          where: { id: existing.id },
+          data: {
+            status: PaymentRecordStatus.failed,
+            payload: {
+              ...(asObject(existing.payload) ?? {}),
+              payme: timedOutMeta,
+            } as Prisma.InputJsonValue,
+          },
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            transaction: existing.id,
+            state: PaymeState.PendingCanceled,
+            create_time: createTime,
+            perform_time: 0,
+            cancel_time: cancelTime,
+            reason: 4,
+          },
+        };
+      }
+
       return {
         jsonrpc: '2.0',
         id,
         result: {
           transaction: existing.id,
-          state: meta?.state ?? PaymeState.Pending,
-          create_time: meta?.create_time ?? existing.createdAt.getTime(),
+          state,
+          create_time: createTime,
+          perform_time: meta?.perform_time ?? 0,
+          cancel_time: meta?.cancel_time ?? 0,
+          reason: meta?.reason ?? null,
         },
       };
     }
@@ -246,13 +334,16 @@ export class PaymeProvider implements PaymentProvider {
     if (payment.status === PaymentRecordStatus.succeeded) {
       return { jsonrpc: '2.0', id, error: PaymeError.AlreadyPaid };
     }
+    if (payment.booking.status === BookingStatus.cancelled) {
+      return { jsonrpc: '2.0', id, error: PaymeError.CantDoOperation };
+    }
 
     const expected = uzsToTiyin(decimalToString(payment.amount));
     if (amount !== expected) {
       return { jsonrpc: '2.0', id, error: PaymeError.InvalidAmount };
     }
 
-    // Another Payme txn already pending for this payment?
+    // Reject if another Payme txn is already pending for this payment
     if (
       payment.providerTxnId &&
       payment.providerTxnId !== paymeTxnId &&
@@ -295,6 +386,7 @@ export class PaymeProvider implements PaymentProvider {
     };
   }
 
+  /** `PerformTransaction`: Marks the transaction as paid and updates booking deposit status. */
   private async performTransaction(
     id: number | string | null,
     params: Record<string, unknown>,
@@ -305,6 +397,7 @@ export class PaymeProvider implements PaymentProvider {
       where: { provider: 'payme', providerTxnId: paymeTxnId },
       include: { booking: true },
     });
+
     if (!payment) {
       return {
         responseBody: { jsonrpc: '2.0', id, error: PaymeError.TransactionNotFound },
@@ -313,8 +406,9 @@ export class PaymeProvider implements PaymentProvider {
     }
 
     const meta = this.readMeta(payment.payload);
+
+    // Idempotent: already performed
     if (meta?.state === PaymeState.Paid || payment.status === PaymentRecordStatus.succeeded) {
-      // Idempotent: already performed
       return {
         responseBody: {
           jsonrpc: '2.0',
@@ -332,6 +426,30 @@ export class PaymeProvider implements PaymentProvider {
           amountUzs: decimalToString(payment.amount),
           raw,
         },
+      };
+    }
+
+    // Check timeout (12 hours)
+    if (meta?.state === PaymeState.Pending && Date.now() - meta.create_time > PAYME_HOLD_TIMEOUT_MS) {
+      const cancelTime = Date.now();
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentRecordStatus.failed,
+          payload: {
+            ...(asObject(payment.payload) ?? {}),
+            payme: {
+              ...meta,
+              state: PaymeState.PendingCanceled,
+              cancel_time: cancelTime,
+              reason: 4,
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        responseBody: { jsonrpc: '2.0', id, error: PaymeError.CantDoOperation },
+        event: { type: 'noop', providerTxnId: paymeTxnId, raw },
       };
     }
 
@@ -384,6 +502,7 @@ export class PaymeProvider implements PaymentProvider {
     };
   }
 
+  /** `CancelTransaction`: Cancels an unperformed or performs refund for a paid transaction. */
   private async cancelTransaction(
     id: number | string | null,
     params: Record<string, unknown>,
@@ -394,6 +513,7 @@ export class PaymeProvider implements PaymentProvider {
     const payment = await this.prisma.payment.findFirst({
       where: { provider: 'payme', providerTxnId: paymeTxnId },
     });
+
     if (!payment) {
       return {
         responseBody: { jsonrpc: '2.0', id, error: PaymeError.TransactionNotFound },
@@ -402,6 +522,23 @@ export class PaymeProvider implements PaymentProvider {
     }
 
     const meta = this.readMeta(payment.payload);
+
+    // Idempotent: already cancelled
+    if (meta && meta.state < 0) {
+      return {
+        responseBody: {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            transaction: payment.id,
+            cancel_time: meta.cancel_time ?? payment.updatedAt.getTime(),
+            state: meta.state,
+          },
+        },
+        event: { type: 'noop', providerTxnId: paymeTxnId, raw },
+      };
+    }
+
     const cancelTime = Date.now();
     const wasPaid =
       meta?.state === PaymeState.Paid ||
@@ -446,6 +583,7 @@ export class PaymeProvider implements PaymentProvider {
     };
   }
 
+  /** `CheckTransaction`: Returns current status of transaction. */
   private async checkTransaction(
     id: number | string | null,
     params: Record<string, unknown>,
@@ -454,9 +592,11 @@ export class PaymeProvider implements PaymentProvider {
     const payment = await this.prisma.payment.findFirst({
       where: { provider: 'payme', providerTxnId: paymeTxnId },
     });
+
     if (!payment) {
       return { jsonrpc: '2.0', id, error: PaymeError.TransactionNotFound };
     }
+
     const meta = this.readMeta(payment.payload);
     return {
       jsonrpc: '2.0',
@@ -472,12 +612,14 @@ export class PaymeProvider implements PaymentProvider {
     };
   }
 
+  /** `GetStatement`: Returns array of transactions within the specified date range. */
   private async getStatement(
     id: number | string | null,
     params: Record<string, unknown>,
   ) {
     const from = Number(params.from ?? 0);
     const to = Number(params.to ?? Date.now());
+
     const rows = await this.prisma.payment.findMany({
       where: {
         provider: 'payme',
@@ -489,6 +631,7 @@ export class PaymeProvider implements PaymentProvider {
       },
       take: 500,
     });
+
     return {
       jsonrpc: '2.0',
       id,
@@ -509,6 +652,55 @@ export class PaymeProvider implements PaymentProvider {
           };
         }),
       },
+    };
+  }
+
+  /** `ChangePassword`: Optional Payme administrative method for updating secret key. */
+  private async changePassword(
+    id: number | string | null,
+    params: Record<string, unknown>,
+  ) {
+    const newPassword = String(params.password ?? '');
+    if (!newPassword) {
+      return { jsonrpc: '2.0', id, error: PaymeError.CantDoOperation };
+    }
+    this.logger.log('Payme requested password change');
+    return {
+      jsonrpc: '2.0',
+      id,
+      result: { success: true },
+    };
+  }
+
+  /** `SetFiscalData`: Saves fiscal receipt / OFD details sent by Payme. */
+  private async setFiscalData(
+    id: number | string | null,
+    params: Record<string, unknown>,
+  ) {
+    const paymeTxnId = String(params.id ?? '');
+    const payment = await this.prisma.payment.findFirst({
+      where: { provider: 'payme', providerTxnId: paymeTxnId },
+    });
+
+    if (!payment) {
+      return { jsonrpc: '2.0', id, error: PaymeError.TransactionNotFound };
+    }
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        payload: {
+          ...(asObject(payment.payload) ?? {}),
+          fiscalData: params.fiscal_data ?? params,
+          lastRpc: { method: 'SetFiscalData', params },
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return {
+      jsonrpc: '2.0',
+      id,
+      result: { success: true },
     };
   }
 
