@@ -2335,3 +2335,166 @@ p {
     padding: 1.15rem 1.1rem 1.25rem;
   }
 }
+
+/* --- Payme Subscribe API Card Modal --- */
+.payme-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 16, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.payme-modal-card {
+  width: min(440px, 100%);
+  background: #1b241c;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  color: #f1f5f2;
+}
+
+.payme-modal-header {
+  background: linear-gradient(135deg, #059669, #047857);
+  padding: 1.2rem 1.4rem;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.payme-modal-header-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.payme-modal-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.payme-modal-subtitle {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.payme-modal-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s;
+}
+
+.payme-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.payme-modal-body {
+  padding: 1.5rem;
+}
+
+.payme-modal-amount {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.payme-modal-amount strong {
+  font-size: 1.15rem;
+  color: #34d399;
+}
+
+.payme-modal-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.4rem;
+}
+
+.payme-modal-input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 1.1rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.payme-modal-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+
+.payme-modal-btn {
+  width: 100%;
+  padding: 0.9rem 1.2rem;
+  background: #059669;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.payme-modal-btn:hover {
+  background: #047857;
+}
+
+.payme-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.payme-modal-error {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(225, 29, 72, 0.15);
+  border: 1px solid rgba(225, 29, 72, 0.35);
+  border-radius: 10px;
+  color: #fecdd3;
+  font-size: 0.85rem;
+}
+
+.payme-modal-footer {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.5;
+}
+
+.payme-modal-footer a {
+  color: #34d399;
+  text-decoration: underline;
+}

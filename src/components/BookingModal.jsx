@@ -9,6 +9,8 @@ import {
 } from '../api/config';
 import DateField from './DateField';
 import TimeField from './TimeField';
+import PaymeCardModal from './PaymeCardModal';
+
 import {
   billedNights,
   calcPreview,
@@ -70,6 +72,8 @@ function BookingModal({
   const [error, setError] = useState('');
   const [nights, setNights] = useState(0);
   const [requestResult, setRequestResult] = useState(null);
+  const [paymeModalData, setPaymeModalData] = useState(null);
+
 
   const depositPercent =
     category.depositPercent ??
@@ -246,9 +250,18 @@ function BookingModal({
 
       if (result.paymentUrl) {
         onBooked?.(result);
+        if (provider === 'payme' && result.paymentId) {
+          setPaymeModalData({
+            paymentId: result.paymentId,
+            publicCode: result.booking?.publicCode,
+            amountStr: formatMoney(preview?.deposit || result.amount),
+          });
+          return;
+        }
         window.location.assign(result.paymentUrl);
         return;
       }
+
 
       if (result.requiresOperator) {
         onBooked?.(result);
@@ -644,6 +657,20 @@ function BookingModal({
           </form>
         )}
       </div>
+
+      {paymeModalData && (
+        <PaymeCardModal
+          paymentId={paymeModalData.paymentId}
+          publicCode={paymeModalData.publicCode}
+          amountStr={paymeModalData.amountStr}
+          onClose={() => setPaymeModalData(null)}
+          onSuccess={(publicCode) => {
+            setPaymeModalData(null);
+            onClose();
+            window.location.assign(`/booking/success?code=${encodeURIComponent(publicCode)}`);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -36,8 +36,14 @@ export function buildPaymeBasicHeader(
   return `Basic ${Buffer.from(`${login}:${merchantKey}`).toString('base64')}`;
 }
 
+/** Payme Subscribe API auth header: `X-Auth: {id}:{password}` */
+export function buildPaymeSubscribeAuthHeader(id: string, password: string): string {
+  return `${id.trim()}:${password.trim()}`;
+}
+
 /** UZS decimal → tiyin (1 UZS = 100 tiyin). */
 export function uzsToTiyin(uzs: string | number): number {
   const n = typeof uzs === 'number' ? uzs : Number(uzs);
   return Math.round(n * 100);
 }
+

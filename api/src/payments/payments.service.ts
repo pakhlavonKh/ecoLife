@@ -40,6 +40,8 @@ import {
 import { ClickProvider } from './providers/click.provider';
 import { MockProvider } from './providers/mock.provider';
 import { PaymeProvider } from './providers/payme.provider';
+import { CreatePaymeCardDto, PayPaymeReceiptDto } from './dto/payme-card.dto';
+
 
 @Injectable()
 export class PaymentsService {
@@ -683,6 +685,152 @@ export class PaymentsService {
     this.events.emit(PAYMENT_RECEIVED_EVENT, received);
 
     return { applied: true, duplicate: false, lateManualReview: false };
+  }
+
+  /**
+   * Initialize Payme Subscribe API card payment (create single-use token & send SMS OTP).
+   * CARD IS NOT SAVED (save: false).
+   */
+  async initiatePaymeCardPayment(dto: CreatePaymeCardDto): Promise<{
+    paymentId: string;
+    token: string;
+    phone: string;
+  }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+      include: { booking: true },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.provider !== 'payme') {
+      throw new BadRequestException('Payment provider is not Payme');
+    }
+    if (payment.status === PaymentRecordStatus.succeeded) {
+      throw new BadRequestException('Payment has already been paid');
+    }
+    if (payment.booking.status === BookingStatus.cancelled) {
+      throw new BadRequestException('Booking is cancelled');
+    }
+
+    let receiptId = payment.providerTxnId;
+    if (!receiptId) {
+      const invoice = await this.payme.createInvoice(
+        {
+          id: payment.booking.id,
+          publicCode: payment.booking.publicCode,
+          depositAmount: payment.booking.depositAmount,
+          expiresAt: payment.booking.expiresAt,
+          status: payment.booking.status,
+        },
+        payment.id,
+      );
+      receiptId = invoice.invoiceId;
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          providerTxnId: receiptId,
+          status: PaymentRecordStatus.pending,
+        },
+      });
+    }
+
+    const cardInfo = await this.payme.createCardTokenAndSendOtp(
+      decimalToString(payment.amount),
+      dto.number,
+      dto.expire,
+    );
+
+    return {
+      paymentId: payment.id,
+      token: cardInfo.token,
+      phone: cardInfo.phone,
+    };
+  }
+
+  /**
+   * Verify SMS OTP and complete Payme receipt payment via Subscribe API.
+   */
+  async confirmPaymeCardPayment(dto: PayPaymeReceiptDto): Promise<{
+    success: boolean;
+    publicCode: string;
+  }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+      include: { booking: true },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.status === PaymentRecordStatus.succeeded) {
+      return { success: true, publicCode: payment.booking.publicCode };
+    }
+    const receiptId = payment.providerTxnId;
+    if (!receiptId) {
+      throw new BadRequestException('Receipt ID is missing for this payment');
+    }
+
+    const receipt = await this.payme.verifyAndPayReceipt(
+      receiptId,
+      dto.token,
+      dto.code,
+    );
+
+    if (receipt.state === 4) {
+      await this.applySucceeded('payme', {
+        type: 'payment.succeeded',
+        providerTxnId: receiptId,
+        paymentId: payment.id,
+        amountUzs: decimalToString(payment.amount),
+        raw: receipt,
+      });
+
+      return { success: true, publicCode: payment.booking.publicCode };
+    }
+
+    throw new BadRequestException(`Payme payment failed with state: ${receipt.state}`);
+  }
+
+  /**
+   * Check Payme receipt status for hosted checkout or polling.
+   */
+  async checkPaymeReceiptStatus(paymentId: string): Promise<{
+    paid: boolean;
+    publicCode: string;
+    state?: number;
+  }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { booking: true },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (payment.status === PaymentRecordStatus.succeeded) {
+      return { paid: true, publicCode: payment.booking.publicCode };
+    }
+
+    if (!payment.providerTxnId) {
+      return { paid: false, publicCode: payment.booking.publicCode };
+    }
+
+    try {
+      const receipt = await this.payme.checkReceipt(payment.providerTxnId);
+      if (receipt.state === 4) {
+        await this.applySucceeded('payme', {
+          type: 'payment.succeeded',
+          providerTxnId: payment.providerTxnId,
+          paymentId: payment.id,
+          amountUzs: decimalToString(payment.amount),
+          raw: receipt,
+        });
+        return { paid: true, publicCode: payment.booking.publicCode };
+      }
+      return { paid: false, publicCode: payment.booking.publicCode, state: receipt.state };
+    } catch {
+      return { paid: false, publicCode: payment.booking.publicCode };
+    }
   }
 
   private async findPaymentRow(

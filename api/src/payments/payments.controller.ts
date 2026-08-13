@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -13,6 +14,8 @@ import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { StrictThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { PaymentsService } from './payments.service';
+import { CreatePaymeCardDto, PayPaymeReceiptDto } from './dto/payme-card.dto';
+
 
 @ApiTags('payments')
 @Controller('payments')
@@ -152,6 +155,31 @@ export class PaymentsController {
       body: req.body,
     });
     return result.responseBody;
+  }
+
+  /** Payme Subscribe API: Initialize single-use card token & request SMS OTP (no card saving). */
+  @Post('payme/card/create')
+  @HttpCode(200)
+  @StrictThrottle(10)
+  @ApiOperation({ summary: 'Payme Subscribe API: Create unsaved card token & send SMS OTP' })
+  initiatePaymeCard(@Body() dto: CreatePaymeCardDto) {
+    return this.payments.initiatePaymeCardPayment(dto);
+  }
+
+  /** Payme Subscribe API: Verify SMS OTP & pay receipt. */
+  @Post('payme/card/pay')
+  @HttpCode(200)
+  @StrictThrottle(10)
+  @ApiOperation({ summary: 'Payme Subscribe API: Verify SMS OTP and pay receipt' })
+  confirmPaymeCard(@Body() dto: PayPaymeReceiptDto) {
+    return this.payments.confirmPaymeCardPayment(dto);
+  }
+
+  /** Payme Subscribe API: Check receipt status (polling / hosted redirect). */
+  @Get('payme/check/:paymentId')
+  @ApiOperation({ summary: 'Payme Subscribe API: Check receipt payment status' })
+  checkPaymeReceipt(@Param('paymentId', ParseUUIDPipe) paymentId: string) {
+    return this.payments.checkPaymeReceiptStatus(paymentId);
   }
 }
 
