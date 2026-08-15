@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 # Cache mount: packages are downloaded once and reused on every subsequent build.
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --prefer-offline
+  npm ci --prefer-offline
 RUN npx prisma generate
 
 # ── Stage 2: compile TypeScript ──────────────────────────────────────────────

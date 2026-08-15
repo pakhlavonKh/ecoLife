@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { dashboardApi, exportsApi } from '../api/adminApi';
 import { getErrorMessage } from '../api/client';
 import type { DashboardStats } from '../api/types';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   auditApi,
   availabilityApi,
@@ -78,6 +78,7 @@ function liveRemaining(totalStr: string, paidStr: string): number {
 
 export function BookingDetailPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { id = '' } = useParams();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState('');
