@@ -117,7 +117,8 @@
     "colStatus": "Статус",
     "colPayment": "Оплата",
     "roomWithCategory": "{{number}} ({{categoryCode}})",
-    "empty": "Брони не найдены"
+    "empty": "Брони не найдены",
+    "confirmDelete": "Удалить эту бронь навсегда из базы?"
   },
   "bookingCreate": {
     "title": "Ручная бронь",
@@ -312,7 +313,10 @@
     "colEntity": "Сущность",
     "colAction": "Действие",
     "colDiff": "Diff",
-    "empty": "Записей нет"
+    "empty": "Записей нет",
+    "clearAll": "Очистить историю",
+    "confirmClearAll": "Вы уверены, что хотите полностью очистить журнал изменений?",
+    "confirmDelete": "Удалить эту запись из журнала?"
   },
   "telegram": {
     "title": "Telegram",

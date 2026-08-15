@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AvailabilityService, BEDS_UNAVAILABLE_MESSAGE } from '../availability/availability.service';
+import { AuditService, type AuditActor } from '../audit/audit.service';
 import { validateStayDates, nightsBetween } from '../common/utils/dates';
 import {
   addLocalDays,
@@ -137,6 +138,7 @@ export class BookingsService {
     private readonly availability: AvailabilityService,
     private readonly payments: PaymentsService,
     private readonly events: EventEmitter2,
+    private readonly auditService: AuditService,
   ) {}
 
   async createPublic(dto: CreateBookingDto) {
@@ -473,6 +475,8 @@ export class BookingsService {
     cottageId?: string;
     dateFrom?: string;
     dateTo?: string;
+    limit?: number;
+    offset?: number;
   }) {
     const where: Prisma.BookingWhereInput = {};
     if (filters?.status) {
@@ -520,21 +524,74 @@ export class BookingsService {
       ];
     }
 
-    const rows = await this.prisma.booking.findMany({
-      where,
-      include: {
-        customer: true,
-        bookingRooms: {
-          include: {
-            room: { include: { cottage: true, category: true } },
+    const limit = Math.min(filters?.limit ?? 50, 200);
+    const offset = filters?.offset ?? 0;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.booking.findMany({
+        where,
+        select: {
+          id: true,
+          publicCode: true,
+          checkIn: true,
+          checkOut: true,
+          bedsTotal: true,
+          adults: true,
+          children: true,
+          infants: true,
+          priceOriginal: true,
+          totalAmount: true,
+          depositAmount: true,
+          paidAmount: true,
+          remainingAmount: true,
+          priceBreakdown: true,
+          paymentStatus: true,
+          status: true,
+          source: true,
+          notes: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+          customer: {
+            select: { id: true, firstName: true, lastName: true, phone: true },
+          },
+          bookingRooms: {
+            select: {
+              id: true,
+              bedsBooked: true,
+              checkIn: true,
+              checkOut: true,
+              isActive: true,
+              segmentIndex: true,
+              amount: true,
+              skipCleaningBuffer: true,
+              room: {
+                select: {
+                  id: true,
+                  number: true,
+                  capacity: true,
+                  cottage: { select: { id: true, name: true } },
+                  category: { select: { id: true, code: true, name: true } },
+                },
+              },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
-    return rows.map((b) => this.toView(b));
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+
+    return {
+      data: rows.map((b) => this.toView(b)),
+      total,
+      limit,
+      offset,
+    };
   }
+
 
   async createManual(
     dto: CreateManualBookingDto,
@@ -2521,5 +2578,44 @@ export class BookingsService {
       })),
       priceBreakdown: (booking.priceBreakdown as PriceBreakdown | null) ?? null,
     };
+  }
+
+  async deleteBooking(id: string, actor: AuditActor) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: { customer: true, bookingRooms: { include: { room: true } } },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Delete associated payments
+      await tx.payment.deleteMany({ where: { bookingId: id } });
+      // 2. Delete linked room locks
+      await tx.roomLock.deleteMany({ where: { bookingId: id } });
+      // 3. Delete bookingRooms (cascades automatically via FK, but explicit is fine)
+      await tx.bookingRoom.deleteMany({ where: { bookingId: id } });
+      // 4. Delete the booking
+      await tx.booking.delete({ where: { id } });
+
+      // 5. Audit log entry
+      await this.auditService.write({
+        actor,
+        entity: 'booking',
+        entityId: id,
+        action: 'delete',
+        diff: {
+          publicCode: booking.publicCode,
+          customerName: `${booking.customer.firstName} ${booking.customer.lastName}`,
+          phone: booking.customer.phone,
+          status: booking.status,
+          totalAmount: decimalToString(booking.totalAmount),
+        },
+        tx,
+      });
+
+      return { success: true, id, publicCode: booking.publicCode };
+    });
   }
 }

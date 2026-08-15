@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminThrottle } from '../common/decorators/throttle-profiles.decorator';
 import { UserRole } from '@prisma/client';
@@ -34,5 +34,17 @@ export class AuditAdminController {
         : undefined,
       limit: query.limit,
     });
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete single audit log entry' })
+  delete(@Param('id', ParseUUIDPipe) id: string) {
+    return this.auditService.delete(id);
+  }
+
+  @Delete()
+  @ApiOperation({ summary: 'Clear all audit log history entries' })
+  clearAll() {
+    return this.auditService.clearAll();
   }
 }

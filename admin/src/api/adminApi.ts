@@ -32,9 +32,13 @@ export const authApi = {
 };
 
 export const bookingsApi = {
-  list: (params?: Record<string, string | undefined>) =>
-    api.get<Booking[]>('/api/v1/admin/bookings', { params }),
+  list: (params?: Record<string, string | number | undefined>) =>
+    api.get<{ data: Booking[]; total: number; limit: number; offset: number }>(
+      '/api/v1/admin/bookings',
+      { params },
+    ),
   get: (id: string) => api.get<Booking>(`/api/v1/admin/bookings/${id}`),
+
   createManual: (body: Record<string, unknown>) =>
     api.post<Booking>('/api/v1/admin/bookings', body),
   update: (id: string, body: Record<string, unknown>) =>
@@ -86,6 +90,7 @@ export const bookingsApi = {
       `/api/v1/admin/bookings/${id}/extend`,
       body,
     ),
+  delete: (id: string) => api.delete<{ success: boolean; id: string }>(`/api/v1/admin/bookings/${id}`),
 };
 
 export const availabilityApi = {
@@ -195,6 +200,8 @@ export const calendarApi = {
 export const auditApi = {
   list: (params?: Record<string, string | number | undefined>) =>
     api.get<AuditEntry[]>('/api/v1/admin/audit-log', { params }),
+  delete: (id: string) => api.delete(`/api/v1/admin/audit-log/${id}`),
+  clearAll: () => api.delete('/api/v1/admin/audit-log'),
 };
 
 export const telegramApi = {

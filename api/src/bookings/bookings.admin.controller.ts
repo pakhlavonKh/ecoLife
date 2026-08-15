@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -56,8 +57,11 @@ export class BookingsAdminController {
       cottageId: query.cottageId,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
+      limit: query.limit,
+      offset: query.offset,
     });
   }
+
 
   @Get('calendar')
   @ApiOperation({ summary: 'Calendar grid data (rooms × days)' })
@@ -184,6 +188,18 @@ export class BookingsAdminController {
       type: ActorType.admin,
       id: user.id,
       note: dto.note,
+    });
+  }
+
+  @Delete('bookings/:id')
+  @ApiOperation({ summary: 'Delete booking permanently from system history' })
+  delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.bookingsService.deleteBooking(id, {
+      type: ActorType.admin,
+      id: user.id,
     });
   }
 }

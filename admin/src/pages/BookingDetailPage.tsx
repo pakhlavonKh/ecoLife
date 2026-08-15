@@ -513,6 +513,21 @@ export function BookingDetailPage() {
       (l.checkIn < form.checkOut && l.checkOut > form.checkIn),
   );
 
+  async function onDeleteBooking() {
+    if (!booking) return;
+    if (!window.confirm(t('bookings.confirmDelete', { defaultValue: 'Delete this booking permanently?' }))) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await bookingsApi.delete(booking.id);
+      navigate('/bookings');
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -526,9 +541,20 @@ export function BookingDetailPage() {
             : undefined
         }
         actions={
-          <Link to="/bookings">
-            <Button variant="secondary">{t('common.backToList')}</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {booking ? (
+              <Button
+                variant="danger"
+                disabled={busy}
+                onClick={onDeleteBooking}
+              >
+                {t('common.delete')}
+              </Button>
+            ) : null}
+            <Link to="/bookings">
+              <Button variant="secondary">{t('common.backToList')}</Button>
+            </Link>
+          </div>
         }
       />
       <ErrorBox message={error} />

@@ -80,4 +80,14 @@ export class AuditService {
       createdAt: row.createdAt,
     }));
   }
+
+  async delete(id: string) {
+    return this.prisma.auditLog.delete({
+      where: { id },
+    });
+  }
+
+  async clearAll() {
+    return this.prisma.auditLog.deleteMany({});
+  }
 }

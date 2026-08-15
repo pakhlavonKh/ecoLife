@@ -246,6 +246,9 @@ model Booking {
 
   @@index([status])
   @@index([checkIn, checkOut])
+  @@index([createdAt(sort: Desc)])
+  @@index([customerId])
+  @@index([paymentStatus])
   @@map("bookings")
 }
 
@@ -274,6 +277,8 @@ model BookingRoom {
 
   @@index([roomId, isActive])
   @@index([bookingId, segmentIndex])
+  @@index([isActive, checkIn, checkOut])
+  @@index([checkIn, checkOut])
   @@map("booking_rooms")
 }
 

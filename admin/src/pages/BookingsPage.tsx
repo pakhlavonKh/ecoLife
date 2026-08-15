@@ -21,6 +21,8 @@ import { formatDate, formatMoney } from '../lib/format';
 import { formatGuestName } from '../lib/guest-name';
 import { sourceLabel } from '../lib/labels';
 
+const PAGE_SIZE = 50;
+
 const STATUSES = [
   '',
   'pending_payment',
@@ -36,6 +38,8 @@ export function BookingsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [rows, setRows] = useState<Booking[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cottages, setCottages] = useState<Cottage[]>([]);
   const [search, setSearch] = useState('');
@@ -58,6 +62,11 @@ export function BookingsPage() {
     });
   }, []);
 
+  // Reset to page 0 on filter change
+  useEffect(() => {
+    setPage(0);
+  }, [search, status, paymentStatus, categoryCode, cottageId, dateFrom, dateTo]);
+
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -72,9 +81,12 @@ export function BookingsPage() {
             cottageId: cottageId || undefined,
             dateFrom: dateFrom || undefined,
             dateTo: dateTo || undefined,
+            limit: PAGE_SIZE,
+            offset: page * PAGE_SIZE,
           });
           if (!cancelled) {
-            setRows(data);
+            setRows(data.data);
+            setTotal(data.total);
             setError('');
           }
         } catch (err) {
@@ -88,7 +100,28 @@ export function BookingsPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [search, status, paymentStatus, categoryCode, cottageId, dateFrom, dateTo]);
+  }, [search, status, paymentStatus, categoryCode, cottageId, dateFrom, dateTo, page]);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteBooking = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm(t('bookings.confirmDelete', { defaultValue: 'Delete this booking permanently?' }))) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await bookingsApi.delete(id);
+      setRows((prev) => prev.filter((b) => b.id !== id));
+      setTotal((prev) => prev - 1);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div>
@@ -158,10 +191,10 @@ export function BookingsPage() {
               ))}
             </Select>
           </Field>
-          <Field label={t('bookings.dateFrom')}>
+          <Field label={t('common.from')}>
             <DateField value={dateFrom} onChange={setDateFrom} />
           </Field>
-          <Field label={t('bookings.dateTo')}>
+          <Field label={t('common.to')}>
             <DateField value={dateTo} onChange={setDateTo} />
           </Field>
         </div>
@@ -180,6 +213,7 @@ export function BookingsPage() {
               <th className="px-3 py-3">{t('bookings.colAmount')}</th>
               <th className="px-3 py-3">{t('bookings.colStatus')}</th>
               <th className="px-3 py-3">{t('bookings.colPayment')}</th>
+              <th className="px-3 py-3 text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -236,6 +270,16 @@ export function BookingsPage() {
                 <td className="px-3 py-3">
                   <PaymentBadge status={b.paymentStatus} />
                 </td>
+                <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    disabled={deletingId === b.id}
+                    className="text-xs text-[var(--danger)] hover:underline disabled:opacity-50"
+                    onClick={(e) => handleDeleteBooking(e, b.id)}
+                  >
+                    {t('common.delete')}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -248,6 +292,41 @@ export function BookingsPage() {
             {t('common.loading')}
           </div>
         ) : null}
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-[var(--line)] px-4 py-3 text-sm">
+            <span className="text-[var(--muted)]">
+              {t('bookings.paginationInfo', {
+                from: page * PAGE_SIZE + 1,
+                to: Math.min((page + 1) * PAGE_SIZE, total),
+                total,
+                defaultValue: `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} / ${total}`,
+              })}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded border border-[var(--line)] px-3 py-1 text-xs disabled:opacity-40 hover:bg-[var(--bg)]"
+              >
+                {t('common.prev', { defaultValue: '←' })}
+              </button>
+              <span className="px-2 py-1 text-xs text-[var(--muted)]">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border border-[var(--line)] px-3 py-1 text-xs disabled:opacity-40 hover:bg-[var(--bg)]"
+              >
+                {t('common.next', { defaultValue: '→' })}
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
