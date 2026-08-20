@@ -186,12 +186,13 @@ export function maskDateInput(raw) {
   return parts.join('/');
 }
 
-export function formatMoney(amount, locale = 'ru-RU') {
+export function formatMoney(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return '—';
-  return `${n.toLocaleString(locale, {
-    maximumFractionDigits: 0,
-  })} UZS`;
+  const formatted = Math.round(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${formatted} UZS`;
 }
 
 /**

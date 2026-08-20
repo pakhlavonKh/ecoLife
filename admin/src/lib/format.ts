@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import i18n, { numberLocale } from '../i18n';
+import i18n from '../i18n';
 
 /** Resort defaults — match API CHECK_IN_TIME / CHECK_OUT_TIME. */
 export const DEFAULT_CHECK_IN_TIME = '14:00';
@@ -9,11 +9,25 @@ export function formatMoney(value: string | number | null | undefined): string {
   if (value == null || value === '') return i18n.t('common.emDash');
   const n = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(n)) return String(value);
-  const amount = new Intl.NumberFormat(numberLocale(), {
-    style: 'decimal',
-    maximumFractionDigits: 0,
-  }).format(n);
+  const amount = Math.round(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return i18n.t('common.money', { amount });
+}
+
+/** Format input fields with space grouping without currency suffix (e.g. "1200000.00" -> "1 200 000"). */
+export function formatMoneyInput(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '';
+  const digits = String(value).replace(/\s+/g, '').split('.')[0].replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+/** Convert formatted money input back to plain digits for API payload (e.g. "1 200 000" -> "1200000"). */
+export function unformatMoneyInput(value: string | number | null | undefined): string {
+  if (value == null) return '';
+  const str = String(value).replace(/\s+/g, '').split('.')[0].replace(/\D/g, '');
+  return str;
 }
 
 /** Display dates as DD/MM/YYYY everywhere in the admin UI. */

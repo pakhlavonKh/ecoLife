@@ -39,6 +39,8 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  formatMoneyInput,
+  unformatMoneyInput,
   nightsBetween,
   occupyingBeds,
 } from '../lib/format';
@@ -150,9 +152,9 @@ export function BookingDetailPage() {
       children,
       infants,
       notes: data.notes ?? '',
-      totalAmount: data.totalAmount,
+      totalAmount: formatMoneyInput(data.totalAmount),
     });
-    setCashAmount(data.remainingAmount);
+    setCashAmount(formatMoneyInput(data.remainingAmount));
   }
 
   async function loadAudit() {
@@ -336,11 +338,11 @@ export function BookingDetailPage() {
     if (!calculated) return;
     const key = `${form.adults}|${form.children}|${form.infants}|${form.checkIn}|${form.checkOut}|${form.checkInTime}|${form.checkOutTime}|${form.roomId}`;
     if (key === inventoryBaseline.current) return;
-    const next = String(calculated.total);
-    const prev = form.totalAmount;
-    if (prev === next || Number(prev) === Number(next)) return;
-    setPriceResetNotice({ from: prev, to: next });
-    setForm((f) => ({ ...f, totalAmount: next }));
+    const nextFormatted = formatMoneyInput(calculated.total);
+    const prevRaw = unformatMoneyInput(form.totalAmount);
+    if (prevRaw === String(calculated.total)) return;
+    setPriceResetNotice({ from: form.totalAmount, to: nextFormatted });
+    setForm((f) => ({ ...f, totalAmount: nextFormatted }));
   }, [
     form.adults,
     form.children,
@@ -355,7 +357,7 @@ export function BookingDetailPage() {
 
   const previewRemaining = useMemo(() => {
     if (!booking) return null;
-    const rem = liveRemaining(form.totalAmount, booking.paidAmount);
+    const rem = liveRemaining(unformatMoneyInput(form.totalAmount), booking.paidAmount);
     if (!Number.isFinite(rem)) return null;
     return rem;
   }, [booking, form.totalAmount]);
@@ -390,7 +392,7 @@ export function BookingDetailPage() {
         children: form.children,
         infants: form.infants,
         notes: form.notes,
-        totalAmount: form.totalAmount,
+        totalAmount: unformatMoneyInput(form.totalAmount),
       });
       setBooking(data);
       const roomId = data.rooms[0]?.roomId ?? form.roomId;
@@ -410,9 +412,9 @@ export function BookingDetailPage() {
         adults,
         children,
         infants,
-        totalAmount: data.totalAmount,
+        totalAmount: formatMoneyInput(data.totalAmount),
       }));
-      setCashAmount(data.remainingAmount);
+      setCashAmount(formatMoneyInput(data.remainingAmount));
       setMessage(t('common.saved'));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -451,7 +453,7 @@ export function BookingDetailPage() {
       await bookingsApi.markPayment(
         id,
         paymentMethod,
-        cashAmount || undefined,
+        unformatMoneyInput(cashAmount) || undefined,
       );
       await load();
       setCashAmount('');
@@ -834,9 +836,9 @@ export function BookingDetailPage() {
                     value={form.totalAmount}
                     onChange={(e) => {
                       setPriceResetNotice(null);
-                      setForm((f) => ({ ...f, totalAmount: e.target.value }));
+                      setForm((f) => ({ ...f, totalAmount: formatMoneyInput(e.target.value) }));
                     }}
-                    inputMode="decimal"
+                    inputMode="numeric"
                     required
                   />
                 </Field>
@@ -994,12 +996,13 @@ export function BookingDetailPage() {
               <Field label={t('bookingDetail.cashAmountLabel')}>
                 <Input
                   value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
+                  onChange={(e) => setCashAmount(formatMoneyInput(e.target.value))}
                   placeholder={
                     previewRemaining != null
-                      ? String(previewRemaining)
-                      : booking?.remainingAmount
+                      ? formatMoneyInput(previewRemaining)
+                      : formatMoneyInput(booking?.remainingAmount)
                   }
+                  inputMode="numeric"
                 />
               </Field>
               <Field label={t('bookingDetail.paymentMethodLabel')}>

@@ -27,9 +27,9 @@ export function Layout() {
   );
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[216px_1fr]">
       <aside className="border-b border-[var(--line)] bg-[var(--surface)] lg:border-b-0 lg:border-r">
-        <div className="flex items-start justify-between gap-2 px-5 py-5">
+        <div className="flex items-start justify-between gap-2 px-4 py-4">
           <div>
             <div className="text-lg font-semibold tracking-tight text-[var(--accent)]">
               EcoLife
@@ -38,7 +38,7 @@ export function Layout() {
           </div>
           <LangSwitch className="shrink-0" />
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:overflow-visible">
+        <nav className="flex gap-1 overflow-x-auto px-2.5 pb-3 lg:flex-col lg:overflow-visible">
           {visibleNav.map((item) => (
             <NavLink
               key={item.to}
@@ -57,7 +57,7 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="hidden border-t border-[var(--line)] px-5 py-4 lg:block">
+        <div className="hidden border-t border-[var(--line)] px-4 py-3.5 lg:block">
           <div className="text-sm font-medium">{user?.name}</div>
           <div className="text-xs text-[var(--muted)]">{user?.email}</div>
           <button

@@ -206,6 +206,32 @@ export function DashboardPage() {
       ]
     : [];
 
+  const { pendingArrivals, completedArrivals } = useMemo(() => {
+    const pending: typeof arrivals = [];
+    const completed: typeof arrivals = [];
+    for (const a of arrivals) {
+      if (a.status === 'checked_in') {
+        completed.push(a);
+      } else {
+        pending.push(a);
+      }
+    }
+    return { pendingArrivals: pending, completedArrivals: completed };
+  }, [arrivals]);
+
+  const { pendingDepartures, completedDepartures } = useMemo(() => {
+    const pending: typeof departures = [];
+    const completed: typeof departures = [];
+    for (const d of departures) {
+      if (d.status === 'checked_out') {
+        completed.push(d);
+      } else {
+        pending.push(d);
+      }
+    }
+    return { pendingDepartures: pending, completedDepartures: completed };
+  }, [departures]);
+
   return (
     <div>
       <PageHeader
@@ -253,10 +279,18 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card>
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
-            <span className="font-medium">{t('dashboard.arrivalsToday')}</span>
+      <div className="mt-6 flex flex-col gap-6">
+        {/* Arrivals Today Card (Left: Pending, Right: Completed) */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-base text-[var(--ink)]">
+                {t('dashboard.arrivalsToday')}
+              </span>
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
+                {arrivals.length}
+              </span>
+            </div>
             <button
               type="button"
               className="text-xs text-[var(--accent)] hover:underline"
@@ -272,11 +306,47 @@ export function DashboardPage() {
               })}
             </button>
           </div>
-          <List items={arrivals} mode="arrival" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--line)]">
+            {/* Left: Should check in */}
+            <div className="flex flex-col min-h-[140px]">
+              <div className="flex items-center justify-between border-b border-[var(--line)] bg-amber-50/50 px-3.5 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-900">
+                  {t('dashboard.pendingArrivals')}
+                </span>
+                <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-xs font-bold text-amber-900">
+                  {pendingArrivals.length}
+                </span>
+              </div>
+              <List items={pendingArrivals} mode="arrival" />
+            </div>
+
+            {/* Right: Already checked in */}
+            <div className="flex flex-col min-h-[140px]">
+              <div className="flex items-center justify-between border-b border-[var(--line)] bg-emerald-50/50 px-3.5 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-900">
+                  {t('dashboard.completedArrivals')}
+                </span>
+                <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-xs font-bold text-emerald-900">
+                  {completedArrivals.length}
+                </span>
+              </div>
+              <List items={completedArrivals} mode="arrival" />
+            </div>
+          </div>
         </Card>
-        <Card>
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
-            <span className="font-medium">{t('dashboard.departuresToday')}</span>
+
+        {/* Departures Today Card (Left: Pending, Right: Completed) */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-base text-[var(--ink)]">
+                {t('dashboard.departuresToday')}
+              </span>
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
+                {departures.length}
+              </span>
+            </div>
             <button
               type="button"
               className="text-xs text-[var(--accent)] hover:underline"
@@ -292,7 +362,34 @@ export function DashboardPage() {
               })}
             </button>
           </div>
-          <List items={departures} mode="departure" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--line)]">
+            {/* Left: Should check out */}
+            <div className="flex flex-col min-h-[140px]">
+              <div className="flex items-center justify-between border-b border-[var(--line)] bg-amber-50/50 px-3.5 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-900">
+                  {t('dashboard.pendingDepartures')}
+                </span>
+                <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-xs font-bold text-amber-900">
+                  {pendingDepartures.length}
+                </span>
+              </div>
+              <List items={pendingDepartures} mode="departure" />
+            </div>
+
+            {/* Right: Already checked out */}
+            <div className="flex flex-col min-h-[140px]">
+              <div className="flex items-center justify-between border-b border-[var(--line)] bg-slate-100/70 px-3.5 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                  {t('dashboard.completedDepartures')}
+                </span>
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-800">
+                  {completedDepartures.length}
+                </span>
+              </div>
+              <List items={completedDepartures} mode="departure" />
+            </div>
+          </div>
         </Card>
       </div>
 
