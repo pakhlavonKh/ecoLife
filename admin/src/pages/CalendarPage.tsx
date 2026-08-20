@@ -87,10 +87,18 @@ export function CalendarPage() {
   const [to, setTo] = useState(addDaysIso(14));
   const [data, setData] = useState<CalendarData | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Filters & Room Pagination
+  const [selectedCottage, setSelectedCottage] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [roomPage, setRoomPage] = useState(0);
+  const [roomsPerPage, setRoomsPerPage] = useState<number>(15);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
         const res = await calendarApi.get(from, to);
         if (!cancelled) {
@@ -99,6 +107,8 @@ export function CalendarPage() {
         }
       } catch (err) {
         if (!cancelled) setError(getErrorMessage(err));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -106,7 +116,79 @@ export function CalendarPage() {
     };
   }, [from, to]);
 
+  // Date range duration in days
+  const rangeDays = useMemo(() => {
+    const diff = dayjs(to).diff(dayjs(from), 'day');
+    return diff > 0 ? diff : 14;
+  }, [from, to]);
+
+  // Quick date navigation handlers
+  const handlePrevPeriod = () => {
+    const newFrom = dayjs(from).subtract(rangeDays, 'day').format('YYYY-MM-DD');
+    const newTo = dayjs(to).subtract(rangeDays, 'day').format('YYYY-MM-DD');
+    setFrom(newFrom);
+    setTo(newTo);
+  };
+
+  const handleNextPeriod = () => {
+    const newFrom = dayjs(from).add(rangeDays, 'day').format('YYYY-MM-DD');
+    const newTo = dayjs(to).add(rangeDays, 'day').format('YYYY-MM-DD');
+    setFrom(newFrom);
+    setTo(newTo);
+  };
+
+  const handleToday = () => {
+    setFrom(todayIso());
+    setTo(addDaysIso(rangeDays));
+  };
+
+  const handlePresetDays = (daysCount: number) => {
+    setTo(dayjs(from).add(daysCount, 'day').format('YYYY-MM-DD'));
+  };
+
   const bufferMinutes = data?.cleaningBufferMinutes ?? 60;
+
+  // Extract unique cottages & categories from rooms
+  const { cottages, categories } = useMemo(() => {
+    if (!data?.rooms) return { cottages: [], categories: [] };
+    const cotMap = new Map<string, string>();
+    const catMap = new Map<string, string>();
+    for (const r of data.rooms) {
+      if (r.cottageName) cotMap.set(r.cottageName, r.cottageName);
+      if (r.categoryCode) catMap.set(r.categoryCode, r.categoryCode.toUpperCase());
+    }
+    return {
+      cottages: Array.from(cotMap.entries()).map(([k, v]) => ({ key: k, label: v })),
+      categories: Array.from(catMap.entries()).map(([k, v]) => ({ key: k, label: v })),
+    };
+  }, [data]);
+
+  // Filtered rooms
+  const filteredRooms = useMemo(() => {
+    if (!data?.rooms) return [];
+    return data.rooms.filter((r) => {
+      if (selectedCottage && r.cottageName !== selectedCottage) return false;
+      if (selectedCategory && r.categoryCode?.toLowerCase() !== selectedCategory.toLowerCase()) return false;
+      return true;
+    });
+  }, [data, selectedCottage, selectedCategory]);
+
+  // Reset room page on filter change
+  useEffect(() => {
+    setRoomPage(0);
+  }, [selectedCottage, selectedCategory, roomsPerPage]);
+
+  // Paginated rooms
+  const paginatedRooms = useMemo(() => {
+    if (roomsPerPage === 0) return filteredRooms;
+    const start = roomPage * roomsPerPage;
+    return filteredRooms.slice(start, start + roomsPerPage);
+  }, [filteredRooms, roomPage, roomsPerPage]);
+
+  const totalRoomPages = useMemo(() => {
+    if (roomsPerPage === 0 || filteredRooms.length === 0) return 1;
+    return Math.ceil(filteredRooms.length / roomsPerPage);
+  }, [filteredRooms, roomsPerPage]);
 
   const days = useMemo(() => {
     if (!data) return [] as string[];
@@ -123,7 +205,7 @@ export function CalendarPage() {
   const rowHeight = useMemo(() => {
     if (!data) return 56;
     let maxSegments = 1;
-    for (const room of data.rooms) {
+    for (const room of paginatedRooms) {
       for (const day of days) {
         let n = 0;
         for (const b of data.bookings ?? []) {
@@ -151,7 +233,7 @@ export function CalendarPage() {
       }
     }
     return Math.max(56, 18 + maxSegments * 18 + 16);
-  }, [data, days, bufferMinutes]);
+  }, [data, days, bufferMinutes, paginatedRooms]);
 
   return (
     <div>
@@ -164,44 +246,185 @@ export function CalendarPage() {
           </Link>
         }
       />
-      <Card className="mb-4 flex flex-wrap gap-3 p-4">
-        <Field label={t('common.from')}>
-          <DateField value={from} onChange={setFrom} />
-        </Field>
-        <Field label={t('calendar.toExclusive')}>
-          <DateField value={to} onChange={setTo} min={from || undefined} />
-        </Field>
-        <div className="flex flex-wrap items-end gap-3 text-xs text-[var(--muted)]">
-          <span className="inline-flex items-center gap-1">
-            <span
-              className="inline-block h-2.5 w-4 rounded-sm"
-              style={{ background: STATUS_COLOR.confirmed }}
-            />
-            {t('calendar.legendBooking')}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span
-              className="inline-block h-2.5 w-4 rounded-sm border border-stone-400"
-              style={BUFFER_STYLE}
-            />
-            {t('calendar.legendBuffer')}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-4 rounded-sm bg-amber-400" />
-            {t('calendar.legendTransferClean')}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span
-              className="inline-block h-2.5 w-4 rounded-sm"
-              style={{ background: LOCK_COLOR }}
-            />
-            {t('calendar.legendLock')}
-          </span>
+
+      {/* Date Controls & Period Presets */}
+      <Card className="mb-3 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('common.from')}>
+              <DateField value={from} onChange={setFrom} />
+            </Field>
+            <Field label={t('calendar.toExclusive')}>
+              <DateField value={to} onChange={setTo} min={from || undefined} />
+            </Field>
+
+            <div className="flex items-center gap-1">
+              <Button variant="secondary" onClick={handlePrevPeriod} title={t('calendar.prevPeriod')}>
+                {t('calendar.prevPeriod')}
+              </Button>
+              <Button variant="secondary" onClick={handleToday}>
+                {t('calendar.today')}
+              </Button>
+              <Button variant="secondary" onClick={handleNextPeriod} title={t('calendar.nextPeriod')}>
+                {t('calendar.nextPeriod')}
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1 border-l border-[var(--line)] pl-3">
+              <Button
+                variant={rangeDays === 7 ? 'primary' : 'secondary'}
+                onClick={() => handlePresetDays(7)}
+                className="text-xs py-1.5 px-2.5"
+              >
+                {t('calendar.days7')}
+              </Button>
+              <Button
+                variant={rangeDays === 14 ? 'primary' : 'secondary'}
+                onClick={() => handlePresetDays(14)}
+                className="text-xs py-1.5 px-2.5"
+              >
+                {t('calendar.days14')}
+              </Button>
+              <Button
+                variant={rangeDays === 30 ? 'primary' : 'secondary'}
+                onClick={() => handlePresetDays(30)}
+                className="text-xs py-1.5 px-2.5"
+              >
+                {t('calendar.days30')}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-block h-2.5 w-4 rounded-sm"
+                style={{ background: STATUS_COLOR.confirmed }}
+              />
+              {t('calendar.legendBooking')}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-block h-2.5 w-4 rounded-sm border border-stone-400"
+                style={BUFFER_STYLE}
+              />
+              {t('calendar.legendBuffer')}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-4 rounded-sm bg-amber-400" />
+              {t('calendar.legendTransferClean')}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-block h-2.5 w-4 rounded-sm"
+                style={{ background: LOCK_COLOR }}
+              />
+              {t('calendar.legendLock')}
+            </span>
+          </div>
         </div>
       </Card>
+
+      {/* Room Filters & Room Pagination Bar */}
+      <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-3 bg-stone-50">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[var(--muted)]">{t('calendar.filterCottage')}:</span>
+            <select
+              value={selectedCottage}
+              onChange={(e) => setSelectedCottage(e.target.value)}
+              className="rounded-md border border-[var(--line)] bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+            >
+              <option value="">{t('calendar.allCottages')}</option>
+              {cottages.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[var(--muted)]">{t('calendar.filterCategory')}:</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="rounded-md border border-[var(--line)] bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+            >
+              <option value="">{t('calendar.allCategories')}</option>
+              {categories.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-[var(--line)] pl-3">
+            <span className="text-xs font-medium text-[var(--muted)]">{t('calendar.roomsPerPage')}:</span>
+            <select
+              value={roomsPerPage}
+              onChange={(e) => setRoomsPerPage(Number(e.target.value))}
+              className="rounded-md border border-[var(--line)] bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+            >
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={25}>25</option>
+              <option value={0}>{t('calendar.allRooms')}</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Room Pagination Controls */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-[var(--muted)]">
+            {roomsPerPage === 0
+              ? `${filteredRooms.length} ${t('calendar.colRoom').toLowerCase()}`
+              : t('calendar.showingRooms', {
+                  from: filteredRooms.length === 0 ? 0 : roomPage * roomsPerPage + 1,
+                  to: Math.min((roomPage + 1) * roomsPerPage, filteredRooms.length),
+                  total: filteredRooms.length,
+                })}
+          </span>
+
+          {totalRoomPages > 1 && (
+            <div className="flex items-center gap-1 ml-2">
+              <Button
+                variant="secondary"
+                disabled={roomPage === 0}
+                onClick={() => setRoomPage((p) => Math.max(0, p - 1))}
+                className="py-1 px-2 text-xs"
+              >
+                ‹
+              </Button>
+              <span className="px-1 text-[var(--muted)]">
+                {t('calendar.pageOf', { current: roomPage + 1, total: totalRoomPages })}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={roomPage >= totalRoomPages - 1}
+                onClick={() => setRoomPage((p) => Math.min(totalRoomPages - 1, p + 1))}
+                className="py-1 px-2 text-xs"
+              >
+                ›
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+
       <ErrorBox message={error} />
 
-      <Card className="overflow-auto">
+      <Card className="relative overflow-auto">
+        {loading && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-md border border-[var(--line)]">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+              <span className="text-xs font-medium text-[var(--muted)]">{t('common.loading')}</span>
+            </div>
+          </div>
+        )}
+
         <div className="min-w-max">
           <div
             className="sticky top-0 z-10 grid border-b border-[var(--line)] bg-[var(--surface)]"
@@ -223,7 +446,7 @@ export function CalendarPage() {
             ))}
           </div>
 
-          {(data?.rooms ?? []).map((room) => {
+          {paginatedRooms.map((room) => {
             const roomBookings = (data?.bookings ?? []).filter(
               (b) => b.roomId === room.id,
             );

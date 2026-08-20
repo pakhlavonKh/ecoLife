@@ -298,7 +298,21 @@
     "legendTransferClean": "Ko‘chish-chiqish (buffersiz)",
     "legendLock": "Butun xona lock",
     "barLabel": "{{code}} {{customerName}}",
-    "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}"
+    "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}",
+    "today": "Bugun",
+    "prevPeriod": "‹ Orqaga",
+    "nextPeriod": "Oldinga ›",
+    "days7": "7 kun",
+    "days14": "14 kun",
+    "days30": "30 kun",
+    "filterCottage": "Kottej",
+    "allCottages": "Barcha kottejlar",
+    "filterCategory": "Kategoriya",
+    "allCategories": "Barcha kategoriyalar",
+    "roomsPerPage": "Sahifadagi xonalar",
+    "allRooms": "Barchasi",
+    "pageOf": "Sahifa {{current}} / {{total}}",
+    "showingRooms": "Xonalar {{from}}–{{to}} / {{total}}"
   },
   "audit": {
     "title": "O‘zgarishlar jurnali",

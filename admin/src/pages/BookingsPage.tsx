@@ -21,7 +21,7 @@ import { formatDate, formatMoney } from '../lib/format';
 import { formatGuestName } from '../lib/guest-name';
 import { sourceLabel } from '../lib/labels';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 15;
 
 const STATUSES = [
   '',

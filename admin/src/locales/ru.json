@@ -299,7 +299,21 @@
     "legendTransferClean": "Переезд-выезд (без буфера)",
     "legendLock": "Лок целиком",
     "barLabel": "{{code}} {{customerName}}",
-    "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}"
+    "barTitle": "{{code}} · {{customerName}} · {{checkIn}}–{{checkOut}} · {{status}}",
+    "today": "Сегодня",
+    "prevPeriod": "‹ Назад",
+    "nextPeriod": "Вперед ›",
+    "days7": "7 дней",
+    "days14": "14 дней",
+    "days30": "30 дней",
+    "filterCottage": "Коттедж",
+    "allCottages": "Все коттеджи",
+    "filterCategory": "Категория",
+    "allCategories": "Все категории",
+    "roomsPerPage": "Номеров на стр.",
+    "allRooms": "Все",
+    "pageOf": "Стр. {{current}} из {{total}}",
+    "showingRooms": "Номера {{from}}–{{to}} из {{total}}"
   },
   "audit": {
     "title": "Журнал изменений",

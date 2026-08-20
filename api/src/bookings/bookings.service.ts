@@ -524,7 +524,7 @@ export class BookingsService {
       ];
     }
 
-    const limit = Math.min(filters?.limit ?? 50, 200);
+    const limit = Math.min(filters?.limit ?? 15, 200);
     const offset = filters?.offset ?? 0;
 
     const [rows, total] = await Promise.all([
