@@ -11,7 +11,7 @@ import {
 } from '../lib/format';
 import { DateField } from './DateField';
 import { TimeField } from './TimeField';
-import { Button, ErrorBox, Field, Input, MoneyInput, Select, TextArea } from './ui';
+import { Button, ErrorBox, Field, MoneyInput, Select, TextArea } from './ui';
 
 type Props = {
   booking: Booking;

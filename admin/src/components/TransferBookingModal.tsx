@@ -12,7 +12,7 @@ import {
 } from '../lib/format';
 import { DateField } from './DateField';
 import { TimeField } from './TimeField';
-import { Button, ErrorBox, Field, Input, MoneyInput, Select, TextArea } from './ui';
+import { Button, ErrorBox, Field, MoneyInput, Select, TextArea } from './ui';
 
 function segmentLabel(index: number): string {
   return String.fromCharCode(65 + Math.min(index, 25));
