@@ -24,6 +24,7 @@ import {
   ErrorBox,
   Field,
   Input,
+  MoneyInput,
   PageHeader,
   PaymentBadge,
   Select,
@@ -832,13 +833,12 @@ export function BookingDetailPage() {
                   />
                 </Field>
                 <Field label={t('bookingDetail.totalAmountLabel')}>
-                  <Input
+                  <MoneyInput
                     value={form.totalAmount}
-                    onChange={(e) => {
+                    onValueChange={(val) => {
                       setPriceResetNotice(null);
-                      setForm((f) => ({ ...f, totalAmount: formatMoneyInput(e.target.value) }));
+                      setForm((f) => ({ ...f, totalAmount: val }));
                     }}
-                    inputMode="numeric"
                     required
                   />
                 </Field>
@@ -994,15 +994,14 @@ export function BookingDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('bookingDetail.cashAmountLabel')}>
-                <Input
+                <MoneyInput
                   value={cashAmount}
-                  onChange={(e) => setCashAmount(formatMoneyInput(e.target.value))}
+                  onValueChange={(val) => setCashAmount(val)}
                   placeholder={
                     previewRemaining != null
                       ? formatMoneyInput(previewRemaining)
                       : formatMoneyInput(booking?.remainingAmount)
                   }
-                  inputMode="numeric"
                 />
               </Field>
               <Field label={t('bookingDetail.paymentMethodLabel')}>

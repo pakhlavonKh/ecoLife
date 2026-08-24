@@ -1,6 +1,15 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { paymentLabel, statusLabel } from '../lib/labels';
+import { MoneyInput, type MoneyInputProps } from './MoneyInput';
+
+export { MoneyInput, type MoneyInputProps };
 
 export function PageHeader({
   title,
@@ -84,12 +93,11 @@ export function Field({
 const control =
   'w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)]';
 
-export function Input({
-  className = '',
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${control} ${className}`} {...props} />;
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className = '', ...props }, ref) {
+    return <input ref={ref} className={`${control} ${className}`} {...props} />;
+  },
+);
 
 export function Select({
   className = '',

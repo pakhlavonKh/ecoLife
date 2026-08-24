@@ -11,7 +11,7 @@ import {
 } from '../lib/format';
 import { DateField } from './DateField';
 import { TimeField } from './TimeField';
-import { Button, ErrorBox, Field, Input, Select, TextArea } from './ui';
+import { Button, ErrorBox, Field, Input, MoneyInput, Select, TextArea } from './ui';
 
 type Props = {
   booking: Booking;
@@ -228,10 +228,9 @@ export function ExtendBookingModal({ booking, open, onClose, onDone }: Props) {
               </p>
               <div className="mt-2">
                 <Field label={t('bookingDetail.extendAmountLabel')}>
-                  <Input
+                  <MoneyInput
                     value={addedAmount}
-                    onChange={(e) => setAddedAmount(e.target.value)}
-                    inputMode="decimal"
+                    onValueChange={(val) => setAddedAmount(val)}
                     required
                   />
                 </Field>

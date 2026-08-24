@@ -12,7 +12,7 @@ import {
 } from '../lib/format';
 import { DateField } from './DateField';
 import { TimeField } from './TimeField';
-import { Button, ErrorBox, Field, Input, Select, TextArea } from './ui';
+import { Button, ErrorBox, Field, Input, MoneyInput, Select, TextArea } from './ui';
 
 function segmentLabel(index: number): string {
   return String.fromCharCode(65 + Math.min(index, 25));
@@ -357,10 +357,9 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
               {!moneyPreview.sameCategory ? (
                 <div className="mt-2">
                   <Field label={t('bookingDetail.transferSurchargeLabel')}>
-                    <Input
+                    <MoneyInput
                       value={surcharge}
-                      onChange={(e) => setSurcharge(e.target.value)}
-                      inputMode="decimal"
+                      onValueChange={(val) => setSurcharge(val)}
                       required
                     />
                   </Field>
