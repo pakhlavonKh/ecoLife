@@ -65,16 +65,22 @@ describe('meal forecast presence (half-open stay)', () => {
 describe('buildDayMealCounts', () => {
   const mealTimes = parseMealTimes({});
 
-  it('aggregates beds_total across bookings per meal', () => {
+  it('aggregates adults, children, infants across bookings per meal', () => {
     const stays = [
       {
         checkIn: parseLocalDateTime('2026-08-05', '16:00'),
         checkOut: parseLocalDateTime('2026-08-07', '12:00'),
+        adults: 4,
+        children: 2,
+        infants: 1,
         guests: 7,
       },
       {
         checkIn: parseLocalDateTime('2026-08-05', '14:00'),
         checkOut: parseLocalDateTime('2026-08-06', '12:00'),
+        adults: 2,
+        children: 0,
+        infants: 0,
         guests: 2,
       },
     ];
@@ -85,9 +91,27 @@ describe('buildDayMealCounts', () => {
     );
 
     expect(days).toEqual([
-      { date: '2026-08-05', breakfast: 0, lunch: 0, dinner: 9, total: 9 },
-      { date: '2026-08-06', breakfast: 9, lunch: 7, dinner: 7, total: 23 },
-      { date: '2026-08-07', breakfast: 7, lunch: 0, dinner: 0, total: 7 },
+      {
+        date: '2026-08-05',
+        breakfast: { adults: 0, children: 0, infants: 0, total: 0 },
+        lunch: { adults: 0, children: 0, infants: 0, total: 0 },
+        dinner: { adults: 6, children: 2, infants: 1, total: 9 },
+        total: { adults: 6, children: 2, infants: 1, total: 9 },
+      },
+      {
+        date: '2026-08-06',
+        breakfast: { adults: 6, children: 2, infants: 1, total: 9 },
+        lunch: { adults: 4, children: 2, infants: 1, total: 7 },
+        dinner: { adults: 4, children: 2, infants: 1, total: 7 },
+        total: { adults: 14, children: 6, infants: 3, total: 23 },
+      },
+      {
+        date: '2026-08-07',
+        breakfast: { adults: 4, children: 2, infants: 1, total: 7 },
+        lunch: { adults: 0, children: 0, infants: 0, total: 0 },
+        dinner: { adults: 0, children: 0, infants: 0, total: 0 },
+        total: { adults: 4, children: 2, infants: 1, total: 7 },
+      },
     ]);
   });
 

@@ -47,17 +47,6 @@ export function DashboardPage() {
   const [arrivalSort, setArrivalSort] = useState<SortDir>('asc');
   const [departureSort, setDepartureSort] = useState<SortDir>('asc');
 
-  const [mealOpen, setMealOpen] = useState(false);
-  const [mealFrom, setMealFrom] = useState(todayIso);
-  const [mealTo, setMealTo] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 6);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
-  const [mealFormat, setMealFormat] = useState<'xlsx' | 'pdf'>('xlsx');
-  const [mealBusy, setMealBusy] = useState(false);
-  const [mealError, setMealError] = useState('');
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -98,13 +87,26 @@ export function DashboardPage() {
     return list;
   }, [data?.departuresList, departureSort]);
 
+  // Meal forecast states (today is default)
+  const [mealOpen, setMealOpen] = useState(false);
+  const [mealMode, setMealMode] = useState<'daily' | 'range'>('daily');
+  const [mealDailyDate, setMealDailyDate] = useState(todayIso);
+  const [mealFrom, setMealFrom] = useState(todayIso);
+  const [mealTo, setMealTo] = useState(todayIso);
+  const [mealFormat, setMealFormat] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [mealBusy, setMealBusy] = useState(false);
+  const [mealError, setMealError] = useState('');
+
+  const targetMealFrom = mealMode === 'daily' ? mealDailyDate : mealFrom;
+  const targetMealTo = mealMode === 'daily' ? mealDailyDate : mealTo;
+
   async function downloadMealForecast() {
     setMealBusy(true);
     setMealError('');
     try {
       const res = await exportsApi.mealForecast({
-        from: mealFrom,
-        to: mealTo,
+        from: targetMealFrom,
+        to: targetMealTo,
         format: mealFormat,
       });
       const contentType = String(res.headers['content-type'] ?? '');
@@ -117,10 +119,9 @@ export function DashboardPage() {
         throw new Error(msg || t('dashboard.mealExportError'));
       }
       const ext = mealFormat === 'pdf' ? 'pdf' : 'xlsx';
-      downloadBlob(res.data, `meal-forecast_${mealFrom}_${mealTo}.${ext}`);
+      downloadBlob(res.data, `meal-forecast_${targetMealFrom}_${targetMealTo}.${ext}`);
       setMealOpen(false);
     } catch (err) {
-      // Nest validation errors come as JSON blob when responseType=blob.
       if (
         err &&
         typeof err === 'object' &&
@@ -257,6 +258,11 @@ export function DashboardPage() {
           type="button"
           variant="secondary"
           onClick={() => {
+            const today = todayIso();
+            setMealDailyDate(today);
+            setMealFrom(today);
+            setMealTo(today);
+            setMealMode('daily');
             setMealError('');
             setMealOpen(true);
           }}
@@ -394,21 +400,121 @@ export function DashboardPage() {
       </div>
 
       {mealOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-md p-5 shadow-lg">
-            <h2 className="text-lg font-semibold">
-              {t('dashboard.mealExportTitle')}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {t('dashboard.mealExportHint')}
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Field label={t('common.from')}>
-                <DateField value={mealFrom} onChange={setMealFrom} />
-              </Field>
-              <Field label={t('common.to')}>
-                <DateField value={mealTo} onChange={setMealTo} />
-              </Field>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+          <Card className="w-full max-w-md p-5 shadow-xl flex flex-col my-auto">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] pb-3">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--ink)]">
+                  {t('dashboard.mealExportTitle')}
+                </h2>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
+                  {t('dashboard.mealExportHint')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMealOpen(false)}
+                className="text-[var(--muted)] hover:text-[var(--ink)] p-1 rounded hover:bg-stone-100 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* Mode Switcher */}
+              <div className="flex items-center gap-1 rounded-lg bg-stone-100 p-1 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setMealMode('daily')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    mealMode === 'daily'
+                      ? 'bg-white shadow-sm text-[var(--ink)]'
+                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {t('dashboard.mealModeDaily')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMealMode('range')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    mealMode === 'range'
+                      ? 'bg-white shadow-sm text-[var(--ink)]'
+                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {t('dashboard.mealModeRange')}
+                </button>
+              </div>
+
+              {/* Date Filters */}
+              {mealMode === 'daily' ? (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="w-48">
+                    <Field label={t('dashboard.mealDate')}>
+                      <DateField value={mealDailyDate} onChange={setMealDailyDate} />
+                    </Field>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setMealDailyDate(todayIso())}
+                    className="mb-0.5 text-xs py-1 px-2"
+                  >
+                    {t('dashboard.todaySubtitle', { date: '' }).trim() || 'Сегодня'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label={t('common.from')}>
+                      <DateField value={mealFrom} onChange={setMealFrom} />
+                    </Field>
+                    <Field label={t('common.to')}>
+                      <DateField value={mealTo} onChange={setMealTo} />
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = todayIso();
+                        setMealFrom(today);
+                        setMealTo(today);
+                      }}
+                      className="px-2 py-0.5 rounded border border-[var(--line)] bg-white hover:bg-stone-50 text-[var(--ink)]"
+                    >
+                      {t('dashboard.mealModeDaily')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d2 = new Date();
+                        d2.setDate(d2.getDate() + 2);
+                        setMealFrom(todayIso());
+                        setMealTo(`${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`);
+                      }}
+                      className="px-2 py-0.5 rounded border border-[var(--line)] bg-white hover:bg-stone-50 text-[var(--ink)]"
+                    >
+                      3 дня
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d2 = new Date();
+                        d2.setDate(d2.getDate() + 6);
+                        setMealFrom(todayIso());
+                        setMealTo(`${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`);
+                      }}
+                      className="px-2 py-0.5 rounded border border-[var(--line)] bg-white hover:bg-stone-50 text-[var(--ink)]"
+                    >
+                      7 дней
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Format */}
               <Field label={t('dashboard.mealExportFormat')}>
                 <Select
                   value={mealFormat}
@@ -420,26 +526,28 @@ export function DashboardPage() {
                   <option value="pdf">{t('dashboard.mealExportPdf')}</option>
                 </Select>
               </Field>
-            </div>
-            <ErrorBox message={mealError} />
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={mealBusy}
-                onClick={() => setMealOpen(false)}
-              >
-                {t('common.cancel')}
-              </Button>
-              <Button
-                type="button"
-                disabled={mealBusy}
-                onClick={() => void downloadMealForecast()}
-              >
-                {mealBusy
-                  ? t('dashboard.mealExportDownloading')
-                  : t('dashboard.mealExportDownload')}
-              </Button>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={mealBusy}
+                  onClick={() => setMealOpen(false)}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={mealBusy}
+                  onClick={() => void downloadMealForecast()}
+                >
+                  {mealBusy
+                    ? t('dashboard.mealExportDownloading')
+                    : t('dashboard.mealExportDownload')}
+                </Button>
+              </div>
+              <ErrorBox message={mealError} />
             </div>
           </Card>
         </div>

@@ -19,6 +19,15 @@ function resolveFont(file: string): string {
   throw new Error(`PDF font not found: ${file}`);
 }
 
+function formatGuestBreakdown(b: { adults: number; children: number; infants: number; total: number }): string {
+  if (b.total === 0) return '0';
+  const parts: string[] = [];
+  if (b.adults > 0) parts.push(`${b.adults}в`);
+  if (b.children > 0) parts.push(`${b.children}д`);
+  if (b.infants > 0) parts.push(`${b.infants}м`);
+  return `${b.total} (${parts.join('/')})`;
+}
+
 export async function buildMealForecastPdf(opts: {
   from: string;
   to: string;
@@ -32,7 +41,7 @@ export async function buildMealForecastPdf(opts: {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: 40, bottom: 40, left: 40, right: 40 },
+      margins: { top: 40, bottom: 40, left: 35, right: 35 },
       info: {
         Title: `Прогноз питания ${opts.from} — ${opts.to}`,
         Author: 'EcoLife',
@@ -63,112 +72,201 @@ export async function buildMealForecastPdf(opts: {
     doc.fillColor('#000000');
     doc.moveDown(0.8);
 
-    const colX = [40, 130, 210, 290, 370];
-    const colW = [90, 80, 80, 80, 120];
-    const headers = [
-      'Дата',
-      'Завтрак',
-      'Обед',
-      'Ужин',
-      'Итого гостей/день',
-    ];
-
-    drawSummaryHeader(doc, colX, colW, headers);
-
-    let sumB = 0;
-    let sumL = 0;
-    let sumD = 0;
-    let sumT = 0;
-    const rowH = opts.days.length <= 14 ? 22 : 18;
-    const fontSize = opts.days.length <= 14 ? 12 : 10;
-
-    for (const day of opts.days) {
-      if (doc.y + rowH > doc.page.height - 60) {
-        doc.addPage();
-        drawSummaryHeader(doc, colX, colW, headers);
-      }
-      const y = doc.y;
-      const vals = [
-        formatExportIsoDate(day.date),
-        String(day.breakfast),
-        String(day.lunch),
-        String(day.dinner),
-        String(day.total),
+    // If single-day report, render a clean daily summary table (rows = meals, cols = people types)
+    if (opts.days.length === 1) {
+      const day = opts.days[0];
+      const colX = [35, 125, 205, 285, 365, 445];
+      const colW = [90, 80, 80, 80, 80, 85];
+      const headers = [
+        'Приём пищи',
+        'Время',
+        'Взрослые',
+        'Дети',
+        'Младенцы',
+        'Всего порций',
       ];
-      for (let i = 0; i < vals.length; i++) {
+
+      drawSummaryHeader(doc, colX, colW, headers);
+
+      const meals = [
+        { name: 'Завтрак', time: opts.mealTimes.breakfast, data: day.breakfast },
+        { name: 'Обед', time: opts.mealTimes.lunch, data: day.lunch },
+        { name: 'Ужин', time: opts.mealTimes.dinner, data: day.dinner },
+      ];
+
+      const rowH = 24;
+      for (const m of meals) {
+        const y = doc.y;
+        doc.font('MealSans-Bold').fontSize(10).fillColor('#000000').text(m.name, colX[0], y + 5, {
+          width: colW[0],
+          align: 'left',
+          lineBreak: false,
+        });
+        doc.font('MealSans').fontSize(10).fillColor('#333333').text(m.time, colX[1], y + 5, {
+          width: colW[1],
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.font('MealSans').fontSize(10).fillColor('#000000').text(String(m.data.adults), colX[2], y + 5, {
+          width: colW[2],
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.font('MealSans').fontSize(10).fillColor('#000000').text(String(m.data.children), colX[3], y + 5, {
+          width: colW[3],
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.font('MealSans').fontSize(10).fillColor('#000000').text(String(m.data.infants), colX[4], y + 5, {
+          width: colW[4],
+          align: 'center',
+          lineBreak: false,
+        });
+        doc.font('MealSans-Bold').fontSize(11).fillColor('#000000').text(String(m.data.total), colX[5], y + 5, {
+          width: colW[5],
+          align: 'center',
+          lineBreak: false,
+        });
+
         doc
-          .font(i === 0 ? 'MealSans' : 'MealSans-Bold')
-          .fontSize(i === 0 ? fontSize : fontSize + 1)
-          .text(vals[i], colX[i], y, {
+          .moveTo(35, y + rowH)
+          .lineTo(530, y + rowH)
+          .strokeColor('#dddddd')
+          .stroke();
+        doc.y = y + rowH;
+      }
+
+      // Total Row
+      const ty = doc.y;
+      doc.rect(35, ty, 495, 26).fill('#e2efda');
+      doc.fillColor('#000000');
+      doc.font('MealSans-Bold').fontSize(10).text('ИТОГО ЗА ДЕНЬ', colX[0], ty + 7, {
+        width: colW[0],
+        align: 'left',
+        lineBreak: false,
+      });
+      doc.font('MealSans-Bold').fontSize(10).text('—', colX[1], ty + 7, {
+        width: colW[1],
+        align: 'center',
+        lineBreak: false,
+      });
+      doc.font('MealSans-Bold').fontSize(10).text(String(day.total.adults), colX[2], ty + 7, {
+        width: colW[2],
+        align: 'center',
+        lineBreak: false,
+      });
+      doc.font('MealSans-Bold').fontSize(10).text(String(day.total.children), colX[3], ty + 7, {
+        width: colW[3],
+        align: 'center',
+        lineBreak: false,
+      });
+      doc.font('MealSans-Bold').fontSize(10).text(String(day.total.infants), colX[4], ty + 7, {
+        width: colW[4],
+        align: 'center',
+        lineBreak: false,
+      });
+      doc.font('MealSans-Bold').fontSize(12).text(String(day.total.total), colX[5], ty + 6, {
+        width: colW[5],
+        align: 'center',
+        lineBreak: false,
+      });
+
+      doc.y = ty + 36;
+    } else {
+      // Multi-day table
+      const colX = [35, 115, 220, 325, 430];
+      const colW = [75, 100, 100, 100, 95];
+      const headers = [
+        'Дата',
+        `Завтрак (${opts.mealTimes.breakfast})`,
+        `Обед (${opts.mealTimes.lunch})`,
+        `Ужин (${opts.mealTimes.dinner})`,
+        'Итого / день',
+      ];
+
+      drawSummaryHeader(doc, colX, colW, headers);
+
+      const sums = {
+        b: { adults: 0, children: 0, infants: 0, total: 0 },
+        l: { adults: 0, children: 0, infants: 0, total: 0 },
+        d: { adults: 0, children: 0, infants: 0, total: 0 },
+        t: { adults: 0, children: 0, infants: 0, total: 0 },
+      };
+
+      const rowH = 22;
+
+      for (const day of opts.days) {
+        if (doc.y + rowH > doc.page.height - 60) {
+          doc.addPage();
+          drawSummaryHeader(doc, colX, colW, headers);
+        }
+        const y = doc.y;
+        const vals = [
+          formatExportIsoDate(day.date),
+          formatGuestBreakdown(day.breakfast),
+          formatGuestBreakdown(day.lunch),
+          formatGuestBreakdown(day.dinner),
+          formatGuestBreakdown(day.total),
+        ];
+        for (let i = 0; i < vals.length; i++) {
+          doc
+            .font(i === 0 ? 'MealSans' : 'MealSans-Bold')
+            .fontSize(i === 0 ? 10 : 9)
+            .fillColor('#000000')
+            .text(vals[i], colX[i], y + 4, {
+              width: colW[i],
+              align: i === 0 ? 'left' : 'center',
+              lineBreak: false,
+            });
+        }
+        doc
+          .moveTo(35, y + rowH)
+          .lineTo(530, y + rowH)
+          .strokeColor('#dddddd')
+          .stroke();
+        doc.y = y + rowH;
+
+        sums.b.adults += day.breakfast.adults;
+        sums.b.children += day.breakfast.children;
+        sums.b.infants += day.breakfast.infants;
+        sums.b.total += day.breakfast.total;
+
+        sums.l.adults += day.lunch.adults;
+        sums.l.children += day.lunch.children;
+        sums.l.infants += day.lunch.infants;
+        sums.l.total += day.lunch.total;
+
+        sums.d.adults += day.dinner.adults;
+        sums.d.children += day.dinner.children;
+        sums.d.infants += day.dinner.infants;
+        sums.d.total += day.dinner.total;
+
+        sums.t.adults += day.total.adults;
+        sums.t.children += day.total.children;
+        sums.t.infants += day.total.infants;
+        sums.t.total += day.total.total;
+      }
+
+      const ty = doc.y + 4;
+      const totals = [
+        'ИТОГО',
+        formatGuestBreakdown(sums.b),
+        formatGuestBreakdown(sums.l),
+        formatGuestBreakdown(sums.d),
+        formatGuestBreakdown(sums.t),
+      ];
+      for (let i = 0; i < totals.length; i++) {
+        doc
+          .font('MealSans-Bold')
+          .fontSize(9)
+          .fillColor('#000000')
+          .text(totals[i], colX[i], ty, {
             width: colW[i],
             align: i === 0 ? 'left' : 'center',
             lineBreak: false,
           });
       }
-      doc
-        .moveTo(40, y + rowH - 2)
-        .lineTo(490, y + rowH - 2)
-        .strokeColor('#dddddd')
-        .stroke();
-      doc.y = y + rowH;
-      sumB += day.breakfast;
-      sumL += day.lunch;
-      sumD += day.dinner;
-      sumT += day.total;
-    }
-
-    const ty = doc.y + 4;
-    const totals = ['ИТОГО', String(sumB), String(sumL), String(sumD), String(sumT)];
-    for (let i = 0; i < totals.length; i++) {
-      doc
-        .font('MealSans-Bold')
-        .fontSize(12)
-        .text(totals[i], colX[i], ty, {
-          width: colW[i],
-          align: i === 0 ? 'left' : 'center',
-          lineBreak: false,
-        });
-    }
-    doc.y = ty + 28;
-
-    doc.addPage();
-    doc.fontSize(14).font('MealSans-Bold').fillColor('#000000').text('По номерам');
-    doc.moveDown(0.5);
-
-    const rColX = [40, 110, 280, 340, 430];
-    const rColW = [70, 170, 60, 90, 90];
-    const rHeaders = ['Номер', 'Коттедж', 'Гостей', 'Заезд', 'Выезд'];
-    drawRoomHeader(doc, rColX, rColW, rHeaders);
-
-    for (const r of opts.rooms) {
-      if (doc.y + 18 > doc.page.height - 50) {
-        doc.addPage();
-        drawRoomHeader(doc, rColX, rColW, rHeaders);
-      }
-      const y = doc.y;
-      const vals = [
-        r.roomNumber,
-        r.cottageName,
-        String(r.guests),
-        r.checkInLabel,
-        r.checkOutLabel,
-      ];
-      for (let i = 0; i < vals.length; i++) {
-        doc
-          .font('MealSans')
-          .fontSize(9)
-          .text(vals[i], rColX[i], y, {
-            width: rColW[i],
-            align: i === 2 ? 'center' : 'left',
-            lineBreak: false,
-            ellipsis: true,
-          });
-      }
-      doc.y = y + 16;
-    }
-
-    if (opts.rooms.length === 0) {
-      doc.fontSize(10).fillColor('#666666').text('Нет активных броней в диапазоне.');
+      doc.y = ty + 28;
     }
 
     doc.end();
@@ -182,39 +280,18 @@ function drawSummaryHeader(
   headers: string[],
 ) {
   const y = doc.y;
-  doc.rect(40, y - 2, 450, 18).fill('#e8f0e8');
+  doc.rect(35, y - 2, 495, 18).fill('#e8f0e8');
   doc.fillColor('#000000');
   for (let i = 0; i < headers.length; i++) {
     doc
       .font('MealSans-Bold')
       .fontSize(9)
-      .text(headers[i], colX[i], y, {
+      .text(headers[i], colX[i], y + 2, {
         width: colW[i],
         align: i === 0 ? 'left' : 'center',
         lineBreak: false,
       });
   }
-  doc.y = y + 20;
+  doc.y = y + 22;
 }
 
-function drawRoomHeader(
-  doc: PDFKit.PDFDocument,
-  colX: number[],
-  colW: number[],
-  headers: string[],
-) {
-  const y = doc.y;
-  doc.rect(40, y - 2, 480, 16).fill('#e8f0e8');
-  doc.fillColor('#000000');
-  for (let i = 0; i < headers.length; i++) {
-    doc
-      .font('MealSans-Bold')
-      .fontSize(9)
-      .text(headers[i], colX[i], y, {
-        width: colW[i],
-        align: i === 2 ? 'center' : 'left',
-        lineBreak: false,
-      });
-  }
-  doc.y = y + 18;
-}

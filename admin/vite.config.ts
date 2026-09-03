@@ -7,6 +7,7 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/admin/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
+    host: true,
     port: 5174,
     proxy: {
       '/api': {

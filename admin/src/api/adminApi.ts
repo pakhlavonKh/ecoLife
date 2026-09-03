@@ -152,7 +152,59 @@ export const dashboardApi = {
     }),
 };
 
+export type GuestBreakdown = {
+  adults: number;
+  children: number;
+  infants: number;
+  total: number;
+};
+
+export type DayMealCounts = {
+  date: string;
+  breakfast: GuestBreakdown;
+  lunch: GuestBreakdown;
+  dinner: GuestBreakdown;
+  total: GuestBreakdown;
+};
+
+export type MealForecastRoomRow = {
+  roomNumber: string;
+  cottageName: string;
+  adults: number;
+  children: number;
+  infants: number;
+  guests: number;
+  checkInLabel: string;
+  checkOutLabel: string;
+  checkIn: string;
+  checkOut: string;
+};
+
+export type MealForecastData = {
+  from: string;
+  to: string;
+  mealTimes: {
+    breakfast: string;
+    lunch: string;
+    dinner: string;
+  };
+  days: DayMealCounts[];
+  rooms: MealForecastRoomRow[];
+};
+
 export const exportsApi = {
+  mealForecastPreview: (params: {
+    from: string;
+    to: string;
+    includePending?: boolean;
+  }) =>
+    api.get<MealForecastData>('/api/v1/admin/exports/meal-forecast/preview', {
+      params: {
+        from: params.from,
+        to: params.to,
+        ...(params.includePending ? { include_pending: 'true' } : {}),
+      },
+    }),
   mealForecast: (params: {
     from: string;
     to: string;
@@ -169,6 +221,7 @@ export const exportsApi = {
       responseType: 'blob',
     }),
 };
+
 
 export const customersApi = {
   list: (search?: string) =>

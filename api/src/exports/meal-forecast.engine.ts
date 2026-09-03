@@ -24,19 +24,29 @@ export const DEFAULT_MEAL_TIMES: MealTimes = {
   dinner: DEFAULT_MEAL_DINNER_TIME,
 };
 
+export type GuestCountBreakdown = {
+  adults: number;
+  children: number;
+  infants: number;
+  total: number;
+};
+
 export type StayForMeals = {
   checkIn: Date;
   checkOut: Date;
+  adults: number;
+  children: number;
+  infants: number;
   guests: number;
 };
 
 export type DayMealCounts = {
   date: string;
-  breakfast: number;
-  lunch: number;
-  dinner: number;
-  /** breakfast + lunch + dinner — covers for the kitchen that day. */
-  total: number;
+  breakfast: GuestCountBreakdown;
+  lunch: GuestCountBreakdown;
+  dinner: GuestCountBreakdown;
+  /** breakfast + lunch + dinner — total portions served that day. */
+  total: GuestCountBreakdown;
 };
 
 export function isPresentAtMeal(
@@ -72,8 +82,7 @@ export function enumerateDatesInclusive(from: string, to: string): string[] {
 }
 
 /**
- * Per-day counts. `Итого гостей/день` = breakfast + lunch + dinner
- * (порции / покрытия за день — удобно кухне).
+ * Per-day counts with adults, children, infants breakdown for each meal.
  */
 export function buildDayMealCounts(
   stays: StayForMeals[],
@@ -82,21 +91,44 @@ export function buildDayMealCounts(
 ): DayMealCounts[] {
   const slots: MealSlot[] = ['breakfast', 'lunch', 'dinner'];
   return dates.map((date) => {
-    const counts = { breakfast: 0, lunch: 0, dinner: 0 };
+    const counts: Record<MealSlot, GuestCountBreakdown> = {
+      breakfast: { adults: 0, children: 0, infants: 0, total: 0 },
+      lunch: { adults: 0, children: 0, infants: 0, total: 0 },
+      dinner: { adults: 0, children: 0, infants: 0, total: 0 },
+    };
+
     for (const stay of stays) {
       for (const slot of slots) {
         const instant = mealInstantForDate(date, mealTimes[slot]);
         if (isPresentAtMeal(stay.checkIn, stay.checkOut, instant)) {
-          counts[slot] += stay.guests;
+          const a = stay.adults ?? 0;
+          const c = stay.children ?? 0;
+          const inf = stay.infants ?? 0;
+          const tot = stay.guests ?? (a + c + inf);
+
+          counts[slot].adults += a;
+          counts[slot].children += c;
+          counts[slot].infants += inf;
+          counts[slot].total += tot;
         }
       }
     }
+
+    const dayTotal: GuestCountBreakdown = {
+      adults: counts.breakfast.adults + counts.lunch.adults + counts.dinner.adults,
+      children:
+        counts.breakfast.children + counts.lunch.children + counts.dinner.children,
+      infants:
+        counts.breakfast.infants + counts.lunch.infants + counts.dinner.infants,
+      total: counts.breakfast.total + counts.lunch.total + counts.dinner.total,
+    };
+
     return {
       date,
       breakfast: counts.breakfast,
       lunch: counts.lunch,
       dinner: counts.dinner,
-      total: counts.breakfast + counts.lunch + counts.dinner,
+      total: dayTotal,
     };
   });
 }

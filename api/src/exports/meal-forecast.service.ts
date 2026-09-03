@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { BookingStatus } from '@prisma/client';
 import {
   addLocalDays,
+  formatLocalDate,
   parseLocalDateTime,
 } from '../common/utils/datetime';
 import { PrismaService } from '../prisma/prisma.service';
@@ -45,13 +46,52 @@ export class MealForecastService {
     });
   }
 
+  async getForecastData(opts: {
+    from?: string;
+    to?: string;
+    includePending?: boolean;
+  }) {
+    const payload = await this.getForecastPayload(opts);
+    return payload;
+  }
+
   async buildExport(opts: {
-    from: string;
-    to: string;
+    from?: string;
+    to?: string;
     format: 'xlsx' | 'pdf';
     includePending?: boolean;
   }): Promise<{ file: StreamableFile; filename: string }> {
-    const { from, to } = opts;
+    const payload = await this.getForecastPayload(opts);
+    const { from, to } = payload;
+
+    const buffer =
+      opts.format === 'pdf'
+        ? await buildMealForecastPdf(payload)
+        : await buildMealForecastXlsx(payload);
+
+    const filename = `meal-forecast_${from}_${to}.${opts.format === 'pdf' ? 'pdf' : 'xlsx'}`;
+    const contentType =
+      opts.format === 'pdf'
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    return {
+      filename,
+      file: new StreamableFile(buffer, {
+        type: contentType,
+        disposition: `attachment; filename="${filename}"`,
+      }),
+    };
+  }
+
+  private async getForecastPayload(opts: {
+    from?: string;
+    to?: string;
+    includePending?: boolean;
+  }) {
+    const today = formatLocalDate(new Date());
+    const from = opts.from || today;
+    const to = opts.to || from;
     this.assertDateRange(from, to);
 
     const mealTimes = this.getMealTimes();
@@ -95,6 +135,9 @@ export class MealForecastService {
     const stays: StayForMeals[] = activeBookings.map((b) => ({
       checkIn: b.checkIn,
       checkOut: b.checkOut,
+      adults: b.adults,
+      children: b.children,
+      infants: b.infants,
       guests: b.adults + b.children + b.infants,
     }));
 
@@ -121,6 +164,9 @@ export class MealForecastService {
         rooms.push({
           roomNumber: br.room.number,
           cottageName: br.room.cottage.name,
+          adults: b.adults,
+          children: b.children,
+          infants: b.infants,
           guests: br.bedsBooked,
           checkInLabel: formatExportDateTime(b.checkIn),
           checkOutLabel: formatExportDateTime(b.checkOut),
@@ -138,25 +184,7 @@ export class MealForecastService {
       return a.checkIn.getTime() - b.checkIn.getTime();
     });
 
-    const payload = { from, to, mealTimes, days, rooms };
-    const buffer =
-      opts.format === 'pdf'
-        ? await buildMealForecastPdf(payload)
-        : await buildMealForecastXlsx(payload);
-
-    const filename = `meal-forecast_${from}_${to}.${opts.format === 'pdf' ? 'pdf' : 'xlsx'}`;
-    const contentType =
-      opts.format === 'pdf'
-        ? 'application/pdf'
-        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-    return {
-      filename,
-      file: new StreamableFile(buffer, {
-        type: contentType,
-        disposition: `attachment; filename="${filename}"`,
-      }),
-    };
+    return { from, to, mealTimes, days, rooms };
   }
 
   private assertDateRange(from: string, to: string): void {
