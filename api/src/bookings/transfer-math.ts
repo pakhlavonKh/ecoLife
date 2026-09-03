@@ -6,6 +6,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { nightsBetween } from '../common/utils/dates';
 import {
+  calendarNightsBetween,
   formatLocalDate,
   formatLocalDateTime,
   formatLocalTime,
@@ -33,6 +34,16 @@ export type TransferSplit = {
 };
 
 /**
+ * Calendar nights for a transfer split. Times do not change the count
+ * (HOURLY.md §5): 10:00 and 18:00 on the same date are the same day.
+ * Unlike `nightsBetween`, a same-calendar-day stub is 0 — not billed as
+ * a phantom 1-night day-use. Day-use (0+0) is assigned to the new segment.
+ */
+export function transferSegmentNights(from: Date, to: Date): number {
+  return Math.max(0, calendarNightsBetween(from, to));
+}
+
+/**
  * Split [checkIn, checkOut) at transferTs into A=[checkIn, transferTs) and
  * B=[transferTs, checkOut). transferTs must be strictly inside the stay.
  */
@@ -47,22 +58,28 @@ export function splitStayAtTransfer(
       'transferAt must be strictly inside the current stay [checkIn, checkOut)',
     );
   }
+  let nightsA = transferSegmentNights(checkIn, transferTs);
+  let nightsB = transferSegmentNights(transferTs, checkOut);
+  // Whole stay is same-day day-use: keep the 1 night on the destination.
+  if (nightsA === 0 && nightsB === 0 && checkIn.getTime() < checkOut.getTime()) {
+    nightsB = 1;
+  }
   return {
     segmentA: {
       checkIn,
       checkOut: transferTs,
-      nights: nightsBetween(checkIn, transferTs),
+      nights: nightsA,
     },
     segmentB: {
       checkIn: transferTs,
       checkOut,
-      nights: nightsBetween(transferTs, checkOut),
+      nights: nightsB,
     },
   };
 }
 
 export type UpgradeMoneyPreview = {
-  operation: 'upgrade' | 'transfer';
+  operation: 'upgrade' | 'transfer' | 'downgrade';
   livedNights: number;
   remainingNights: number;
   livedAmount: Decimal;
@@ -79,7 +96,8 @@ export type UpgradeMoneyPreview = {
 /**
  * Upgrade / transfer money at the split point.
  * - Same category → transfer: surcharge forced to 0; totals keep catalog sum of segments.
- * - Different category → upgrade: surcharge = new remaining − old remaining (editable).
+ * - Different category, remaining more expensive → upgrade.
+ * - Different category, remaining cheaper → downgrade (negative surcharge).
  * Paid amounts are NOT touched here — caller sets remaining = total − paid.
  */
 export function calcTransferMoney(params: {
@@ -144,7 +162,7 @@ export function calcTransferMoney(params: {
     .toDecimalPlaces(2);
 
   return {
-    operation: 'upgrade',
+    operation: suggestedSurcharge.lt(0) ? 'downgrade' : 'upgrade',
     livedNights,
     remainingNights,
     livedAmount,

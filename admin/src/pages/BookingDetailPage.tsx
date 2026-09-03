@@ -32,6 +32,7 @@ import {
   TextArea,
 } from '../components/ui';
 import {
+  calendarNights,
   calcAgeTotal,
   calcDeposit,
   cleaningBlockedUntil,
@@ -62,6 +63,8 @@ const TRANSFER_EXTEND_STATUSES = new Set([
 function segmentLetter(index: number): string {
   return String.fromCharCode(65 + Math.min(Math.max(index, 0), 25));
 }
+
+const ADJUSTMENT_OPS = new Set(['upgrade', 'transfer', 'downgrade', 'extend']);
 
 const MANUAL_PAYMENT_METHODS = [
   'cash',
@@ -125,10 +128,11 @@ export function BookingDetailPage() {
 
   async function load() {
     const { data } = await bookingsApi.get(id);
-    const activeRooms = [...data.rooms]
+    const rooms = Array.isArray(data.rooms) ? data.rooms : [];
+    const activeRooms = [...rooms]
       .filter((r) => r.isActive)
       .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
-    const primary = activeRooms[activeRooms.length - 1] ?? data.rooms[0];
+    const primary = activeRooms[activeRooms.length - 1] ?? rooms[0];
     const roomId = primary?.roomId ?? '';
     const adults = data.adults ?? primary?.bedsBooked ?? data.bedsTotal;
     const children = data.children ?? 0;
@@ -137,13 +141,13 @@ export function BookingDetailPage() {
     const checkOutTime = data.checkOutTime || DEFAULT_CHECK_OUT_TIME;
     inventoryBaseline.current = `${adults}|${children}|${infants}|${data.checkIn}|${data.checkOut}|${checkInTime}|${checkOutTime}|${roomId}`;
     setPriceResetNotice(null);
-    setBooking(data);
+    setBooking({ ...data, rooms });
     setForm({
       guestName: formatGuestName(
-        data.customer.firstName,
-        data.customer.lastName,
+        data.customer?.firstName ?? '',
+        data.customer?.lastName ?? '',
       ),
-      phone: data.customer.phone,
+      phone: data.customer?.phone ?? '',
       checkIn: data.checkIn,
       checkOut: data.checkOut,
       checkInTime,
@@ -198,7 +202,8 @@ export function BookingDetailPage() {
 
   const activeSegments = useMemo(() => {
     if (!booking) return [];
-    return [...booking.rooms]
+    const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
+    return [...rooms]
       .filter((r) => r.isActive)
       .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
   }, [booking]);
@@ -211,7 +216,7 @@ export function BookingDetailPage() {
   useEffect(() => {
     const roomId =
       activeSegments[activeSegments.length - 1]?.roomId ??
-      booking?.rooms[0]?.roomId;
+      booking?.rooms?.[0]?.roomId;
     if (!roomId) return;
     let cancelled = false;
     (async () => {
@@ -254,7 +259,7 @@ export function BookingDetailPage() {
             setBufferMinutes(data.cleaningBufferMinutes);
           }
           const current =
-            activeSegments[activeSegments.length - 1] ?? booking?.rooms[0];
+            activeSegments[activeSegments.length - 1] ?? booking?.rooms?.[0];
           if (
             current &&
             !list.some((r) => r.id === current.roomId)
@@ -337,11 +342,12 @@ export function BookingDetailPage() {
   // On guests / dates / times / room change: always reset bargained total to auto-calc.
   useEffect(() => {
     if (!calculated) return;
+    if (activeSegments.length > 1) return;
     const key = `${form.adults}|${form.children}|${form.infants}|${form.checkIn}|${form.checkOut}|${form.checkInTime}|${form.checkOutTime}|${form.roomId}`;
     if (key === inventoryBaseline.current) return;
     const nextFormatted = formatMoneyInput(calculated.total);
     const prevRaw = unformatMoneyInput(form.totalAmount);
-    if (prevRaw === String(calculated.total)) return;
+    if (prevRaw === unformatMoneyInput(String(calculated.total))) return;
     setPriceResetNotice({ from: form.totalAmount, to: nextFormatted });
     setForm((f) => ({ ...f, totalAmount: nextFormatted }));
   }, [
@@ -354,6 +360,7 @@ export function BookingDetailPage() {
     form.checkOutTime,
     form.roomId,
     calculated?.total,
+    activeSegments.length,
   ]);
 
   const previewRemaining = useMemo(() => {
@@ -396,7 +403,7 @@ export function BookingDetailPage() {
         totalAmount: unformatMoneyInput(form.totalAmount),
       });
       setBooking(data);
-      const roomId = data.rooms[0]?.roomId ?? form.roomId;
+      const roomId = data.rooms?.[0]?.roomId ?? form.roomId;
       const adults = data.adults ?? form.adults;
       const children = data.children ?? form.children;
       const infants = data.infants ?? form.infants;
@@ -597,12 +604,12 @@ export function BookingDetailPage() {
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <Trans
             i18nKey="bookingDetail.onlineRequestWarning"
-            values={{ phone: booking.customer.phone }}
+            values={{ phone: booking.customer?.phone ?? '' }}
             components={{
               phoneLink: (
                 <a
                   className="font-medium underline"
-                  href={`tel:${booking.customer.phone}`}
+                  href={`tel:${booking.customer?.phone ?? ''}`}
                 />
               ),
             }}
@@ -618,7 +625,7 @@ export function BookingDetailPage() {
           <div className="grid gap-2 sm:grid-cols-2">
             {activeSegments.map((seg) => {
               const letter = segmentLetter(seg.segmentIndex ?? 0);
-              const nights = nightsBetween(
+              const nights = calendarNights(
                 seg.checkIn ?? booking!.checkIn,
                 seg.checkOut ?? booking!.checkOut,
               );
@@ -656,7 +663,8 @@ export function BookingDetailPage() {
               );
             })}
           </div>
-          {booking?.priceBreakdown?.lastAdjustment ? (
+          {booking?.priceBreakdown?.lastAdjustment &&
+          ADJUSTMENT_OPS.has(booking.priceBreakdown.lastAdjustment.operation) ? (
             <p className="mt-3 text-xs text-[var(--muted)]">
               {t('bookingDetail.lastAdjustment', {
                 operation: t(
@@ -797,7 +805,7 @@ export function BookingDetailPage() {
               </p>
             ) : null}
 
-            {calculated ? (
+            {calculated && !multiSegment ? (
               <div className="sm:col-span-2 rounded-md border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900">
                 {t('bookingDetail.livePrice', {
                   adults: calculated.adults,

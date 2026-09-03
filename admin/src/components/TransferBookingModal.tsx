@@ -5,10 +5,13 @@ import { getErrorMessage } from '../api/client';
 import type { AvailableRoom, Booking, Category } from '../api/types';
 import {
   calcAgeTotal,
+  calendarNights,
   formatDate,
   formatMoney,
-  nightsBetween,
+  formatMoneyInput,
   occupyingBeds,
+  todayIso,
+  unformatMoneyInput,
 } from '../lib/format';
 import { DateField } from './DateField';
 import { TimeField } from './TimeField';
@@ -18,8 +21,24 @@ function segmentLabel(index: number): string {
   return String.fromCharCode(65 + Math.min(index, 25));
 }
 
+function bookingRooms(booking: Booking) {
+  return Array.isArray(booking.rooms) ? booking.rooms : [];
+}
+
+function defaultTransferInstant(booking: Booking): { date: string; time: string } {
+  const start = (booking.checkIn || '').slice(0, 10);
+  const end = (booking.checkOut || '').slice(0, 10);
+  const today = todayIso();
+  const time = booking.checkInTime || '14:00';
+  // In-house guest: split at today so already-lived calendar days keep the old price.
+  if (start && end && today > start && today < end) {
+    return { date: today, time };
+  }
+  return { date: start || today, time };
+}
+
 function activeCoveringSegment(booking: Booking, transferDate: string, transferTime: string) {
-  const active = [...booking.rooms]
+  const active = [...bookingRooms(booking)]
     .filter((r) => r.isActive)
     .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
   if (active.length === 0) return null;
@@ -41,18 +60,12 @@ type Props = {
 
 export function TransferBookingModal({ booking, open, onClose, onDone }: Props) {
   const { t } = useTranslation();
-  const last = useMemo(() => {
-    const active = [...booking.rooms]
-      .filter((r) => r.isActive)
-      .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
-    return active[active.length - 1] ?? booking.rooms[0];
-  }, [booking]);
 
   const [transferDate, setTransferDate] = useState(
-    last?.checkIn ?? booking.checkIn,
+    () => defaultTransferInstant(booking).date,
   );
   const [transferTime, setTransferTime] = useState(
-    last?.checkInTime || booking.checkInTime || '14:00',
+    () => defaultTransferInstant(booking).time,
   );
   const [categoryCode, setCategoryCode] = useState('');
   const [roomId, setRoomId] = useState('');
@@ -66,15 +79,16 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
 
   useEffect(() => {
     if (!open) return;
-    setTransferDate(last?.checkIn ?? booking.checkIn);
-    setTransferTime(last?.checkInTime || booking.checkInTime || '14:00');
+    const at = defaultTransferInstant(booking);
+    setTransferDate(at.date);
+    setTransferTime(at.time);
     setCategoryCode('');
     setRoomId('');
     setSurcharge('');
     setNote('');
     setError('');
     void inventoryApi.categories().then((res) => setCategories(res.data));
-  }, [open, booking, last]);
+  }, [open, booking]);
 
   const covering = useMemo(
     () => activeCoveringSegment(booking, transferDate, transferTime),
@@ -141,19 +155,17 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
   const livedNights = useMemo(() => {
     if (!covering) return 0;
     const start = covering.checkIn ?? booking.checkIn;
-    if (transferDate === start.slice(0, 10) && transferTime === (covering.checkInTime || booking.checkInTime)) {
-      return 0;
-    }
-    return nightsBetween(start, transferDate);
-  }, [covering, booking, transferDate, transferTime]);
+    return calendarNights(start, transferDate);
+  }, [covering, booking, transferDate]);
 
   const remainingNights = useMemo(() => {
     if (!covering) return 0;
     const end = covering.checkOut ?? booking.checkOut;
-    if (livedNights === 0) {
-      return nightsBetween(covering.checkIn ?? booking.checkIn, end);
+    let remaining = calendarNights(transferDate, end);
+    if (livedNights === 0 && remaining === 0) {
+      remaining = calendarNights(covering.checkIn ?? booking.checkIn, end) || 1;
     }
-    return nightsBetween(transferDate, end);
+    return remaining;
   }, [covering, booking, transferDate, livedNights]);
 
   const counts = {
@@ -206,11 +218,16 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
     if (moneyPreview.sameCategory) {
       setSurcharge('0');
     } else if (surcharge === '' || surcharge === '0') {
-      setSurcharge(String(moneyPreview.suggested));
+      setSurcharge(formatMoneyInput(moneyPreview.suggested));
     }
     // Only seed when room/category changes — do not fight admin edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, moneyPreview?.sameCategory, moneyPreview?.suggested]);
+
+  const categoryOptions = useMemo(() => {
+    const codes = new Set(candidates.map((r) => r.categoryCode));
+    return categories.filter((c) => codes.has(c.code));
+  }, [candidates, categories]);
 
   if (!open) return null;
 
@@ -225,7 +242,7 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
         transferDate,
         transferTime,
         ...(moneyPreview && !moneyPreview.sameCategory
-          ? { surchargeAmount: Number(surcharge || 0) }
+          ? { surchargeAmount: Number(unformatMoneyInput(surcharge) || 0) }
           : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       });
@@ -234,7 +251,11 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
           ? t('bookingDetail.transferSuccessUpgrade', {
               surcharge: formatMoney(data.surchargeAmount),
             })
-          : t('bookingDetail.transferSuccessSame');
+          : data.operation === 'downgrade'
+            ? t('bookingDetail.transferSuccessDowngrade', {
+                surcharge: formatMoney(data.surchargeAmount),
+              })
+            : t('bookingDetail.transferSuccessSame');
       onDone(msg);
       onClose();
     } catch (err) {
@@ -243,11 +264,6 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
       setBusy(false);
     }
   }
-
-  const categoryOptions = useMemo(() => {
-    const codes = new Set(candidates.map((r) => r.categoryCode));
-    return categories.filter((c) => codes.has(c.code));
-  }, [candidates, categories]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-10">
@@ -344,7 +360,9 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
               <div className="font-medium">
                 {moneyPreview.sameCategory
                   ? t('bookingDetail.transferSameClass')
-                  : t('bookingDetail.transferUpgrade')}
+                  : moneyPreview.suggested < 0
+                    ? t('bookingDetail.transferDowngrade')
+                    : t('bookingDetail.transferUpgrade')}
               </div>
               <p className="mt-1 text-[var(--ink)]">
                 {t('bookingDetail.transferBreakdown', {
@@ -354,9 +372,18 @@ export function TransferBookingModal({ booking, open, onClose, onDone }: Props) 
                   newPrice: formatMoney(moneyPreview.newNightly),
                 })}
               </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {t('bookingDetail.transferNightsHint')}
+              </p>
               {!moneyPreview.sameCategory ? (
                 <div className="mt-2">
-                  <Field label={t('bookingDetail.transferSurchargeLabel')}>
+                  <Field
+                    label={
+                      moneyPreview.suggested < 0
+                        ? t('bookingDetail.transferDiscountLabel')
+                        : t('bookingDetail.transferSurchargeLabel')
+                    }
+                  >
                     <MoneyInput
                       value={surcharge}
                       onValueChange={(val) => setSurcharge(val)}

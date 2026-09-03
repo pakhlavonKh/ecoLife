@@ -39,7 +39,7 @@ export type PriceBreakdown = {
   total: string;
   /** Optional surcharge / extend delta from the last transfer/extend op. */
   lastAdjustment?: {
-    operation: 'upgrade' | 'transfer' | 'extend';
+    operation: 'upgrade' | 'transfer' | 'downgrade' | 'extend';
     amount: string;
     note?: string;
   };
@@ -98,7 +98,7 @@ export type BookingHoldExpiredPayload = BookingSnapshot;
 /** Transfer / upgrade / extend — Telegram + audit (TRANSFER.md §5, Phase 4). */
 export type BookingTransferredPayload = {
   booking: BookingSnapshot;
-  operation: 'upgrade' | 'transfer' | 'extend';
+  operation: 'upgrade' | 'transfer' | 'downgrade' | 'extend';
   /** Local wall clock `YYYY-MM-DD HH:mm` (split instant or extend-from). */
   transferAt: string;
   from: {

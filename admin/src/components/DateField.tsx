@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   displayToIsoDate,
+  isoDateOnly,
   isoToDisplayDate,
   maskDateInput,
 } from '../lib/format';
@@ -73,7 +74,8 @@ export function DateField({
     setText(masked);
     const iso = displayToIsoDate(masked);
     if (iso) {
-      if (min && iso < min) return;
+      const minDate = isoDateOnly(min);
+      if (minDate && iso < minDate) return;
       onChange(iso);
     } else if (masked.length === 0) {
       onChange('');
@@ -118,9 +120,10 @@ export function DateField({
           const iso = displayToIsoDate(text);
           if (iso) {
             setText(isoToDisplayDate(iso));
-            if (min && iso < min) {
-              onChange(min);
-              setText(isoToDisplayDate(min));
+            const minDate = isoDateOnly(min);
+            if (minDate && iso < minDate) {
+              onChange(minDate);
+              setText(isoToDisplayDate(minDate));
             } else {
               onChange(iso);
             }
@@ -148,8 +151,8 @@ export function DateField({
         ref={pickerRef}
         type="date"
         className="pointer-events-none absolute inset-0 opacity-0"
-        value={value || ''}
-        min={min || undefined}
+        value={isoDateOnly(value)}
+        min={isoDateOnly(min) || undefined}
         tabIndex={-1}
         aria-hidden="true"
         onChange={(e) => {

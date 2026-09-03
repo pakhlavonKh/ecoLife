@@ -252,7 +252,7 @@ export function BookingsPage() {
                   {formatDate(b.checkIn)} — {formatDate(b.checkOut)}
                 </td>
                 <td className="px-3 py-3">
-                  {b.rooms.map((r) => (
+                  {b.rooms?.map((r) => (
                     <div key={r.bookingRoomId}>
                       {t('bookings.roomWithCategory', {
                         number: r.number,

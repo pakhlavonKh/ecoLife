@@ -36,6 +36,28 @@ describe('transfer-math — split dates (TRANSFER Phase 2)', () => {
     expect(split.segmentB.nights).toBe(2);
   });
 
+  it('counts calendar days only — transfer hour does not add a night', () => {
+    const checkIn = t('2026-08-01', '14:00');
+    const checkOut = t('2026-08-05', '12:00');
+    const morning = splitStayAtTransfer(checkIn, checkOut, t('2026-08-02', '10:00'));
+    const evening = splitStayAtTransfer(checkIn, checkOut, t('2026-08-02', '18:00'));
+    // Lived 1 calendar day, 3 remaining — same at 10:00 and 18:00.
+    expect(morning.segmentA.nights).toBe(1);
+    expect(morning.segmentB.nights).toBe(3);
+    expect(evening.segmentA.nights).toBe(1);
+    expect(evening.segmentB.nights).toBe(3);
+  });
+
+  it('same calendar day as check-in is 0 lived nights (not a phantom day-use night)', () => {
+    const split = splitStayAtTransfer(
+      t('2026-08-01', '14:00'),
+      t('2026-08-05', '12:00'),
+      t('2026-08-01', '18:00'),
+    );
+    expect(split.segmentA.nights).toBe(0);
+    expect(split.segmentB.nights).toBe(4);
+  });
+
   it('rejects transfer_ts at/before check-in or at/after check-out', () => {
     const checkIn = t('2026-08-01', '14:00');
     const checkOut = t('2026-08-05', '12:00');
@@ -107,6 +129,24 @@ describe('transfer-math — surcharge with age pricing', () => {
     expect(money.operation).toBe('transfer');
     expect(money.appliedSurcharge.toFixed(2)).toBe('0.00');
     expect(money.totalAmount.toFixed(2)).toBe('6000000.00');
+  });
+
+  it('downgrade after 1 lived day: remaining nights at new price, by calendar days', () => {
+    // 1 adult: lux 800k, standart 600k; 1 night lived + 3 remaining.
+    const money = calcTransferMoney({
+      livedNights: 1,
+      remainingNights: 3,
+      counts: { adults: 1, children: 0, infants: 0 },
+      oldPrices: lux,
+      newPrices: standart,
+      sameCategory: false,
+    });
+    expect(money.operation).toBe('downgrade');
+    expect(money.livedAmount.toFixed(2)).toBe('800000.00');
+    expect(money.oldRemainingAmount.toFixed(2)).toBe('2400000.00');
+    expect(money.newRemainingAmount.toFixed(2)).toBe('1800000.00');
+    expect(money.suggestedSurcharge.toFixed(2)).toBe('-600000.00');
+    expect(money.totalAmount.toFixed(2)).toBe('2600000.00');
   });
 
   it('infants at 0 price do not inflate upgrade surcharge', () => {

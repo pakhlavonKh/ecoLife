@@ -626,6 +626,37 @@ describe('telegram.messages', () => {
       expect(text).not.toContain('Доплата:');
     });
 
+    it('formats downgrade with calendar-day recalculation (negative delta)', () => {
+      const text = formatTransferred(
+        {
+          ...sampleTransferPayload,
+          operation: 'downgrade',
+          surchargeAmount: '-600000.00',
+          from: {
+            ...sampleTransferPayload.from,
+            roomNumber: '201',
+            categoryCode: 'lux',
+          },
+          to: {
+            ...sampleTransferPayload.to,
+            roomNumber: '205',
+            categoryCode: 'standart',
+          },
+          priceBreakdown: {
+            version: 1,
+            segments: [],
+            total: '2600000.00',
+            lastAdjustment: { operation: 'downgrade', amount: '-600000.00' },
+          },
+        },
+        'full',
+        'ru',
+      );
+      expect(text).toContain('<b>Понижение категории</b>');
+      expect(text).toMatch(/Пересчёт: .*600.?000 UZS/);
+      expect(text).not.toContain('Без доплаты');
+    });
+
     it('formats extend with previous→new checkout and added cost', () => {
       const text = formatTransferred(
         {

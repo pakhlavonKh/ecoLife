@@ -182,6 +182,7 @@ function transferTitleKey(
   operation: BookingTransferredPayload['operation'],
 ): TelegramMessageKey {
   if (operation === 'upgrade') return 'events.upgrade';
+  if (operation === 'downgrade') return 'events.downgrade';
   if (operation === 'extend') return 'events.extend';
   return 'events.transfer';
 }
@@ -255,6 +256,10 @@ export function formatTransferred(
   if (Number.isFinite(surcharge) && surcharge > 0) {
     lines.push(
       `${tt(lang, 'events.surcharge')}: ${fmtMoney(payload.surchargeAmount, lang)}`,
+    );
+  } else if (Number.isFinite(surcharge) && surcharge < 0) {
+    lines.push(
+      `${tt(lang, 'events.discount')}: ${fmtMoney(payload.surchargeAmount, lang)}`,
     );
   } else {
     lines.push(tt(lang, 'events.noSurcharge'));

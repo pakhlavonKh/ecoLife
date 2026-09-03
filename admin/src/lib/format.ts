@@ -18,16 +18,22 @@ export function formatMoney(value: string | number | null | undefined): string {
 /** Format input fields with space grouping without currency suffix (e.g. "1200000.00" -> "1 200 000"). */
 export function formatMoneyInput(value: string | number | null | undefined): string {
   if (value == null || value === '') return '';
-  const digits = String(value).replace(/\s+/g, '').split('.')[0].replace(/\D/g, '');
-  if (!digits) return '';
-  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const raw = String(value).replace(/\s+/g, '');
+  const negative = raw.startsWith('-');
+  const digits = (raw.split('.')[0] ?? '').replace(/\D/g, '');
+  if (!digits) return negative ? '-' : '';
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return negative ? `-${grouped}` : grouped;
 }
 
 /** Convert formatted money input back to plain digits for API payload (e.g. "1 200 000" -> "1200000"). */
 export function unformatMoneyInput(value: string | number | null | undefined): string {
   if (value == null) return '';
-  const str = String(value).replace(/\s+/g, '').split('.')[0].replace(/\D/g, '');
-  return str;
+  const str = String(value).replace(/\s+/g, '');
+  const negative = str.startsWith('-');
+  const digits = str.split('.')[0].replace(/\D/g, '');
+  if (!digits) return '';
+  return negative ? `-${digits}` : digits;
 }
 
 /** Display dates as DD/MM/YYYY everywhere in the admin UI. */
@@ -55,16 +61,26 @@ export function addDaysIso(days: number, from = todayIso()): string {
 }
 
 /**
+ * Calendar nights between local dates. Times do not change the count.
+ * Same calendar day → 0 (unlike `nightsBetween`, which bills day-use as 1).
+ */
+export function calendarNights(checkIn: string, checkOut: string): number {
+  if (!checkIn || !checkOut) return 0;
+  const n = dayjs(checkOut.slice(0, 10)).diff(dayjs(checkIn.slice(0, 10)), 'day');
+  return n > 0 ? n : 0;
+}
+
+/**
  * Calendar nights between local dates (HOURLY.md §5).
  * Same-day day-use (dates equal, stay still valid) = 1 night.
  */
 export function nightsBetween(checkIn: string, checkOut: string): number {
   if (!checkIn || !checkOut) return 0;
+  const n = calendarNights(checkIn, checkOut);
+  if (n > 0) return n;
   const inDate = checkIn.slice(0, 10);
   const outDate = checkOut.slice(0, 10);
-  const n = dayjs(outDate).diff(dayjs(inDate), 'day');
-  if (n > 0) return n;
-  if (n === 0) return 1;
+  if (inDate === outDate) return 1;
   return 0;
 }
 
@@ -174,13 +190,22 @@ export function calcDeposit(total: number, depositPercent: number): number {
   return Math.round(((total * depositPercent) / 100) * 100) / 100;
 }
 
-/** YYYY-MM-DD → DD/MM/YYYY */
+/** YYYY-MM-DD (or ISO datetime prefix) → DD/MM/YYYY */
 export function isoToDisplayDate(iso: string | undefined | null): string {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
-  const [y, m, d] = iso.split('-');
-  const parsed = dayjs(iso);
-  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== iso) return '';
-  return `${d}/${m}/${y}`;
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
+  if (!m) return '';
+  const dateOnly = `${m[1]}-${m[2]}-${m[3]}`;
+  const parsed = dayjs(dateOnly);
+  if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== dateOnly) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Native <input type="date"> only accepts YYYY-MM-DD. */
+export function isoDateOnly(value: string | undefined | null): string {
+  if (!value) return '';
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
+  return m ? m[1] : '';
 }
 
 /** DD/MM/YYYY (or digits) → YYYY-MM-DD */

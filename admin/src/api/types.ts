@@ -55,7 +55,7 @@ export type PriceBreakdown = {
   segments: PriceBreakdownSegment[];
   total: string;
   lastAdjustment?: {
-    operation: 'upgrade' | 'transfer' | 'extend';
+    operation: 'upgrade' | 'transfer' | 'downgrade' | 'extend';
     amount: string;
     note?: string;
   };
@@ -122,7 +122,7 @@ export type Booking = {
 };
 
 export type TransferBookingResult = Booking & {
-  operation: 'upgrade' | 'transfer';
+  operation: 'upgrade' | 'transfer' | 'downgrade';
   surchargeAmount: string;
   suggestedSurcharge: string;
   livedNights: number;

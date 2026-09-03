@@ -23,7 +23,7 @@ type Props = {
 export function ExtendBookingModal({ booking, open, onClose, onDone }: Props) {
   const { t } = useTranslation();
   const last = useMemo(() => {
-    const active = [...booking.rooms]
+    const active = [...(Array.isArray(booking.rooms) ? booking.rooms : [])]
       .filter((r) => r.isActive)
       .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
     return active[active.length - 1] ?? booking.rooms[0];
